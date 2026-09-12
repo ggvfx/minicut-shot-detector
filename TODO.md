@@ -56,29 +56,30 @@ ourselves, so the detector is the only suspect.
   Measured on a real h265 mini cut: 674 frames in, 674 out, every frame a
   keyframe, 24s to encode 28s of footage.
 
-- [ ] **3.3 Shot extraction**
-  `ShotSplitter.extract()` / `extract_all()`. Stream copy each shot, assert the
-  written frame count equals the requested one.
-  **Done when:** cutting frames 100–149 yields a 50 frame file whose pixels are
-  identical to frames 100–149 of the mezzanine.
+- [x] **3.3 Shot extraction** *(15 tests)*
+  Stream copies each shot out of the mezzanine, carrying audio, and refuses to
+  return a shot whose written frame count is not the one requested.
+  Proven by pixel comparison, not frame counts alone: the hashes of a cut match
+  the hashes of the span it came from.
 
-- [ ] **3.4 Prove it on h265**
-  Repeat 3.2 and 3.3 against an h265 source. x265 takes its keyframe interval
-  differently and its all-intra encodes are slow, so this is proven rather than
-  assumed — and proven here, before anything else is built on top of it.
-  **Done when:** an h265 mini cut splits as exactly as an h264 one.
+- [x] **3.4 Prove it on h265**
+  Proven in tests on a generated clip and by hand on a real h265 mini cut:
+  674 frames in, four shots of 120 + 180 + 155 + 219 out, round trip passed.
+  Shots come back as hevc, pixel-identical to their span. h265 all-intra
+  encodes at roughly real time, against several times faster for h264.
 
-- [ ] **3.5 Round-trip validation**
-  `JobValidator.verify_round_trip()`: concat the shots back together and
-  frame-hash compare against the mezzanine.
-  **Done when:** a deliberately dropped or reordered shot fails the job, and a
-  correct set passes.
+- [x] **3.5 Round-trip validation** *(24 tests)*
+  Rejoins the shots and frame-hash compares against the mezzanine, naming the
+  first frame that differs. A dropped shot and a reordered set both fail;
+  reordering keeps every frame, so only a pixel comparison catches it.
+  Skipped when the arithmetic has already failed, since its failure would be a
+  consequence rather than a second finding.
 
-- [ ] **3.6 Sidecar**
-  `capture_environment()` and `write_sidecar()`. Shots with frames and
-  timecodes, the validation outcome, and the resolved ffmpeg build.
-  **Done when:** a completed job writes a sidecar that reads back correctly, and
-  a failed job still writes one saying why.
+- [x] **3.6 Sidecar** *(11 tests)*
+  Writes the shots, the validation outcome and the resolved environment — app
+  version, platform, ffmpeg and ffprobe builds, library versions, model
+  checksum. Written whether the job passed or failed, and proven to read back
+  into the model so the identifier tab has a valid entry point.
 
 - [ ] **3.7 Pipeline wiring**
   `SplitterPipeline.run()` joining probe → shots → mezzanine → splits →

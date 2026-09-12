@@ -12,11 +12,17 @@ Functions rather than a class — writing a single file shares no state between
 calls. Reading sidecars back is the identifier tab's job and is not built here.
 """
 
+import importlib.metadata
+import json
+import logging
 from pathlib import Path
 from typing import Dict
 
+from src.core import config
+from src.core.environment import platform_name
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import JobResult
+from src.core.utils import file_sha256
 
 # --- NAMING ---
 
@@ -43,12 +49,26 @@ def capture_environment(toolchain: MediaToolchain) -> Dict[str, str]:
         ffmpeg and ffprobe versions, onnxruntime and scenedetect versions, the
         model checksum, the app version and the platform.
     """
-    # PSEUDOCODE
-    # 1. Start from toolchain.versions().
-    # 2. Add the installed onnxruntime and scenedetect versions.
-    # 3. Add the model checksum from config, or the file's own hash.
-    # 4. Add the app version and platform string.
-    raise NotImplementedError
+    environment = {
+        "app": f"{config.APP_NAME} {config.APP_VERSION}",
+        "platform": platform_name(),
+        **toolchain.versions(),
+    }
+
+    for package in ("onnxruntime", "scenedetect"):
+        try:
+            environment[package] = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            # Recorded as absent rather than omitted: a sidecar that simply
+            # lacks the key cannot be told apart from an older format
+            environment[package] = "not installed"
+
+    if config.MODEL_PATH.is_file():
+        environment["model_sha256"] = file_sha256(config.MODEL_PATH)
+    else:
+        environment["model_sha256"] = "no model present"
+
+    return environment
 
 
 # --- WRITING ---
@@ -69,7 +89,12 @@ def write_sidecar(result: JobResult, output_path: Path) -> Path:
         Written whether validation passed or failed. A failed job's sidecar is
         the most useful thing to look at when working out why.
     """
-    # PSEUDOCODE
-    # 1. result.model_dump() for a plain dictionary (Pydantic v2).
-    # 2. json.dump with indent=2 and UTF-8 encoding.
-    raise NotImplementedError
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open("w", encoding="utf-8") as handle:
+        json.dump(result.model_dump(), handle, indent=2, ensure_ascii=False)
+
+    outcome = "passed" if result.validation.passed else "FAILED validation"
+    logging.info(f"Wrote sidecar for {len(result.shots)} shots ({outcome}): {output_path}")
+
+    return output_path

@@ -10,6 +10,14 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+# --- IDENTITY ---
+
+APP_NAME = "Minicut Shot Detector"
+
+# Recorded in every job sidecar. When a boundary looks wrong months later, the
+# first question is which version of this tool produced it.
+APP_VERSION = "0.1.0"
+
 # --- PROJECT PATHS ---
 
 # src/core/config.py -> repo root is two parents up

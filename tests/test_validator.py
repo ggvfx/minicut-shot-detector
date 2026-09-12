@@ -6,13 +6,19 @@ here are deliberately the broken ones: a list that sums wrong, has a hole in
 it, double-counts a frame, or does not reach the end of the source.
 """
 
+import pytest
+
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Shot, SourceInfo
+from src.media.mezzanine import MezzanineBuilder
+from src.media.probe import SourceProbe
+from src.media.splitter import ShotSplitter
 from src.validation.validator import (
     CHECK_BOUNDS,
     CHECK_FRAMES_SUM,
     CHECK_NO_GAPS,
     CHECK_NO_OVERLAPS,
+    CHECK_ROUND_TRIP,
     JobValidator,
 )
 
@@ -183,3 +189,151 @@ def test_shots_are_checked_in_frame_order_not_list_order():
     ]
 
     assert validator.validate_shot_list(out_of_order, source(100)).passed is True
+
+
+# --- HASH COMPARISON (pure logic) ---
+
+
+def test_identical_hashes_pass():
+    assert JobValidator._compare_frame_hashes(["a", "b", "c"], ["a", "b", "c"]) == (True, None)
+
+
+def test_a_missing_frame_is_reported_with_the_count():
+    """A dropped frame at a cut is exactly what this check exists to find."""
+    passed, failure = JobValidator._compare_frame_hashes(["a", "b", "c"], ["a", "b"])
+
+    assert passed is False
+    assert "2 frames" in failure and "1 fewer than" in failure
+
+
+def test_a_duplicated_frame_is_reported():
+    passed, failure = JobValidator._compare_frame_hashes(["a", "b"], ["a", "a", "b"])
+
+    assert passed is False
+    assert "more than" in failure
+
+
+def test_the_first_differing_frame_is_named():
+    """
+    The frame number points straight at the split that went wrong.
+
+    "Something differs" would leave you bisecting a hundred shots by hand.
+    """
+    passed, failure = JobValidator._compare_frame_hashes(["a", "b", "c"], ["a", "x", "c"])
+
+    assert passed is False
+    assert "Frame 1 differs" in failure
+
+
+# --- ROUND TRIP (needs ffmpeg) ---
+
+
+@pytest.fixture
+def split_job(toolchain, clips, tmp_path):
+    """A real mezzanine split into three shots, ready to be rejoined."""
+    probed = SourceProbe(toolchain).probe(clips["pal"])
+    mezzanine = MezzanineBuilder(toolchain).build(probed, tmp_path / "mezz.mov")
+    splitter = ShotSplitter(toolchain, mezzanine, probed, tmp_path / "shots")
+
+    shots = splitter.extract_all([
+        Shot(index=1, start_frame=0, end_frame=19),
+        Shot(index=2, start_frame=20, end_frame=34),
+        Shot(index=3, start_frame=35, end_frame=49),
+    ])
+
+    return probed, mezzanine, shots
+
+
+def test_a_correct_split_survives_the_round_trip(toolchain, split_job, tmp_path):
+    """
+    Rejoining the shots gives back the mezzanine, frame for frame.
+
+    This is the strongest check in the project: it proves the pixels, where
+    every other check only proves the numbers.
+    """
+    probed, mezzanine, shots = split_job
+
+    passed, failure = JobValidator(toolchain).verify_round_trip(
+        mezzanine, shots, tmp_path / "work"
+    )
+
+    assert passed is True, failure
+
+
+def test_a_dropped_shot_fails_the_round_trip(toolchain, split_job, tmp_path):
+    """Losing a shot is caught even though the remaining files are all valid."""
+    probed, mezzanine, shots = split_job
+
+    passed, failure = JobValidator(toolchain).verify_round_trip(
+        mezzanine, shots[:2], tmp_path / "work"
+    )
+
+    assert passed is False
+    assert "fewer than" in failure
+
+
+def test_shots_in_the_wrong_order_fail_the_round_trip(toolchain, split_job, tmp_path):
+    """
+    Reordering keeps every frame but ruins every clip.
+
+    The frame count still matches, so only a pixel comparison can catch it.
+    """
+    probed, mezzanine, shots = split_job
+    swapped = [shots[1], shots[0], shots[2]]
+    for index, shot in enumerate(swapped, start=1):
+        shot.index = index
+
+    passed, failure = JobValidator(toolchain).verify_round_trip(
+        mezzanine, swapped, tmp_path / "work"
+    )
+
+    assert passed is False
+    assert "differs" in failure
+
+
+def test_the_work_directory_is_left_clean(toolchain, split_job, tmp_path):
+    """Scratch files are removed whether the check passed or failed."""
+    probed, mezzanine, shots = split_job
+    work_dir = tmp_path / "work"
+
+    JobValidator(toolchain).verify_round_trip(mezzanine, shots, work_dir)
+
+    assert list(work_dir.iterdir()) == []
+
+
+def test_a_shot_with_no_file_is_refused(toolchain, tmp_path):
+    """Rejoining shots that were never written is a bug, not a failed check."""
+    with pytest.raises(ValueError, match="no file"):
+        JobValidator(toolchain)._build_concat_list(
+            [Shot(index=1, start_frame=0, end_frame=9)], tmp_path / "concat.txt"
+        )
+
+
+# --- FULL JOB VALIDATION ---
+
+
+def test_validate_job_runs_both_kinds_of_check(toolchain, split_job, tmp_path):
+    probed, mezzanine, shots = split_job
+
+    result = JobValidator(toolchain).validate_job(shots, probed, mezzanine, tmp_path / "work")
+
+    assert result.passed is True
+    assert result.checks[CHECK_ROUND_TRIP] is True
+    assert len(result.checks) == 5
+
+
+def test_validate_job_skips_the_round_trip_when_the_numbers_are_wrong(toolchain, split_job, tmp_path):
+    """
+    The expensive check is not run to confirm a problem already found.
+
+    Its failure would be a consequence of the first one rather than a second
+    finding, and would read as two unrelated faults.
+    """
+    probed, mezzanine, shots = split_job
+    short = shots[:2]  # no longer covers the source
+
+    result = JobValidator(toolchain).validate_job(short, probed, mezzanine, tmp_path / "work")
+
+    assert result.passed is False
+    assert result.checks[CHECK_ROUND_TRIP] is False
+    assert any("not attempted" in failure for failure in result.failures)

@@ -26,6 +26,14 @@ from typing import List, Optional, Tuple
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Shot, SourceInfo, ValidationResult
+from src.core.utils import ensure_directory
+
+# --- TIMEOUTS ---
+
+# Both are stream operations rather than encodes, but a feature-length source
+# on a slow disk still needs room.
+CONCAT_TIMEOUT = 1800.0
+HASH_TIMEOUT = 1800.0
 
 # --- CHECK NAMES ---
 
@@ -101,13 +109,29 @@ class JobValidator:
 
         Returns:
             One combined ValidationResult covering both kinds of check.
+
+        Notes:
+            The round trip is skipped when the arithmetic has already failed.
+            Its failure would be a consequence of the first problem rather than
+            a second finding, and it is the expensive check of the two.
         """
-        # PSEUDOCODE
-        # 1. result = validate_shot_list(shots, source).
-        # 2. Skip the round trip if the arithmetic already failed — its failure
-        #    would just be a confusing consequence of the first one.
-        # 3. Otherwise run verify_round_trip() and fold the outcome in.
-        raise NotImplementedError
+        result = self.validate_shot_list(shots, source)
+
+        if not result.passed:
+            result.checks[CHECK_ROUND_TRIP] = False
+            result.failures.append(
+                "Round trip not attempted: the shot list itself does not add up"
+            )
+            return result
+
+        passed, failure = self.verify_round_trip(mezzanine_path, shots, work_dir)
+
+        result.checks[CHECK_ROUND_TRIP] = passed
+        if not passed:
+            result.passed = False
+            result.failures.append(failure)
+
+        return result
 
     # --- INTEGRITY CHECKS ---
 
@@ -212,46 +236,111 @@ class JobValidator:
         Returns:
             (passed, failure description or None).
         """
-        # PSEUDOCODE
-        # 1. _build_concat_list() then _concat_shots() into work_dir.
-        # 2. _frame_hashes() for the mezzanine and for the rejoined file.
-        # 3. _compare_frame_hashes(), then clean up the temporary files.
-        raise NotImplementedError
+        work_dir = ensure_directory(work_dir)
+        list_path = work_dir / "concat.txt"
+        rejoined_path = work_dir / f"rejoined{mezzanine_path.suffix}"
+
+        try:
+            self._build_concat_list(shots, list_path)
+            self._concat_shots(list_path, rejoined_path)
+
+            expected = self._frame_hashes(mezzanine_path)
+            actual = self._frame_hashes(rejoined_path)
+
+            return self._compare_frame_hashes(expected, actual)
+
+        finally:
+            # Scratch files, removed whether or not the check passed
+            for path in (list_path, rejoined_path):
+                path.unlink(missing_ok=True)
 
     def _build_concat_list(self, shots: List[Shot], list_path: Path) -> Path:
         """
         Writes the ffmpeg concat demuxer list file.
 
+        Raises:
+            ValueError: If a shot has no file recorded, which means it was
+                never written and there is nothing to rejoin.
+
         Notes:
-            Paths are written in shot index order and quoted — the concat
-            demuxer treats unquoted spaces as argument breaks.
+            Written in shot index order and quoted, because the concat demuxer
+            treats unquoted spaces as argument breaks. Paths use forward
+            slashes: the demuxer treats a backslash as an escape character even
+            on Windows.
         """
-        # PSEUDOCODE
-        # 1. Sort shots by index.
-        # 2. Write one "file '<absolute path>'" line per shot.
-        raise NotImplementedError
+        lines = []
+        for shot in sorted(shots, key=lambda shot: shot.index):
+            if not shot.file:
+                raise ValueError(f"Shot {shot.index} has no file to rejoin")
+            lines.append(f"file '{Path(shot.file).resolve().as_posix()}'")
+
+        list_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return list_path
 
     def _concat_shots(self, list_path: Path, output_path: Path) -> Path:
-        """Joins the shots back into a single file with a stream copy."""
-        # PSEUDOCODE
-        # 1. run ffmpeg: -f concat -safe 0 -i <list> -c copy <output>
-        raise NotImplementedError
+        """
+        Joins the shots back into a single file with a stream copy.
+
+        Raises:
+            RuntimeError: If ffmpeg cannot rejoin them, which is itself a
+                finding — shots that will not concatenate are not a clean split.
+        """
+        result = self.toolchain.run_ffmpeg(
+            [
+                "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(list_path),
+                "-map", "0:v:0",
+                "-c", "copy",
+                str(output_path),
+            ],
+            timeout=CONCAT_TIMEOUT,
+        )
+
+        if result.returncode != 0:
+            reason = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "no output"
+            raise RuntimeError(f"Could not rejoin the shots: {reason}")
+
+        return output_path
 
     def _frame_hashes(self, video_path: Path) -> List[str]:
         """
-        Per-frame checksums for a video, in order.
+        Per-frame checksums of the decoded picture, in order.
 
         Notes:
             Uses ffmpeg's framemd5 muxer rather than decoding in Python — far
-            faster, and a stable hash of the decoded pixels, so an identical
-            picture always hashes identically.
-        """
-        # PSEUDOCODE
-        # 1. run ffmpeg: -i <video> -f framemd5 -
-        # 2. Skip comment lines, take the hash column from each remaining row.
-        raise NotImplementedError
+            faster, and a hash of the decoded pixels, so an identical picture
+            always hashes identically whatever the container did.
 
-    def _compare_frame_hashes(self, expected: List[str], actual: List[str]) -> Tuple[bool, Optional[str]]:
+            Video only. Audio is cut on packet boundaries rather than frames,
+            so hashing it would report a difference on every correct job.
+        """
+        result = self.toolchain.run_ffmpeg(
+            [
+                "-i", str(video_path),
+                "-map", "0:v:0",
+                "-an",
+                "-c:v", "rawvideo",
+                "-f", "framemd5",
+                "-",
+            ],
+            timeout=HASH_TIMEOUT,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(f"Could not hash the frames of {video_path.name}")
+
+        return [
+            line.split(",")[-1].strip()
+            for line in result.stdout.splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+
+    @staticmethod
+    def _compare_frame_hashes(
+        expected: List[str], actual: List[str]
+    ) -> Tuple[bool, Optional[str]]:
         """
         Compares two hash lists and reports the first divergence.
 
@@ -260,8 +349,20 @@ class JobValidator:
             the first differing frame — that number points straight at the split
             that went wrong.
         """
-        # PSEUDOCODE
-        # 1. Compare lengths first; a difference means a dropped or duplicated
-        #    frame, so report the count difference.
-        # 2. Walk both lists and return the first index that differs.
-        raise NotImplementedError
+        if len(expected) != len(actual):
+            difference = len(actual) - len(expected)
+            wording = "more than" if difference > 0 else "fewer than"
+            return False, (
+                f"Rejoining the shots gives {len(actual)} frames, "
+                f"{abs(difference)} {wording} the mezzanine's {len(expected)} — "
+                f"frames were dropped or duplicated at a cut"
+            )
+
+        for index, (left, right) in enumerate(zip(expected, actual)):
+            if left != right:
+                return False, (
+                    f"Frame {index} differs between the mezzanine and the rejoined "
+                    f"shots, so a cut near it landed on the wrong frames"
+                )
+
+        return True, None

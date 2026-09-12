@@ -8,12 +8,25 @@ and landing exactly on the requested frame. Cutting the original source
 directly would silently snap to the nearest keyframe instead.
 """
 
+import logging
 from pathlib import Path
 from typing import List
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Shot, SourceInfo
 from src.core.timecode import Timecode
+from src.core.utils import ensure_directory
+from src.media.probe import SourceProbe
+
+# --- STREAMS ---
+
+# The first video stream and any audio, copied rather than re-encoded. The "?"
+# makes audio optional, so a silent source is not an error.
+COPY_ARGUMENTS = ["-map", "0:v:0", "-map", "0:a?", "-c", "copy"]
+
+# Cutting is a stream copy and therefore fast, but a long shot on a slow disk
+# should still not be abandoned early.
+EXTRACT_TIMEOUT = 600.0
 
 # --- NAMING ---
 
@@ -95,12 +108,51 @@ class ShotSplitter:
             Fractions, never floats, and the duration covers frame_count frames
             — not (end - start), which would drop the last frame.
         """
-        # PSEUDOCODE
-        # 1. start = timecode.frame_to_seconds(shot.start_frame)
-        # 2. duration = timecode.frame_to_seconds(shot.frame_count)
-        # 3. run ffmpeg: -ss <start> -i <mezzanine> -t <duration> -c copy <output>
-        # 4. Probe the result and assert its frame count equals shot.frame_count.
-        raise NotImplementedError
+        output_path = ensure_directory(self.output_dir) / self.filename_for(shot)
+
+        start = self.timecode.frame_to_seconds(shot.start_frame)
+
+        # The duration covers frame_count frames, not (end - start), which
+        # would be one frame short every single time
+        duration = self.timecode.frame_to_seconds(shot.frame_count)
+
+        result = self.toolchain.run_ffmpeg(
+            [
+                "-y",
+                # -ss goes before -i so ffmpeg seeks rather than decoding and
+                # discarding everything up to the cut
+                "-ss", Timecode.format_seconds(start),
+                "-i", str(self.mezzanine_path),
+                "-t", Timecode.format_seconds(duration),
+                *COPY_ARGUMENTS,
+                str(output_path),
+            ],
+            timeout=EXTRACT_TIMEOUT,
+        )
+
+        if result.returncode != 0:
+            reason = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "no output"
+            raise RuntimeError(f"Could not cut shot {shot.index}: {reason}")
+
+        self._verify_length(shot, output_path)
+        return output_path
+
+    def _verify_length(self, shot: Shot, output_path: Path) -> None:
+        """
+        Confirms a written shot has exactly the frames it was asked for.
+
+        Raises:
+            RuntimeError: On any difference. A shot a frame out looks fine in a
+                thumbnail and is wrong in every use of the clip, so it fails
+                here rather than travelling downstream.
+        """
+        written = SourceProbe(self.toolchain).probe(output_path).frame_count
+
+        if written != shot.frame_count:
+            raise RuntimeError(
+                f"Shot {shot.index} should be {shot.frame_count} frames "
+                f"(frames {shot.start_frame}-{shot.end_frame}) but {written} were written"
+            )
 
     def extract_all(self, shots: List[Shot]) -> List[Shot]:
         """
@@ -116,8 +168,8 @@ class ShotSplitter:
             RuntimeError: On the first shot that fails. A partial set of splits
                 is worse than none, because the gap is easy to miss.
         """
-        # PSEUDOCODE
-        # 1. ensure_directory(self.output_dir).
-        # 2. For each shot: extract(), then set shot.file.
-        # 3. Return the updated list.
-        raise NotImplementedError
+        for shot in shots:
+            shot.file = str(self.extract(shot))
+            logging.info(f"Wrote shot {shot.index} of {len(shots)}: {Path(shot.file).name}")
+
+        return shots
