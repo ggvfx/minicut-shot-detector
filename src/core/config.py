@@ -8,7 +8,7 @@ Designed to be serializable so the UI can save and restore a job setup.
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # --- IDENTITY ---
 
@@ -87,21 +87,25 @@ class ProjectConfig(BaseModel):
     # Path Persistence
     source_path: Optional[str] = None      # The mini cut to split
     output_dir: str = "outputs"            # Mezzanine, shot files and sidecar land here
-    last_directory: str = ""               # Where the path picker reopens
 
-    # Detection Logic
-    transnet_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-    # Shots shorter than this are merged into a neighbour. This is the
-    # flash-frame filter, and flashes are the main source of false positives.
-    min_shot_length_frames: int = Field(default=7, ge=1)
-    # The second detector exists so that disagreement can flag a boundary for
-    # review. Leaving it on is what makes an unattended run safe.
-    run_cross_check: bool = True
+    # Detection settings arrive with detection, in Phase 4. Holding a threshold
+    # here that nothing reads, while the detector carries its own default,
+    # would be two places claiming the same fact.
 
     # Mezzanine & Cutting
     # The encoder is not a setting: it follows the source codec, because shots
     # come out in the format they went in as.
-    keep_mezzanine: bool = True            # Allows re-cutting without re-encoding again
+    #
+    # Nor is keeping the mezzanine: a job that passes deletes it, and a job
+    # that fails keeps it, because a failure is exactly when the intermediate
+    # is worth having.
+
+    # Validation
+    # Rejoin every shot and compare every frame, rather than comparing the
+    # frames either side of each cut. Both catch the failures a stream copy can
+    # actually produce; the full version also takes several times longer and
+    # needs room for a second copy of the mezzanine.
+    full_round_trip: bool = False
 
     # Masking is deliberately absent: detected letterboxing is reported, never
     # applied, so there is nothing for the user to override.

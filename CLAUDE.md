@@ -70,6 +70,17 @@ These are settled decisions. Do not revisit them without asking.
    partial groups at each end) is the only way to avoid that generation, and is
    deliberately out of scope.
 3. **The validation stage ships with v1.** It is not a later addition. See below.
+
+   *Revised after measuring:* there are two pixel checks, not one. The default
+   compares the first and last frame of every shot against the mezzanine; the
+   optional full round trip rejoins every shot and compares every frame.
+
+   Both catch what a stream copy can actually get wrong — a shot starting or
+   ending a frame out, a file holding the wrong content, a shot missing — because
+   the pixels inside a stream-copied shot cannot change. Measured on a 3.4 minute
+   mini cut of 17 shots: 5.9s against 34s, and the round trip writes a second
+   copy of the mezzanine (893 MB) while it runs. The full check stays available
+   for a final pass before a delivery.
 4. **The splitter is deterministic.** No LLM, no agent, no adaptive thresholds in
    the detection path. Identical input must produce byte-identical boundaries on
    every run. Judgment work belongs in the identifier tab.
@@ -142,8 +153,16 @@ belong to the identifier tab.
 ### 4. Validate
 
 - Assert shot durations sum to total duration, zero gaps, zero overlaps.
-- Concat splits back together, frame-hash compare against the mezzanine. Catches
-  dropped or duplicated frames.
+- Frame-hash the first and last frame of every shot against the mezzanine. This
+  is the default: every failure a stream copy can produce moves a boundary frame.
+- Optionally concat the splits back together and frame-hash the whole thing.
+  It decodes the job twice and needs room for a second mezzanine, so it is a
+  checkbox rather than the default.
+
+  Any timing quoted here is from one machine and one source; keep measurements
+  in this file, where the context is stated, and out of the UI.
+- The mezzanine is deleted when a job passes and kept when it fails, because a
+  failure is when the intermediate is worth having.
 - Any failure blocks the job and surfaces in the UI. Do not warn-and-continue.
 
 ---

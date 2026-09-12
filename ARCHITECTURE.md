@@ -71,9 +71,14 @@ are. Verified by hand — 30 frames requested out of an all-intra mezzanine give
 
 - **Integrity:** durations sum to the source, no gaps, no overlaps, correct
   bounds. Proves the numbers add up.
-- **Round trip:** concatenates the splits back together and frame-hash compares
-  against the mezzanine. Proves the pixels add up — catching dropped,
-  duplicated or misordered frames that no thumbnail would reveal.
+- **Boundary frames (default):** hashes the first and last frame of every shot
+  against the mezzanine. Proves the pixels add up where it matters — shots are
+  stream copies, so their interiors cannot change and every realistic failure
+  moves an edge frame.
+- **Full round trip (optional):** rejoins every shot and compares every frame.
+  It decodes the whole job twice and writes a second copy of the mezzanine, so
+  it is offered as a checkbox for a final pass before a delivery rather than as
+  the default. CLAUDE.md records what that cost measured on one real mini cut.
 
 Any failure blocks the job and surfaces in the UI. This stage never
 warns-and-continues, and it ships with v1.

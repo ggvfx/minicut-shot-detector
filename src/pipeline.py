@@ -79,7 +79,7 @@ class SplitterPipeline:
         """Stage 2. Finds boundaries and turns them into a shot list."""
         # PSEUDOCODE
         # 1. TransNetDetector(...).detect() for the primary pass.
-        # 2. SceneDetectCrossCheck().detect() when config.run_cross_check.
+        # 2. SceneDetectCrossCheck().detect() for the cross-check pass.
         # 3. reconcile: merge_detections -> apply_minimum_length -> boundaries_to_shots.
         # 4. JobValidator.validate_shot_list() here already — a broken list
         #    should stop the job before an hour of transcoding, not after.
@@ -93,9 +93,10 @@ class SplitterPipeline:
         raise NotImplementedError
 
     def _validate(self, source, shots, mezzanine_path):
-        """Stage 4. Arithmetic and round-trip checks on what was written."""
+        """Stage 4. Arithmetic and a pixel check on what was written."""
         # PSEUDOCODE
-        # 1. JobValidator(toolchain).validate_job().
+        # 1. JobValidator(toolchain).validate_job(
+        #        full_round_trip=self.config.full_round_trip)
         # 2. A failure blocks the job and surfaces in the UI — never
         #    warn-and-continue.
         raise NotImplementedError
@@ -105,5 +106,7 @@ class SplitterPipeline:
         # PSEUDOCODE
         # 1. sidecar.capture_environment(self.toolchain).
         # 2. Assemble the JobResult and sidecar.write_sidecar(), pass or fail.
-        # 3. Remove the mezzanine unless config.keep_mezzanine.
+        # 3. Delete the mezzanine when validation passed, keep it when it
+        #    failed — a failure is exactly when the intermediate is worth
+        #    having to work out what went wrong.
         raise NotImplementedError

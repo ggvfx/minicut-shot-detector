@@ -142,9 +142,11 @@ shot is a lossless stream copy out of it.
 * **Integer Frames Throughout:** Frame numbers are integers everywhere and
   timecode is derived only at output. Frame rates are held as exact rationals
   (24000/1001), never as rounded floats that drift a frame over a long edit.
-* **Round-Trip Verification:** Concatenates the written shots and compares
-  per-frame hashes against the mezzanine. Any failure blocks the job — the
-  validation stage never warns and continues.
+* **Pixel-Level Verification:** Frame-hashes the first and last frame of every
+  shot against the mezzanine, so a shot cut from the wrong place cannot pass a
+  frame count. A full round trip — rejoin everything and compare every frame —
+  is available for a final pass. Any failure blocks the job; the validation
+  stage never warns and continues.
 * **Flash-Frame Filtering:** A minimum shot length merges the sub-threshold
   shots that camera flashes produce, and every merge is logged on the shot
   rather than silently applied.

@@ -1,9 +1,13 @@
 """
-Tests for the Shot List Integrity Checks.
+Tests for Job Validation.
 
-These are the cheap checks that run before an hour of transcoding, so the cases
-here are deliberately the broken ones: a list that sums wrong, has a hole in
-it, double-counts a frame, or does not reach the end of the source.
+Two kinds of check live here. The arithmetic ones run before any transcoding,
+so their cases are deliberately the broken lists: one that sums wrong, has a
+hole in it, double-counts a frame, or stops short of the end.
+
+The pixel ones run after cutting, and their cases are the failures no frame
+count can see: a shot taken from the wrong place, or a file holding another
+shot's content.
 """
 
 import pytest
@@ -14,6 +18,7 @@ from src.media.mezzanine import MezzanineBuilder
 from src.media.probe import SourceProbe
 from src.media.splitter import ShotSplitter
 from src.validation.validator import (
+    CHECK_BOUNDARY_FRAMES,
     CHECK_BOUNDS,
     CHECK_FRAMES_SUM,
     CHECK_NO_GAPS,
@@ -309,20 +314,105 @@ def test_a_shot_with_no_file_is_refused(toolchain, tmp_path):
         )
 
 
+# --- BOUNDARY FRAMES (the default pixel check) ---
+
+
+def test_a_correct_split_passes_the_boundary_check(toolchain, split_job):
+    probed, mezzanine, shots = split_job
+
+    passed, failure = JobValidator(toolchain).verify_boundary_frames(mezzanine, shots, probed)
+
+    assert passed is True, failure
+
+
+def test_boundary_check_catches_a_shot_cut_from_the_wrong_place(toolchain, split_job, tmp_path):
+    """
+    A shot of the right length taken from the wrong frames is the failure this
+    exists to catch, and the one no frame count can see.
+    """
+    probed, mezzanine, shots = split_job
+
+    # Same length as shot 2, but lifted from five frames earlier
+    wrong = ShotSplitter(toolchain, mezzanine, probed, tmp_path / "wrong").extract(
+        Shot(index=2, start_frame=15, end_frame=29)
+    )
+    shots[1].file = str(wrong)
+
+    passed, failure = JobValidator(toolchain).verify_boundary_frames(mezzanine, shots, probed)
+
+    assert passed is False
+    assert "shot 2" in failure
+
+
+def test_boundary_check_catches_shots_holding_the_wrong_content(toolchain, split_job):
+    """
+    Two shots whose files are swapped: each claims a frame range its file does
+    not contain.
+
+    This is what "shots in the wrong order" means in practice — the frame
+    counts are all correct and every file is valid, so nothing but a pixel
+    comparison notices.
+    """
+    probed, mezzanine, shots = split_job
+    shots[0].file, shots[1].file = shots[1].file, shots[0].file
+
+    passed, failure = JobValidator(toolchain).verify_boundary_frames(mezzanine, shots, probed)
+
+    assert passed is False
+    assert "shot 1" in failure
+
+
+def test_boundary_check_is_much_cheaper_than_the_round_trip(toolchain, split_job, tmp_path):
+    """
+    Both checks agree on a correct job; the boundary check just does far less
+    work. This asserts the agreement — the speed difference is measured in
+    the notes on `verify_boundary_frames`, not here, because timings in a test
+    suite are flaky.
+    """
+    probed, mezzanine, shots = split_job
+    validator = JobValidator(toolchain)
+
+    boundary_passed, _ = validator.verify_boundary_frames(mezzanine, shots, probed)
+    round_trip_passed, _ = validator.verify_round_trip(mezzanine, shots, tmp_path / "work")
+
+    assert boundary_passed == round_trip_passed is True
+
+
+def test_boundary_check_refuses_a_shot_with_no_file(toolchain, split_job):
+    probed, mezzanine, shots = split_job
+    shots[0].file = None
+
+    with pytest.raises(ValueError, match="no file"):
+        JobValidator(toolchain).verify_boundary_frames(mezzanine, shots, probed)
+
+
 # --- FULL JOB VALIDATION ---
 
 
-def test_validate_job_runs_both_kinds_of_check(toolchain, split_job, tmp_path):
+def test_validate_job_checks_boundaries_by_default(toolchain, split_job, tmp_path):
+    """The default is the cheap pixel check, and the sidecar records which ran."""
     probed, mezzanine, shots = split_job
 
     result = JobValidator(toolchain).validate_job(shots, probed, mezzanine, tmp_path / "work")
 
     assert result.passed is True
+    assert result.checks[CHECK_BOUNDARY_FRAMES] is True
+    assert CHECK_ROUND_TRIP not in result.checks, "the expensive check was not asked for"
+
+
+def test_validate_job_runs_the_round_trip_when_asked(toolchain, split_job, tmp_path):
+    probed, mezzanine, shots = split_job
+
+    result = JobValidator(toolchain).validate_job(
+        shots, probed, mezzanine, tmp_path / "work", full_round_trip=True
+    )
+
+    assert result.passed is True
     assert result.checks[CHECK_ROUND_TRIP] is True
-    assert len(result.checks) == 5
+    assert CHECK_BOUNDARY_FRAMES not in result.checks
 
 
-def test_validate_job_skips_the_round_trip_when_the_numbers_are_wrong(toolchain, split_job, tmp_path):
+def test_validate_job_skips_the_pixel_check_when_the_numbers_are_wrong(toolchain, split_job, tmp_path):
     """
     The expensive check is not run to confirm a problem already found.
 
@@ -335,5 +425,5 @@ def test_validate_job_skips_the_round_trip_when_the_numbers_are_wrong(toolchain,
     result = JobValidator(toolchain).validate_job(short, probed, mezzanine, tmp_path / "work")
 
     assert result.passed is False
-    assert result.checks[CHECK_ROUND_TRIP] is False
+    assert result.checks[CHECK_BOUNDARY_FRAMES] is False
     assert any("not attempted" in failure for failure in result.failures)

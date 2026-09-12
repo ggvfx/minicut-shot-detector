@@ -89,6 +89,15 @@ ourselves, so the detector is the only suspect.
 - [ ] **3.8 Manual boundary entry in the UI**
   `POST /api/split`, plus a panel to type boundaries as frame numbers or
   timecodes, and a table of what was written with the validation result.
+
+  Include a **"Full round-trip verification"** checkbox, off by default, with a
+  tooltip on hover along these lines:
+
+  > Shots are checked by comparing the frames either side of every cut against
+  > the source. Tick this to rejoin every shot and compare every frame instead:
+  > a stricter check that takes considerably longer and needs free space for a
+  > second copy of the source while it runs.
+
   **Done when:** you can split a real mini cut by hand, end to end, in the
   browser.
 

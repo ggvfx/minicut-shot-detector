@@ -26,6 +26,7 @@ from typing import List, Optional, Tuple
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Shot, SourceInfo, ValidationResult
+from src.core.timecode import Timecode
 from src.core.utils import ensure_directory
 
 # --- TIMEOUTS ---
@@ -35,6 +36,9 @@ from src.core.utils import ensure_directory
 CONCAT_TIMEOUT = 1800.0
 HASH_TIMEOUT = 1800.0
 
+# One frame after a seek, so this is quick unless something is badly wrong.
+FRAME_HASH_TIMEOUT = 120.0
+
 # --- CHECK NAMES ---
 
 # Stable keys, recorded in the sidecar's validation block.
@@ -42,6 +46,7 @@ CHECK_FRAMES_SUM = "frames_sum"
 CHECK_NO_GAPS = "no_gaps"
 CHECK_NO_OVERLAPS = "no_overlaps"
 CHECK_BOUNDS = "bounds"
+CHECK_BOUNDARY_FRAMES = "boundary_frames"
 CHECK_ROUND_TRIP = "round_trip"
 
 # The arithmetic checks, which run without touching a single video file.
@@ -102,36 +107,129 @@ class JobValidator:
         )
 
     def validate_job(
-        self, shots: List[Shot], source: SourceInfo, mezzanine_path: Path, work_dir: Path
+        self,
+        shots: List[Shot],
+        source: SourceInfo,
+        mezzanine_path: Path,
+        work_dir: Path,
+        full_round_trip: bool = False,
     ) -> ValidationResult:
         """
-        Full validation after cutting: arithmetic plus the round trip.
+        Full validation after cutting: the arithmetic, then a pixel check.
+
+        Args:
+            full_round_trip: Rejoin every shot and compare every frame, rather
+                than comparing the frames either side of each cut. Far slower
+                and needs room for a second copy of the mezzanine; see
+                `verify_boundary_frames` for why the default is enough.
 
         Returns:
-            One combined ValidationResult covering both kinds of check.
+            One combined ValidationResult. The check names record which pixel
+            check ran, so a sidecar says how thoroughly a job was verified.
 
         Notes:
-            The round trip is skipped when the arithmetic has already failed.
+            The pixel check is skipped when the arithmetic has already failed.
             Its failure would be a consequence of the first problem rather than
             a second finding, and it is the expensive check of the two.
         """
         result = self.validate_shot_list(shots, source)
+        check_name = CHECK_ROUND_TRIP if full_round_trip else CHECK_BOUNDARY_FRAMES
 
         if not result.passed:
-            result.checks[CHECK_ROUND_TRIP] = False
+            result.checks[check_name] = False
             result.failures.append(
-                "Round trip not attempted: the shot list itself does not add up"
+                "Pixel check not attempted: the shot list itself does not add up"
             )
             return result
 
-        passed, failure = self.verify_round_trip(mezzanine_path, shots, work_dir)
+        if full_round_trip:
+            passed, failure = self.verify_round_trip(mezzanine_path, shots, work_dir)
+        else:
+            passed, failure = self.verify_boundary_frames(mezzanine_path, shots, source)
 
-        result.checks[CHECK_ROUND_TRIP] = passed
+        result.checks[check_name] = passed
         if not passed:
             result.passed = False
             result.failures.append(failure)
 
         return result
+
+    # --- BOUNDARY FRAMES (the default pixel check) ---
+
+    def verify_boundary_frames(
+        self, mezzanine_path: Path, shots: List[Shot], source: SourceInfo
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Compares the first and last frame of every shot against the mezzanine.
+
+        Why this is enough: shots are stream copies, so the pixels inside one
+        cannot change. Every realistic failure is at an edge — a shot starting
+        or ending a frame out, shots written in the wrong order, or a shot
+        missing entirely. All of those move a boundary frame.
+
+        The full round trip decodes everything twice and writes a second copy
+        of the mezzanine to disk; this decodes two frames per shot. On a 3.4
+        minute cut that is the difference between 34 seconds and about one.
+
+        Returns:
+            (passed, failure description naming the shot and frame, or None).
+        """
+        timecode = Timecode.from_source(source)
+
+        for shot in shots:
+            if not shot.file:
+                raise ValueError(f"Shot {shot.index} has no file to check")
+
+            shot_path = Path(shot.file)
+
+            edges = (
+                ("first", shot.start_frame, 0),
+                ("last", shot.end_frame, shot.frame_count - 1),
+            )
+
+            for label, source_frame, shot_frame in edges:
+                expected = self._frame_hash_at(mezzanine_path, source_frame, timecode)
+                actual = self._frame_hash_at(shot_path, shot_frame, timecode)
+
+                if expected != actual:
+                    return False, (
+                        f"The {label} frame of shot {shot.index} is not frame "
+                        f"{source_frame} of the source, so that cut landed in "
+                        f"the wrong place"
+                    )
+
+        logging.info(f"Boundary frames verified for {len(shots)} shots")
+        return True, None
+
+    def _frame_hash_at(self, video_path: Path, frame_index: int, timecode: Timecode) -> str:
+        """
+        Checksum of one decoded frame.
+
+        Seeking is exact because every frame of an all-intra file is a
+        keyframe, and the shots cut from it inherit that.
+        """
+        seconds = timecode.frame_to_seconds(frame_index)
+
+        result = self.toolchain.run_ffmpeg(
+            [
+                "-ss", Timecode.format_seconds(seconds),
+                "-i", str(video_path),
+                "-frames:v", "1",
+                "-map", "0:v:0",
+                "-an",
+                "-c:v", "rawvideo",
+                "-f", "framemd5",
+                "-",
+            ],
+            timeout=FRAME_HASH_TIMEOUT,
+        )
+
+        hashes = self._parse_framemd5(result.stdout)
+
+        if not hashes:
+            raise RuntimeError(f"Could not read frame {frame_index} of {video_path.name}")
+
+        return hashes[0]
 
     # --- INTEGRITY CHECKS ---
 
@@ -331,9 +429,19 @@ class JobValidator:
         if result.returncode != 0:
             raise RuntimeError(f"Could not hash the frames of {video_path.name}")
 
+        return self._parse_framemd5(result.stdout)
+
+    @staticmethod
+    def _parse_framemd5(output: str) -> List[str]:
+        """
+        Pulls the hashes out of framemd5 output, one per frame in order.
+
+        Rows look like "0, 0, 0, 1, 115200, d41d8cd98f00b204e9800998ecf8427e",
+        with the hash last. Comment lines carry the header and are skipped.
+        """
         return [
             line.split(",")[-1].strip()
-            for line in result.stdout.splitlines()
+            for line in output.splitlines()
             if line.strip() and not line.startswith("#")
         ]
 
