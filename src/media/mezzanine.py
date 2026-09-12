@@ -1,54 +1,86 @@
 """
 All-Intra Mezzanine Creation.
 
-Transcodes the source once into a format where every frame is a keyframe.
+Re-encodes the source once into the same codec it arrived in, but with every
+frame a keyframe.
 
-Why this exists: `ffmpeg -c copy` can only cut on a keyframe. On a long-GOP
-source that moves a boundary by up to half a second, silently, with no error.
-Making every frame a keyframe first means each split can be a fast stream copy
-that lands exactly where it was asked to.
+Why this exists: in h264 and h265 most frames are defined as differences from
+their neighbours, so a file can only start on a keyframe. `ffmpeg -c copy`
+therefore snaps a cut to the nearest one, silently moving a boundary by up to
+several seconds. Making every frame a keyframe first means each shot can be a
+fast stream copy that lands exactly where it was asked to — verified: cutting
+30 frames out of an all-intra mezzanine yields 30 frames, pixel-identical.
 
-The cost is disk and one slow pass at the start of the job. That trade is
-settled — see CLAUDE.md.
+That costs one re-encode generation, which is unavoidable for frame-accurate
+cutting and is why the quality setting is deliberately transparent.
 
-The mezzanine is always full frame. Detected letterboxing is information about
-the source, not an instruction to reshape it: a splitter's output must be the
-source's own shots, bars and all.
+The mezzanine is always full frame and always the source's own codec. Detected
+letterboxing is information about the source, not an instruction to reshape it:
+a splitter's output must be the source's own shots, bars and all.
 """
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import List
 
+from src.core.config import MEZZANINE_CRF, MEZZANINE_ENCODERS, MEZZANINE_PRESET
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import SourceInfo
 
 # --- ENCODER SETTINGS ---
 
-# ProRes 422 is the default; DNxHR HQ is the fallback for builds without
-# prores_ks. Both are all-intra and visually lossless at these settings.
-ENCODER_ARGUMENTS = {
-    "prores_ks": ["-c:v", "prores_ks", "-profile:v", "3", "-vendor", "apl0"],
-    "dnxhd": ["-c:v", "dnxhd", "-profile:v", "dnxhr_hq"],
+# Every frame a keyframe. x264 takes -g 1; x265 wants it through -x265-params.
+INTRA_ARGUMENTS = {
+    "libx264": ["-g", "1"],
+    "libx265": ["-x265-params", "keyint=1"],
 }
 
 
 class MezzanineBuilder:
     """
-    Builds and verifies the all-intra intermediate every split is cut from.
+    Builds and verifies the all-intra intermediate every shot is cut from.
 
-    Holds the toolchain and the chosen encoder for the length of a job.
+    The encoder is not configurable: it follows the source codec, because shots
+    come out in the format they went in as.
     """
 
-    def __init__(self, toolchain: MediaToolchain, encoder: str = "prores_ks"):
-        """
-        Args:
-            toolchain: Shared ffmpeg toolchain.
-            encoder: Key into ENCODER_ARGUMENTS. Verified against this ffmpeg
-                build before a job starts, not here.
-        """
+    def __init__(self, toolchain: MediaToolchain):
         self.toolchain = toolchain
-        self.encoder = encoder
+
+    # --- ENCODER SELECTION ---
+
+    @staticmethod
+    def encoder_for(source: SourceInfo) -> str:
+        """
+        The encoder that writes an all-intra version of this source.
+
+        Raises:
+            ValueError: If the source codec is not one we can reproduce. Better
+                to say so than to hand back shots in a different format from the
+                ones that went in.
+        """
+        encoder = MEZZANINE_ENCODERS.get(source.codec)
+        if encoder is None:
+            supported = ", ".join(sorted(MEZZANINE_ENCODERS))
+            raise ValueError(f"Cannot re-encode {source.codec!r}; supported codecs are {supported}")
+        return encoder
+
+    def arguments_for(self, source: SourceInfo) -> List[str]:
+        """
+        The encoding arguments for a source.
+
+        Pixel format is carried across explicitly so a 10-bit source is not
+        quietly flattened to 8-bit on the way out.
+        """
+        encoder = self.encoder_for(source)
+
+        return [
+            "-c:v", encoder,
+            "-preset", MEZZANINE_PRESET,
+            "-crf", str(MEZZANINE_CRF),
+            *INTRA_ARGUMENTS[encoder],
+            "-pix_fmt", source.pixel_format,
+        ]
 
     # --- TRANSCODE ---
 
@@ -58,36 +90,33 @@ class MezzanineBuilder:
 
         Args:
             source: Probed source information.
-            output_path: Where the mezzanine is written.
+            output_path: Where the mezzanine is written. Its extension should
+                match the source container, so the shots cut from it do too.
 
         Returns:
             Path to the mezzanine.
 
         Raises:
-            RuntimeError: If ffmpeg fails, or if the output frame count does not
+            ValueError: If the source codec cannot be reproduced.
+            RuntimeError: If ffmpeg fails, or the output frame count does not
                 match the source. A mezzanine one frame short would shift every
                 shot after it.
-
-        Notes:
-            No crop filter. Baking a detected mask in here would hand the user
-            shots that are not the shots they gave us — and cropdetect is
-            approximate, reporting heights a couple of pixels apart on files
-            from the same delivery.
         """
         # PSEUDOCODE
-        # 1. Build the command: -i <source> <ENCODER_ARGUMENTS>
+        # 1. Build the command: -i <source> arguments_for(source)
         #    -an (audio is handled separately) <output>
-        # 2. Run it, allowing plenty of time — this is the slow pass of the job.
-        # 3. On exit, verify() the result before returning.
+        # 2. Run it with a generous timeout — this is the slow pass of the job.
+        # 3. Raise on a non-zero exit, with ffmpeg's own stderr attached.
+        # 4. verify() the result before returning it.
         raise NotImplementedError
 
     def verify(self, source: SourceInfo, mezzanine_path: Path) -> bool:
         """
         Confirms the mezzanine is a frame-for-frame match of the source.
 
-        Checks frame count, resolution after any crop, and frame rate. Called
-        before any cutting happens, because everything downstream assumes frame
-        N of the mezzanine is frame N of the source.
+        Checks frame count, resolution and frame rate. Called before any cutting
+        happens, because everything downstream assumes frame N of the mezzanine
+        is frame N of the source.
 
         Returns:
             True when it matches. Logs precisely which field differs when not.

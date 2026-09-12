@@ -26,6 +26,7 @@ splitter outputs are designed to feed it.
 | Detection (primary) | TransNetV2 via ONNX Runtime | Not PyTorch — see below |
 | Detection (secondary) | PySceneDetect `AdaptiveDetector` | Cross-check only |
 | Media | ffmpeg / ffprobe as subprocesses | Never a Python binding |
+| Mezzanine | All-intra in the source's own codec | libx264 / libx265, CRF 12 |
 
 ### Why ONNX and not PyTorch
 
@@ -51,8 +52,23 @@ These are settled decisions. Do not revisit them without asking.
    boundaries. Floating-point seconds are the single biggest source of
    off-by-one cuts.
 2. **Frame-accurate splits.** `ffmpeg -c copy` cuts on keyframes and will
-   silently move boundaries by up to a GOP length. Transcode the source once to
-   an all-intra mezzanine (ProRes 422 or DNxHR), then stream-copy each split.
+   silently move boundaries by up to a GOP length. Re-encode the source once to
+   an all-intra mezzanine, then stream-copy each split out of that.
+
+   *Revised after testing real deliveries:* the mezzanine is **all-intra in the
+   source's own codec** — h264 in, h264 out; h265 in, h265 out — not ProRes or
+   DNxHR. Shots come back in the format they went in as; converting to a
+   delivery codec is beyond this tool. Measured on a 1080p24 h264 source:
+   all-intra h264 at CRF 12 is 0.21 GB/min against ProRes 422 HQ's 0.87.
+
+   This costs **one re-encode generation**, which is unavoidable. In h264 and
+   h265 most frames are defined relative to their neighbours, so a file can
+   only start on a keyframe: stream-copying the original data can only cut
+   where keyframes already are. Verified by hand — cutting 30 frames out of an
+   all-intra mezzanine yields exactly 30 frames, pixel-identical to the source
+   span. "Smart cutting" (stream-copy the aligned middle, re-encode only the
+   partial groups at each end) is the only way to avoid that generation, and is
+   deliberately out of scope.
 3. **The validation stage ships with v1.** It is not a later addition. See below.
 4. **The splitter is deterministic.** No LLM, no agent, no adaptive thresholds in
    the detection path. Identical input must produce byte-identical boundaries on
@@ -105,7 +121,7 @@ Still expected, and still handled:
   Normalizing them is deferred until a real VFR source turns up.
 - `cropdetect` for masking. Report findings to the UI.
 - Estimate disk requirement and warn before the job, not after the drive fills.
-  ProRes 422 at 1080p24 is roughly 1.15 GB/min, and we write mezzanine + splits.
+  All-intra h264 at 1080p24 is roughly 0.21 GB/min, and we write mezzanine + splits.
 
 ### 2. Detect
 
@@ -116,7 +132,7 @@ Still expected, and still handled:
 
 ### 3. Cut
 
-- Transcode source to all-intra mezzanine.
+- Re-encode source to an all-intra mezzanine in its own codec.
 - Split each shot with `-c copy` against the mezzanine.
 - Emit JSON sidecar (see below).
 
@@ -146,7 +162,7 @@ One JSON sidecar per source job:
     { "index": 1, "start_frame": 0, "end_frame": 74,
       "start_tc": "10:00:00:00", "end_tc": "10:00:02:24",
       "confidence": 0.99, "detectors_agreed": true,
-      "file": "shot_001.mov" }
+      "file": "shot_001.mp4" }
   ],
   "validation": { "passed": true, "checks": { } }
 }
@@ -207,8 +223,8 @@ Three states, not two. CPU-only is *degraded*, not failed — show an honest tim
 estimate and allow the user to proceed. Only block on what genuinely cannot run.
 
 Check: ffmpeg + ffprobe on PATH and version; **encoder availability** parsed from
-`ffmpeg -encoders` (`prores_ks` / `dnxhd` — many builds omit them and you only
-find out mid-job); Python version; `onnxruntime` import and available execution
+`ffmpeg -encoders` (`libx264` required, `libx265` needed for h265 sources — a
+missing encoder otherwise only surfaces mid-job); Python version; `onnxruntime` import and available execution
 providers; model weights present and checksum-verified; `scenedetect` import;
 output directory writable; free disk space.
 

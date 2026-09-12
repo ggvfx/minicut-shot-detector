@@ -239,31 +239,48 @@ class EnvironmentChecker:
         """
         Mezzanine encoder availability.
 
-        Checked up front because many ffmpeg builds omit prores_ks and dnxhd,
-        and without this that only surfaces once a long job is already running.
+        Shots come out in the codec they went in as, so the build needs the
+        encoder for each source codec we accept. Checked up front because a
+        missing encoder otherwise only surfaces once a long job is running.
+
+        libx264 is required; libx265 only matters for h265 sources, so its
+        absence is a limitation rather than a failure.
         """
         if self.toolchain.ffmpeg is None:
             return Check(
                 key="encoders",
-                label="Mezzanine encoder",
+                label="Mezzanine encoders",
                 status=BLOCKED,
                 detail="Cannot check without ffmpeg",
                 fix=ffmpeg_fix(),
             )
 
-        present = [name for name in config.MEZZANINE_ENCODERS if self.toolchain.has_encoder(name)]
+        wanted = sorted(set(config.MEZZANINE_ENCODERS.values()))
+        present = [name for name in wanted if self.toolchain.has_encoder(name)]
+        missing = [name for name in wanted if name not in present]
 
-        if not present:
-            wanted = " or ".join(config.MEZZANINE_ENCODERS)
+        if config.REQUIRED_ENCODER not in present:
             return Check(
                 key="encoders",
-                label="Mezzanine encoder",
+                label="Mezzanine encoders",
                 status=BLOCKED,
-                detail=f"This ffmpeg build offers neither {wanted}",
+                detail=f"This ffmpeg build has no {config.REQUIRED_ENCODER}",
                 fix="Install a full ffmpeg build: " + ffmpeg_fix(),
             )
 
-        return Check(key="encoders", label="Mezzanine encoder", status=OK, detail=", ".join(present))
+        if missing:
+            unsupported = ", ".join(
+                codec for codec, encoder in config.MEZZANINE_ENCODERS.items() if encoder in missing
+            )
+            return Check(
+                key="encoders",
+                label="Mezzanine encoders",
+                status=DEGRADED,
+                detail=f"{', '.join(present)} — no {', '.join(missing)}, so {unsupported} sources cannot be cut",
+                fix="Install a full ffmpeg build: " + ffmpeg_fix(),
+            )
+
+        return Check(key="encoders", label="Mezzanine encoders", status=OK, detail=", ".join(present))
 
     def check_onnxruntime(self) -> Check:
         """
@@ -401,7 +418,7 @@ class EnvironmentChecker:
         free_gb = shutil.disk_usage(target).free / (1024 ** 3)
 
         # Mezzanine plus splits is roughly two copies of the source
-        minutes_of_footage = free_gb / (config.GB_PER_MINUTE_PRORES_1080P24 * 2)
+        minutes_of_footage = free_gb / (config.GB_PER_MINUTE_INTRA_1080P24 * 2)
         detail = f"{free_gb:.0f} GB free — about {minutes_of_footage:.0f} min of 1080p24 source"
 
         if free_gb < config.MIN_FREE_GB:

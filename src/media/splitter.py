@@ -37,7 +37,6 @@ class ShotSplitter:
         mezzanine_path: Path,
         source: SourceInfo,
         output_dir: Path,
-        suffix: str = ".mov",
     ):
         """
         Args:
@@ -45,14 +44,15 @@ class ShotSplitter:
             mezzanine_path: The all-intra file to copy from.
             source: Probed source, used for the exact frame rate.
             output_dir: Where shot files are written.
-            suffix: Container for the written shots, matching the mezzanine.
         """
         self.toolchain = toolchain
         self.mezzanine_path = mezzanine_path
         self.source = source
         self.output_dir = output_dir
-        self.suffix = suffix
         self.timecode = Timecode.from_source(source)
+
+        # Shots keep the source's container, because they keep its codec
+        self.suffix = Path(source.path).suffix or ".mp4"
 
     # --- NAMING ---
 

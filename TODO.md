@@ -37,8 +37,13 @@ That is the whole job. Anything else is in `Deferred` at the bottom.
 
 ## Phase 3 — Cutting & Validation ⬅ Current
 
-Mezzanine, frame-accurate splits, integrity checks, round-trip frame hashing,
-JSON sidecar. Proven with hand-typed frame numbers before any detector exists.
+All-intra mezzanine in the source's own codec, frame-accurate splits, integrity
+checks, round-trip frame hashing, JSON sidecar. Proven with hand-typed frame
+numbers before any detector exists.
+
+Early check: confirm stream-copy cutting out of an **all-intra h265** mezzanine
+is as exact as it is for h264, since h265 material is expected and its encodes
+are slow.
 
 To be broken into tasks when we start.
 

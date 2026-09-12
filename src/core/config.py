@@ -27,17 +27,31 @@ MODEL_SHA256: Optional[str] = None
 
 MIN_PYTHON = (3, 11)
 
-# One of these encoders must exist to build the all-intra mezzanine.
-# Many ffmpeg builds ship without either, which otherwise only surfaces mid-job.
-MEZZANINE_ENCODERS = ("prores_ks", "dnxhd")
+# Shots come out in the codec they went in as. The mezzanine is an all-intra
+# version of the source, so this maps what ffprobe reports to the encoder that
+# writes it. ffprobe calls h265 "hevc".
+MEZZANINE_ENCODERS = {
+    "h264": "libx264",
+    "hevc": "libx265",
+}
 
-# ProRes 422 at 1080p24 is roughly 1.15 GB per minute, and a job writes a
-# mezzanine plus a full set of splits — so budget for two passes of it.
-#
-# Deliberately conservative: Apple's published rate for ProRes 422 at 1080p24
-# works out nearer 0.9 GB/min. Over-estimating means the warning fires early;
-# under-estimating means the drive fills mid-transcode.
-GB_PER_MINUTE_PRORES_1080P24 = 1.15
+# Without this one, nothing can be cut at all. libx265 only matters for h265
+# sources, so its absence is a limitation rather than a failure.
+REQUIRED_ENCODER = "libx264"
+
+# Quality of the all-intra mezzanine. Cutting on an arbitrary frame means one
+# re-encode generation — unavoidable, since long-GOP frames are defined
+# relative to their neighbours and a file can only start on a keyframe.
+# CRF 12 is visually transparent for this material, where the source's own
+# compression artefacts dominate anything the re-encode adds.
+MEZZANINE_CRF = 12
+MEZZANINE_PRESET = "veryfast"
+
+# All-intra h264 at CRF 12 measures 0.21 GB per minute at 1080p24, and a job
+# writes a mezzanine plus a full set of splits — so budget for two passes.
+# Rounded up, because warning early costs nothing and warning late means the
+# drive fills mid-transcode.
+GB_PER_MINUTE_INTRA_1080P24 = 0.25
 
 # The rate the figure above is quoted at, used to scale other frame rates.
 REFERENCE_RATE = 24
@@ -77,8 +91,9 @@ class ProjectConfig(BaseModel):
     run_cross_check: bool = True
 
     # Mezzanine & Cutting
-    mezzanine_encoder: str = "prores_ks"   # Verified against this ffmpeg build before a job starts
-    keep_mezzanine: bool = True            # Large, but allows re-cutting without re-transcoding
+    # The encoder is not a setting: it follows the source codec, because shots
+    # come out in the format they went in as.
+    keep_mezzanine: bool = True            # Allows re-cutting without re-encoding again
 
     # Masking
     # Letterbox/pillarbox crop as "w:h:x:y". None means the user has accepted

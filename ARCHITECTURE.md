@@ -52,14 +52,20 @@ Plain functions — nothing to hold between calls.
 
 ### 4. Cut — `src/media/`
 
-- `MezzanineBuilder` — transcodes the source once to an all-intra format,
-  because `ffmpeg -c copy` can only cut on keyframes and would otherwise move a
+- `MezzanineBuilder` — re-encodes the source once into an all-intra version of
+  **its own codec** (h264 in, h264 out; h265 in, h265 out), because
+  `ffmpeg -c copy` can only cut on keyframes and would otherwise move a
   boundary by up to a GOP length, silently
 - `ShotSplitter` — stream-copies each shot out of the mezzanine, landing exactly
-  on the requested frame
+  on the requested frame, into the source's own container
 
 One file per shot is the entire output of this stage. Thumbnails, contact
 sheets and stills belong to the identifier tab, not here.
+
+The single re-encode is unavoidable: in h264 and h265 a file can only start on
+a keyframe, so cutting the original data can only land where keyframes already
+are. Verified by hand — 30 frames requested out of an all-intra mezzanine gives
+30 frames, pixel-identical.
 
 ### 5. Validate — `JobValidator` in `src/validation/validator.py`
 
@@ -98,7 +104,7 @@ the identifier tab and is not built here.
 | `src/core/environment.py` | `EnvironmentChecker` — the dependency panel |
 | `src/core/sidecar.py` | Sidecar read and write |
 | `src/media/probe.py` | `SourceProbe` — source inspection and crop detection |
-| `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra transcode |
+| `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra re-encode in the source's codec |
 | `src/media/splitter.py` | `ShotSplitter` — per-shot extraction |
 | `src/detection/transnet.py` | `TransNetDetector` — primary detector |
 | `src/detection/scene_detect.py` | `SceneDetectCrossCheck` — cross-check detector |

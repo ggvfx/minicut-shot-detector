@@ -48,6 +48,11 @@ def test_reads_geometry_and_codec(probe, clips):
     assert source.codec == "h264"
 
 
+def test_reads_the_pixel_format(probe, clips):
+    """Carried through to the mezzanine so bit depth survives the round trip."""
+    assert probe.probe(clips["pal"]).pixel_format == "yuv420p"
+
+
 def test_reads_an_exact_frame_count(probe, clips):
     """Two seconds at 25 fps is 50 frames — not 49, not 51."""
     assert probe.probe(clips["pal"]).frame_count == 50
@@ -206,11 +211,11 @@ def test_disk_estimate_matches_the_reference_figure(probe):
     """
     One minute of 1080p24 is the reference case, doubled for the splits.
 
-    1.15 GB/min of mezzanine plus the same again of shot files.
+    0.25 GB/min of all-intra mezzanine plus the same again of shot files.
     """
     one_minute = make_source(fps_numerator=24, frame_count=1440)
 
-    assert probe.estimate_disk_required(one_minute) == pytest.approx(2.3)
+    assert probe.estimate_disk_required(one_minute) == pytest.approx(0.5)
 
 
 def test_disk_estimate_scales_with_resolution(probe):

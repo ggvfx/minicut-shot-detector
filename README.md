@@ -50,9 +50,9 @@ The engineering decisions here are mine; the assistant works to them.
 
 ## Install & Run
 
-Requires **Python 3.11+** and **ffmpeg** on `PATH` with either the `prores_ks`
-or `dnxhd` encoder. The app checks all of this on launch and tells you how to
-fix anything missing.
+Requires **Python 3.11+** and **ffmpeg** on `PATH`, built with `libx264` (and
+`libx265` for h265 sources). The app checks all of this on launch and tells you
+how to fix anything missing.
 
 ```bash
 # 1. Clone and enter the repo
@@ -92,7 +92,8 @@ Run the tests with `pytest` from the repo root.
 * Disk requirement estimation before a job starts.
 
 ### Phase 3: Cutting & Validation (Current)
-* All-intra mezzanine and frame-accurate stream-copy splits.
+* All-intra mezzanine in the source's own codec, and frame-accurate stream-copy
+  splits out of it.
 * Integrity and frame-hash round-trip validation.
 * JSON sidecar with the full resolved environment.
 
@@ -119,11 +120,20 @@ The tool follows a **"Deterministic"** and **"Prove It"** philosophy:
    joined back together and frame-hash compared against the source, so a dropped
    or duplicated frame fails the job rather than reaching a downstream artist.
 
+Cutting an h264 or h265 source on an arbitrary frame costs one re-encode
+generation — a file can only start on a keyframe, so stream-copying the original
+data could only cut where keyframes already are. The mezzanine is therefore
+all-intra in the source's own codec at a visually transparent setting, and every
+shot is a lossless stream copy out of it.
+
 ## ✨ Key Features
 
-* **Frame-Accurate Splitting:** Transcodes once to an all-intra mezzanine, then
-  stream-copies each shot. Cutting a long-GOP source directly snaps silently to
-  the nearest keyframe — up to half a second away from the requested frame.
+* **Frame-Accurate Splitting:** Re-encodes once to an all-intra mezzanine, then
+  stream-copies each shot out of it. Cutting a long-GOP source directly snaps
+  silently to the nearest keyframe — often seconds from the requested frame.
+* **Format Preserved:** Shots come back in the codec and container they went in
+  as — h264 in, h264 out; h265 in, h265 out, at the source's resolution, frame
+  rate and bit depth. Converting to a delivery format is not this tool's job.
 * **Two-Detector Reconciliation:** TransNetV2 runs as the primary pass with
   PySceneDetect as an independent cross-check. Agreement means confidence;
   disagreement flags the boundary for human review, which is what makes an
@@ -152,6 +162,7 @@ The tool follows a **"Deterministic"** and **"Prove It"** philosophy:
 * **Frontend:** Plain HTML, CSS and vanilla JavaScript — no npm, no build step
 * **Detection:** TransNetV2 via ONNX Runtime, PySceneDetect
 * **Media Engine:** ffmpeg / ffprobe as subprocesses, never a Python binding
+* **Mezzanine:** All-intra libx264 / libx265 at CRF 12, matching the source codec
 
 ## 📂 Project Structure
 * `main.py`: Entry point — starts the local server and opens the UI.

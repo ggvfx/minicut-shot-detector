@@ -34,6 +34,10 @@ class SourceInfo(BaseModel):
     frame_count: int
     codec: str
 
+    # Carried through to the mezzanine so a 10-bit source is not quietly
+    # flattened to 8-bit on the way out.
+    pixel_format: str = "yuv420p"
+
     # Source start timecode, e.g. "10:00:00:00". Sidecar timecodes are offset
     # by this so they match what the editor sees.
     start_timecode: str = "00:00:00:00"

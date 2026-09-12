@@ -20,7 +20,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import List, Optional
 
-from src.core.config import GB_PER_MINUTE_PRORES_1080P24, REFERENCE_RATE
+from src.core.config import GB_PER_MINUTE_INTRA_1080P24, REFERENCE_RATE
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import ProbeReport, SourceInfo
 from src.core.timecode import Timecode
@@ -175,6 +175,7 @@ class SourceProbe:
             fps_denominator=denominator,
             frame_count=self._frame_count(video, Fraction(numerator, denominator), source_path),
             codec=video.get("codec_name", "unknown"),
+            pixel_format=video.get("pix_fmt", "yuv420p"),
             start_timecode=self._start_timecode(streams, probed.get("format", {})),
             is_variable_frame_rate=self._is_variable_frame_rate(video),
         )
@@ -366,8 +367,8 @@ class SourceProbe:
         Reported before the job starts, so the user finds out now rather than
         when the drive fills mid-transcode.
 
-        The reference figure is ProRes 422 at 1080p24, so both resolution and
-        frame rate scale it.
+        The reference figure is an all-intra h264 mezzanine at 1080p24, so
+        both resolution and frame rate scale it.
 
         Returns:
             Estimated gigabytes.
@@ -378,4 +379,4 @@ class SourceProbe:
         pixel_scale = (source.width * source.height) / REFERENCE_PIXELS
         rate_scale = float(rate) / REFERENCE_RATE
 
-        return GB_PER_MINUTE_PRORES_1080P24 * minutes * pixel_scale * rate_scale * DISK_COPIES
+        return GB_PER_MINUTE_INTRA_1080P24 * minutes * pixel_scale * rate_scale * DISK_COPIES
