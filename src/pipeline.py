@@ -18,57 +18,32 @@ Stage order:
 
 import logging
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from src.core.config import ProjectConfig
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import JobResult
-
-# --- PROGRESS REPORTING ---
-
-# The UI subscribes to progress over SSE. The pipeline knows nothing about SSE:
-# it calls a plain function, and the server decides what to do with it.
-ProgressCallback = Callable[[str, float, str], None]
-
-# Stage names, used in progress updates and the UI.
-STAGE_PROBE = "probe"
-STAGE_DETECT = "detect"
-STAGE_CUT = "cut"
-STAGE_VALIDATE = "validate"
-STAGE_REPORT = "report"
 
 
 class SplitterPipeline:
     """
     Runs one splitter job from source file to written sidecar.
 
-    Holds the config, the shared toolchain and the progress callback, and builds
-    each stage engine as it goes so nothing is constructed until it is needed.
+    Holds the config and the shared toolchain, and builds each stage engine as
+    it goes so nothing is constructed until it is needed.
+
+    Progress is logged, not streamed. Wiring it to the UI over SSE is its own
+    task, and the plumbing waits until there is something to plumb.
     """
 
-    def __init__(
-        self,
-        config: ProjectConfig,
-        toolchain: Optional[MediaToolchain] = None,
-        progress_callback: Optional[ProgressCallback] = None,
-    ):
+    def __init__(self, config: ProjectConfig, toolchain: Optional[MediaToolchain] = None):
         """
         Args:
             config: Settings for this run. Built by the UI, never here.
             toolchain: Shared ffmpeg toolchain. Discovered if not given.
-            progress_callback: Receives (stage, fraction 0-1, message).
         """
         self.config = config
         self.toolchain = toolchain or MediaToolchain()
-        self.progress_callback = progress_callback
-
-    # --- PROGRESS ---
-
-    def _report(self, stage: str, fraction: float, message: str) -> None:
-        """Sends a progress update if anyone is listening, and logs it either way."""
-        logging.info(f"[{stage}] {message}")
-        if self.progress_callback is not None:
-            self.progress_callback(stage, fraction, message)
 
     # --- PIPELINE ---
 

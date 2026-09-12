@@ -14,7 +14,7 @@ settled — see CLAUDE.md.
 
 import logging
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import SourceInfo
@@ -33,26 +33,18 @@ class MezzanineBuilder:
     """
     Builds and verifies the all-intra intermediate every split is cut from.
 
-    Holds the toolchain, the chosen encoder and the progress callback for the
-    length of a job.
+    Holds the toolchain and the chosen encoder for the length of a job.
     """
 
-    def __init__(
-        self,
-        toolchain: MediaToolchain,
-        encoder: str = "prores_ks",
-        progress_callback: Optional[Callable[[int], None]] = None,
-    ):
+    def __init__(self, toolchain: MediaToolchain, encoder: str = "prores_ks"):
         """
         Args:
             toolchain: Shared ffmpeg toolchain.
             encoder: Key into ENCODER_ARGUMENTS. Verified against this ffmpeg
                 build before a job starts, not here.
-            progress_callback: Receives frames completed, for the SSE feed.
         """
         self.toolchain = toolchain
         self.encoder = encoder
-        self.progress_callback = progress_callback
 
     # --- TRANSCODE ---
 
@@ -75,10 +67,9 @@ class MezzanineBuilder:
         """
         # PSEUDOCODE
         # 1. Build the command: -i <source> [-vf crop=...] <ENCODER_ARGUMENTS>
-        #    -an (audio is handled separately) -progress pipe:1 <output>
-        # 2. Run with Popen and read the -progress stream line by line.
-        # 3. Parse frame=N lines and hand them to progress_callback.
-        # 4. On exit, verify() the result before returning.
+        #    -an (audio is handled separately) <output>
+        # 2. Run it, allowing plenty of time — this is the slow pass of the job.
+        # 3. On exit, verify() the result before returning.
         raise NotImplementedError
 
     def verify(self, source: SourceInfo, mezzanine_path: Path) -> bool:

@@ -10,7 +10,7 @@ directly would silently snap to the nearest keyframe instead.
 
 import logging
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Shot, SourceInfo
@@ -89,17 +89,12 @@ class ShotSplitter:
         # 4. Probe the result and assert its frame count equals shot.frame_count.
         raise NotImplementedError
 
-    def extract_all(
-        self,
-        shots: List[Shot],
-        progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> List[Shot]:
+    def extract_all(self, shots: List[Shot]) -> List[Shot]:
         """
         Cuts every shot, recording the written path on each one.
 
         Args:
             shots: The full shot list.
-            progress_callback: Receives (shots_done, shots_total) for the UI.
 
         Returns:
             The same shots with `file` populated.
@@ -110,6 +105,6 @@ class ShotSplitter:
         """
         # PSEUDOCODE
         # 1. ensure_directory(self.output_dir).
-        # 2. For each shot: extract(), set shot.file, report progress.
+        # 2. For each shot: extract(), then set shot.file.
         # 3. Return the updated list.
         raise NotImplementedError
