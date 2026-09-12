@@ -20,7 +20,6 @@ Both ship with v1. Any failure blocks the job: this stage never warns and
 continues.
 """
 
-import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 

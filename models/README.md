@@ -6,7 +6,7 @@ It is **not** in the repository yet — it is produced once as a build step and
 then committed, so the app needs neither torch nor tensorflow at runtime:
 
 ```bash
-python scripts/export_transnetv2.py
+python -m scripts.export_transnetv2
 ```
 
 That script prints a SHA-256 checksum. Paste it into `MODEL_SHA256` in

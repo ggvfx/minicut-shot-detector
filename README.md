@@ -74,7 +74,8 @@ python main.py
 If ffmpeg is missing: `winget install Gyan.FFmpeg` on Windows,
 `brew install ffmpeg` on macOS.
 
-Run the tests with `pytest` from the repo root.
+Run the tests with `pytest` and the linter with `ruff check .`, both from
+the repo root.
 
 ## Strategic Roadmap
 

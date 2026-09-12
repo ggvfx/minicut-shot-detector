@@ -16,3 +16,4 @@ opencv-python==5.0.0.93  # Video reader used by PySceneDetect
 # --- DEVELOPMENT ---
 pytest==9.1.1            # Golden set and unit tests
 httpx2==2.12.0           # Required by FastAPI's TestClient for the route tests
+ruff==0.16.7             # Lint: unused imports, dead code, line length

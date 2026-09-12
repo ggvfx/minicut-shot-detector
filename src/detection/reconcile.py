@@ -11,7 +11,6 @@ This is where confidence is decided:
   recorded on the shot rather than silently applied
 """
 
-import logging
 from typing import List
 
 from src.core.models import Boundary, Shot

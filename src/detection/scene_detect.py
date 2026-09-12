@@ -10,7 +10,6 @@ disagreement is what flags a boundary for human review, and that flag is what
 makes an unattended run safe to trust.
 """
 
-import logging
 from pathlib import Path
 from typing import List, Optional
 

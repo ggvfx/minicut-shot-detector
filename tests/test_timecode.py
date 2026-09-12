@@ -242,7 +242,7 @@ def test_frame_to_seconds_is_never_a_float(pal):
     assert isinstance(pal.frame_to_seconds(7), Fraction)
 
 
-def test_format_seconds_rounds_half_up(pal):
+def test_format_seconds_rounds_half_up():
     assert Timecode.format_seconds(Fraction(1, 10)) == "0.100000"
     assert Timecode.format_seconds(Fraction(1, 3)) == "0.333333"
     assert Timecode.format_seconds(Fraction(2, 3)) == "0.666667"
@@ -254,7 +254,7 @@ def test_format_seconds_keeps_frame_accuracy(film):
     assert Timecode.format_seconds(film.frame_to_seconds(0)) == "0.000000"
 
 
-def test_format_seconds_pads_the_fraction(pal):
+def test_format_seconds_pads_the_fraction():
     """A short fraction must be zero-padded or ffmpeg reads a different time."""
     assert Timecode.format_seconds(Fraction(3, 2)) == "1.500000"
     assert Timecode.format_seconds(Fraction(2, 1)) == "2.000000"

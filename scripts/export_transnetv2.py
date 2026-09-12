@@ -8,14 +8,15 @@ Run once, commit the result. This is why the app does not depend on torch or
 tensorflow at runtime — only this script does, and only when the model is
 regenerated.
 
-Usage:
-    python scripts/export_transnetv2.py [--force]
+Run from the repo root as a module, so it can import from src:
+    python -m scripts.export_transnetv2 [--force]
 """
 
 import argparse
-import hashlib
 import logging
 from pathlib import Path
+
+from src.core.utils import file_sha256
 
 # --- PATHS ---
 
@@ -48,15 +49,6 @@ def export_model(output_path: Path, force: bool = False) -> Path:
     # 5. Re-open the result with onnxruntime and run one dummy window, to prove
     #    the file loads before it gets committed.
     raise NotImplementedError
-
-
-def file_sha256(path: Path) -> str:
-    """Checksum of the export, to paste into config.MODEL_SHA256."""
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def main():

@@ -12,8 +12,6 @@ Functions rather than a class — writing a single file shares no state between
 calls. Reading sidecars back is the identifier tab's job and is not built here.
 """
 
-import json
-import logging
 from pathlib import Path
 from typing import Dict
 

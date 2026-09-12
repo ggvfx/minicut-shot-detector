@@ -20,7 +20,7 @@ splitter outputs are designed to feed it.
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Backend | Python 3.11+, FastAPI | SSE for progress streaming |
+| Backend | Python 3.11+, FastAPI | SSE for progress streaming, from Phase 5 |
 | Frontend | Plain HTML + CSS + vanilla JS | No React, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens in their own browser |
 | Detection (primary) | TransNetV2 via ONNX Runtime | Not PyTorch — see below |
@@ -301,7 +301,7 @@ changing a settled decision is a conversation first, not a commit.
 - Commit at task granularity or finer. When an agent-written change breaks
   something, `git diff` against a known-good commit is how it gets found.
 - `.gitignore` test media and output directories **before the first commit**.
-  Mini cuts and ProRes mezzanines will blow past GitHub's file size limits and
+  Mini cuts and all-intra mezzanines will blow past GitHub's file size limits and
   removing them from history afterwards is genuinely painful.
 - Dev happens on Windows; the app must also run on macOS. Keep everything
   path-agnostic (`pathlib`, no hardcoded separators, no shell-specific calls).

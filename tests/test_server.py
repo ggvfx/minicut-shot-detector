@@ -5,7 +5,6 @@ Exercises the API through FastAPI's test client, so the JSON the front end
 actually receives is what gets asserted.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.ui.server import app
@@ -74,14 +73,14 @@ def test_probe_returns_source_facts(clips, tmp_path):
     assert report["source"]["start_timecode"] == "10:00:00:00"
     assert report["duration_timecode"] == "00:00:02:00", "duration is a length, not a position"
     assert report["can_split"] is True
-    assert report["detected_crop"] is None
+    assert report["source"]["detected_crop"] is None
     assert report["free_gb"] is not None, "a chosen output directory should be measured"
 
 
 def test_probe_reports_a_mask(clips):
     response = client.post("/api/probe", json={"source_path": str(clips["letterbox"])})
 
-    assert response.json()["detected_crop"] == "320:180:0:30"
+    assert response.json()["source"]["detected_crop"] == "320:180:0:30"
 
 
 def test_probe_refuses_variable_frame_rate(clips):

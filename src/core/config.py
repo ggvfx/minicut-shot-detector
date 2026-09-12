@@ -95,11 +95,5 @@ class ProjectConfig(BaseModel):
     # come out in the format they went in as.
     keep_mezzanine: bool = True            # Allows re-cutting without re-encoding again
 
-    # Masking
-    # Letterbox/pillarbox crop as "w:h:x:y". None means the user has accepted
-    # whatever cropdetect found rather than overriding it.
-    crop_override: Optional[str] = None
-
-
-# Default instance used by the UI until the user changes anything.
-DEFAULT_CONFIG = ProjectConfig()
+    # Masking is deliberately absent: detected letterboxing is reported, never
+    # applied, so there is nothing for the user to override.

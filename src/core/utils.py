@@ -8,7 +8,6 @@ If a helper is only used by one module, it belongs in that module instead.
 """
 
 import hashlib
-import logging
 from pathlib import Path
 
 # --- FILE HELPERS ---

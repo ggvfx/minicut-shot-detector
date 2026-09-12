@@ -37,15 +37,61 @@ That is the whole job. Anything else is in `Deferred` at the bottom.
 
 ## Phase 3 — Cutting & Validation ⬅ Current
 
-All-intra mezzanine in the source's own codec, frame-accurate splits, integrity
-checks, round-trip frame hashing, JSON sidecar. Proven with hand-typed frame
-numbers before any detector exists.
+Everything needed to turn a list of frame numbers into shot files, proven with
+hand-typed boundaries before any detector exists. If a shot lands a frame late
+in Phase 4, the cutter will already have been proven on numbers we chose
+ourselves, so the detector is the only suspect.
 
-Early check: confirm stream-copy cutting out of an **all-intra h265** mezzanine
-is as exact as it is for h264, since h265 material is expected and its encodes
-are slow.
+- [ ] **3.1 Boundaries to shots, and the integrity checks**
+  `reconcile.boundaries_to_shots()` and `JobValidator.validate_shot_list()`:
+  frames sum to the source, no gaps, no overlaps, first shot starts at 0, last
+  ends at `frame_count - 1`. Pure arithmetic, no media, fast tests.
+  **Done when:** a bad shot list cannot pass, and the failure names the frame.
 
-To be broken into tasks when we start.
+- [ ] **3.2 Mezzanine build and verify**
+  `MezzanineBuilder.build()` / `verify()`. Re-encode to all-intra in the
+  source's codec, then confirm frame count, rate and geometry match.
+  **Done when:** a mezzanine built from a real mini cut has the same frame count
+  as its source and every frame is a keyframe.
+
+- [ ] **3.3 Shot extraction**
+  `ShotSplitter.extract()` / `extract_all()`. Stream copy each shot, assert the
+  written frame count equals the requested one.
+  **Done when:** cutting frames 100–149 yields a 50 frame file whose pixels are
+  identical to frames 100–149 of the mezzanine.
+
+- [ ] **3.4 Prove it on h265**
+  Repeat 3.2 and 3.3 against an h265 source. x265 takes its keyframe interval
+  differently and its all-intra encodes are slow, so this is proven rather than
+  assumed — and proven here, before anything else is built on top of it.
+  **Done when:** an h265 mini cut splits as exactly as an h264 one.
+
+- [ ] **3.5 Round-trip validation**
+  `JobValidator.verify_round_trip()`: concat the shots back together and
+  frame-hash compare against the mezzanine.
+  **Done when:** a deliberately dropped or reordered shot fails the job, and a
+  correct set passes.
+
+- [ ] **3.6 Sidecar**
+  `capture_environment()` and `write_sidecar()`. Shots with frames and
+  timecodes, the validation outcome, and the resolved ffmpeg build.
+  **Done when:** a completed job writes a sidecar that reads back correctly, and
+  a failed job still writes one saying why.
+
+- [ ] **3.7 Pipeline wiring**
+  `SplitterPipeline.run()` joining probe → shots → mezzanine → splits →
+  validate → sidecar, with the mezzanine removed unless kept.
+  **Done when:** one call takes a source and a boundary list to finished shots.
+
+- [ ] **3.8 Manual boundary entry in the UI**
+  `POST /api/split`, plus a panel to type boundaries as frame numbers or
+  timecodes, and a table of what was written with the validation result.
+  **Done when:** you can split a real mini cut by hand, end to end, in the
+  browser.
+
+**Phase done when:** you can point the app at a mini cut, type the frames where
+you want it cut, and get back shot files that are exactly right — verified by
+the round trip, not by eye.
 
 ## Phase 4 — Detection
 

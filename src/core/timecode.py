@@ -16,7 +16,6 @@ Two ideas are easy to confuse and are kept strictly apart:
   never used, so the label count runs ahead of the frame count by design.
 """
 
-import logging
 import math
 from fractions import Fraction
 

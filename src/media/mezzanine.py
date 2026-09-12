@@ -19,7 +19,6 @@ letterboxing is information about the source, not an instruction to reshape it:
 a splitter's output must be the source's own shots, bars and all.
 """
 
-import logging
 from pathlib import Path
 from typing import List
 

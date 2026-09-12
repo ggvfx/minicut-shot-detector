@@ -112,7 +112,6 @@ class SourceProbe:
 
         return ProbeReport(
             source=source,
-            detected_crop=crop,
             duration_timecode=length.frames_to_timecode(source.frame_count),
             estimated_gb=estimated_gb,
             free_gb=free_gb,

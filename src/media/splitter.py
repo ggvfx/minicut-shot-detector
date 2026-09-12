@@ -8,7 +8,6 @@ and landing exactly on the requested frame. Cutting the original source
 directly would silently snap to the nearest keyframe instead.
 """
 
-import logging
 from pathlib import Path
 from typing import List
 

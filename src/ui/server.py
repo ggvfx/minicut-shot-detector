@@ -8,7 +8,6 @@ No processing logic lives here — if a route grows a decision in it, that
 decision belongs in a stage module instead.
 """
 
-import logging
 from pathlib import Path
 from typing import Optional
 

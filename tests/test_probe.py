@@ -31,7 +31,7 @@ def make_source(**overrides) -> SourceInfo:
         "fps_numerator": 25,
         "fps_denominator": 1,
         "frame_count": 1500,
-        "codec": "prores",
+        "codec": "h264",
     }
     fields.update(overrides)
     return SourceInfo(**fields)

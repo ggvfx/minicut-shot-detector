@@ -276,7 +276,10 @@ class EnvironmentChecker:
                 key="encoders",
                 label="Mezzanine encoders",
                 status=DEGRADED,
-                detail=f"{', '.join(present)} — no {', '.join(missing)}, so {unsupported} sources cannot be cut",
+                detail=(
+                    f"{', '.join(present)} — no {', '.join(missing)}, "
+                    f"so {unsupported} sources cannot be cut"
+                ),
                 fix="Install a full ffmpeg build: " + ffmpeg_fix(),
             )
 
@@ -354,7 +357,7 @@ class EnvironmentChecker:
                 label="TransNetV2 weights",
                 status=DEGRADED if config.MODEL_SHA256 is None else BLOCKED,
                 detail=f"Not found at {config.MODEL_PATH} — detection is not available",
-                fix="python scripts/export_transnetv2.py",
+                fix="python -m scripts.export_transnetv2",
             )
 
         if config.MODEL_SHA256 is None:
@@ -372,7 +375,7 @@ class EnvironmentChecker:
                 label="TransNetV2 weights",
                 status=BLOCKED,
                 detail=f"Checksum mismatch — expected {config.MODEL_SHA256[:12]}, found {actual[:12]}",
-                fix="python scripts/export_transnetv2.py --force",
+                fix="python -m scripts.export_transnetv2 --force",
             )
 
         return Check(key="model", label="TransNetV2 weights", status=OK, detail=f"Verified {actual[:12]}")

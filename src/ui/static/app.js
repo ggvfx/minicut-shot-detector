@@ -147,8 +147,8 @@ function renderProbe(report) {
         // Skipped entirely on a refused source, so say so rather than claiming
         // "full frame" for something never looked at.
         "Masking": report.can_split
-            ? (report.detected_crop
-                ? `${report.detected_crop} (letterboxed — not applied)`
+            ? (source.detected_crop
+                ? `${source.detected_crop} (letterboxed — not applied)`
                 : "none — full frame")
             : "not checked",
         "Disk needed": `${report.estimated_gb.toFixed(1)} GB` +

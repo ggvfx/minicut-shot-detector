@@ -12,7 +12,6 @@ up Apple Silicon acceleration through the CoreML provider.
 Deterministic by design. Same input, same probabilities, every run.
 """
 
-import logging
 from pathlib import Path
 from typing import List, Optional
 

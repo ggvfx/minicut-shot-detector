@@ -16,8 +16,6 @@ Stage order:
     5. Report    Write the sidecar
 """
 
-import logging
-from pathlib import Path
 from typing import Optional
 
 from src.core.config import ProjectConfig
@@ -73,7 +71,7 @@ class SplitterPipeline:
         # 1. SourceProbe(toolchain).probe() -> SourceInfo.
         # 2. Refuse variable frame rate sources with a clear message — their
         #    frame-to-time mapping is unstable and every boundary would drift.
-        # 3. detect_crop() unless config.crop_override is set.
+        # 3. detect_crop() for the report — reported, never applied.
         # 4. estimate_disk_required() and compare against free space.
         raise NotImplementedError
 

@@ -60,7 +60,6 @@ class ProbeReport(BaseModel):
     """
 
     source: SourceInfo
-    detected_crop: Optional[str] = None
 
     # Duration as a timecode, which reads better than a frame count in the UI.
     duration_timecode: str

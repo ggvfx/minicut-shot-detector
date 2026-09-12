@@ -12,7 +12,6 @@ on nothing — the environment checks need it before any media module is touched
 import logging
 import shutil
 import subprocess
-from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 from pydantic import BaseModel
@@ -147,8 +146,8 @@ class MediaToolchain:
         """
         Encoder names this ffmpeg build actually offers.
 
-        Cached after the first call. Checked up front because many builds omit
-        prores_ks and dnxhd, which otherwise only surfaces mid-job.
+        Cached after the first call. Checked up front because a build without
+        libx264 or libx265 otherwise only surfaces mid-job.
         """
         if self._encoders is not None:
             return self._encoders
