@@ -15,16 +15,31 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from src.core.config import STATIC_DIR
 from src.core.environment import EnvironmentChecker
+from src.core.ffmpeg_tools import MediaToolchain
+from src.core.models import ProbeReport
+from src.media.probe import SourceProbe
 from src.ui import browse
 
 app = FastAPI(title="Minicut Shot Detector")
 
-# One checker for the life of the process, so the toolchain is discovered once
-# and the report is cached between panel refreshes.
-checker = EnvironmentChecker()
+# One toolchain and one checker for the life of the process, so ffmpeg is
+# discovered once and the environment report is cached between panel refreshes.
+toolchain = MediaToolchain()
+checker = EnvironmentChecker(toolchain)
+
+
+# --- REQUEST BODIES ---
+
+
+class ProbeRequest(BaseModel):
+    """A request to inspect a source before starting a job."""
+
+    source_path: str
+    output_dir: Optional[str] = None
 
 # --- PAGE ---
 
@@ -75,11 +90,33 @@ def get_directory(path: Optional[str] = None, videos_only: bool = False):
         raise HTTPException(status_code=403, detail=f"Permission denied: {target}")
 
 
+# --- SOURCE INSPECTION ---
+
+
+@app.post("/api/probe")
+def post_probe(request: ProbeRequest) -> ProbeReport:
+    """
+    Inspects a source: metadata, masking, and the disk the job would need.
+
+    Runs cropdetect over several samples, so this takes a moment on a long
+    file. It stays a plain blocking call until there is a job to stream
+    progress for.
+    """
+    source_path = Path(request.source_path)
+    output_dir = Path(request.output_dir) if request.output_dir else None
+
+    try:
+        return SourceProbe(toolchain).inspect(source_path, output_dir)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Source not found: {source_path}")
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+
+
 # --- JOBS (NOT BUILT YET) ---
 
-# Task 2 onwards adds:
-#   POST /api/probe    inspect a source and return SourceInfo + crop + disk estimate
-#   POST /api/job      start a splitter run, return a job id
+# Phase 3 onwards adds:
+#   POST /api/job               start a splitter run, return a job id
 #   GET  /api/job/{id}/events   SSE progress stream for that run
 #
 # Long operations must never block a request — the UI has to stay responsive

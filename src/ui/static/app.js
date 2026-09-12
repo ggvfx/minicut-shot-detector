@@ -18,6 +18,7 @@ const state = {
     outputDir: "",
     pickerMode: null,      // "source" | "output" while the dialog is open
     pickerPath: "",        // Directory currently shown in the dialog
+    probe: null,           // Last ProbeReport from the server
 };
 
 // ===== ENVIRONMENT PANEL =====
@@ -82,6 +83,108 @@ function renderEnvironment(report) {
         }
 
         list.append(row);
+    }
+}
+
+// ===== SOURCE INSPECTION =====
+
+/**
+ * Asks the server to probe the chosen source and renders what it found.
+ * Takes a moment on a long file — cropdetect samples several points.
+ */
+async function inspectSource() {
+    const status = document.getElementById("inspect-status");
+
+    if (!state.sourcePath) {
+        status.textContent = "Choose a source first.";
+        return;
+    }
+
+    status.textContent = "Inspecting…";
+
+    const response = await fetch("/api/probe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            source_path: state.sourcePath,
+            output_dir: state.outputDir || null,
+        }),
+    });
+
+    if (!response.ok) {
+        const problem = await response.json();
+        status.textContent = problem.detail || "Could not read that file.";
+        document.getElementById("source-card").hidden = true;
+        return;
+    }
+
+    status.textContent = "";
+    state.probe = await response.json();
+    renderProbe(state.probe);
+}
+
+/** Draws the probe report. */
+function renderProbe(report) {
+    const card = document.getElementById("source-card");
+    card.hidden = false;
+
+    const source = report.source;
+    const fps = source.fps_numerator / source.fps_denominator;
+
+    // Shown to three decimals only when the rate is not a whole number, so
+    // 25 reads as "25" and 23.976 is not rounded away to "24"
+    const fpsLabel = Number.isInteger(fps) ? `${fps}` : fps.toFixed(3);
+    const rational = `${source.fps_numerator}/${source.fps_denominator}`;
+
+    renderFacts({
+        "Resolution": `${source.width} × ${source.height}`,
+        "Codec": source.codec,
+        "Frame rate": `${fpsLabel} fps (${rational})`,
+        "Frames": source.frame_count.toLocaleString(),
+        "Duration": report.duration_timecode,
+        "Start timecode": source.start_timecode,
+        // Crop detection is skipped on a refused source, so say so rather than
+        // reporting "full frame" for something never looked at
+        "Mask": report.can_split
+            ? (report.detected_crop || "none — full frame")
+            : "not checked",
+        "Disk needed": `${report.estimated_gb.toFixed(1)} GB` +
+            (report.free_gb === null ? "" : ` of ${report.free_gb.toFixed(0)} GB free`),
+    });
+
+    const verdict = document.getElementById("source-verdict");
+    verdict.textContent = report.can_split ? "Ready to split" : "Cannot split";
+    verdict.className = `summary ${report.can_split ? "ok" : "blocked"}`;
+
+    const refusal = document.getElementById("source-refusal");
+    refusal.hidden = report.can_split;
+    refusal.textContent = report.refusal_reason || "";
+
+    const warnings = document.getElementById("source-warnings");
+    warnings.innerHTML = "";
+    for (const warning of report.warnings) {
+        const row = document.createElement("li");
+        row.textContent = warning;
+        warnings.append(row);
+    }
+
+    // The detected mask is a starting point the user can correct
+    document.getElementById("crop-override").value = report.detected_crop || "";
+}
+
+/** Renders a label/value map into the facts list. */
+function renderFacts(facts) {
+    const list = document.getElementById("source-facts");
+    list.innerHTML = "";
+
+    for (const [label, value] of Object.entries(facts)) {
+        const term = document.createElement("dt");
+        term.textContent = label;
+
+        const definition = document.createElement("dd");
+        definition.textContent = value;
+
+        list.append(term, definition);
     }
 }
 
@@ -192,6 +295,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // "Choose this folder" applies to the directory currently shown
     document.getElementById("picker-choose")
         .addEventListener("click", () => choosePath(state.pickerPath));
+
+    document.getElementById("inspect-button")
+        .addEventListener("click", inspectSource);
+
+    // Putting the detected mask back after an edit, without re-probing
+    document.getElementById("crop-reset")
+        .addEventListener("click", () => {
+            document.getElementById("crop-override").value =
+                (state.probe && state.probe.detected_crop) || "";
+        });
 
     // Typed paths are as valid as picked ones
     document.getElementById("source-path")

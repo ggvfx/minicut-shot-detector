@@ -148,6 +148,41 @@ input[type="text"] {
     cursor: pointer;
 }
 
+/* ===== SOURCE FACTS ===== */
+
+.action-row { display: flex; align-items: center; gap: 12px; }
+.status { color: var(--text-dim); font-size: 13px; }
+
+/* Two columns: fixed label, flexible value */
+.facts {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 6px 8px;
+    margin: 0 0 var(--gap);
+}
+
+.facts dt { color: var(--text-dim); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.refusal {
+    background: rgba(248, 113, 113, 0.1);
+    border-left: 3px solid var(--blocked);
+    padding: 10px 12px;
+    margin: 0 0 var(--gap);
+}
+
+.warnings { list-style: none; margin: 0 0 var(--gap); padding: 0; }
+
+.warnings li {
+    background: rgba(251, 191, 36, 0.1);
+    border-left: 3px solid var(--degraded);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+
+.crop-row { display: flex; align-items: center; gap: 8px; }
+.crop-row label { color: var(--text-dim); white-space: nowrap; }
+
 /* ===== PATH PICKER ===== */
 
 #picker {

@@ -48,13 +48,38 @@
                 <input type="text" id="output-dir" placeholder="Where shots are written">
                 <button class="secondary" data-picker="output">Browse…</button>
             </div>
+
+            <div class="action-row">
+                <button id="inspect-button">Inspect source</button>
+                <span id="inspect-status" class="status"></span>
+            </div>
         </section>
 
-        <!-- Probe results, detection settings, progress and the shot table all
-             land here as tasks 2-5 are built. -->
+        <!-- What probing found. Hidden until a source has been inspected. -->
+        <section class="card" id="source-card" hidden>
+            <div class="card-header">
+                <h2>Source</h2>
+                <span id="source-verdict" class="summary"></span>
+            </div>
+
+            <p id="source-refusal" class="refusal" hidden></p>
+            <ul id="source-warnings" class="warnings"></ul>
+
+            <dl id="source-facts" class="facts"></dl>
+
+            <!-- Detected, not asked for. The user confirms or overrides it;
+                 typing a mask in blind is how detection quietly degrades. -->
+            <div class="crop-row">
+                <label for="crop-override">Mask (w:h:x:y)</label>
+                <input type="text" id="crop-override" placeholder="none detected">
+                <button id="crop-reset" class="secondary">Use detected</button>
+            </div>
+        </section>
+
+        <!-- Detection, cutting and the shot table land here in phases 3 and 4. -->
         <section class="card" id="job-card">
             <h2>Job</h2>
-            <p class="placeholder">Probe and detection are not built yet — see the task list in CLAUDE.md.</p>
+            <p class="placeholder">Detection and cutting are not built yet — see TODO.md.</p>
         </section>
 
     </section>

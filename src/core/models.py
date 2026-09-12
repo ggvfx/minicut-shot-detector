@@ -46,6 +46,29 @@ class SourceInfo(BaseModel):
     detected_crop: Optional[str] = None
 
 
+class ProbeReport(BaseModel):
+    """
+    What inspecting a source told us, and whether a job can proceed.
+
+    The split between `can_split` and `warnings` is deliberate: a variable
+    frame rate source cannot be cut accurately at all, while a tight disk is
+    the user's call to make.
+    """
+
+    source: SourceInfo
+    detected_crop: Optional[str] = None
+
+    # Duration as a timecode, which reads better than a frame count in the UI.
+    duration_timecode: str
+
+    estimated_gb: float
+    free_gb: Optional[float] = None
+
+    can_split: bool = True
+    refusal_reason: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+
+
 # --- DETECTION ---
 
 

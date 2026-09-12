@@ -8,20 +8,28 @@ where a delivered cut has to be reversed back into per-shot media without a
 single frame landing on the wrong side of a boundary.
 
 ## Project Status
-🚦 **Project Status:** Pre-Alpha (Scaffold & Architecture)
-The application shell, dependency panel and path picker are working. Detection
-and cutting are architected as reviewed skeletons and not yet implemented.
+🚦 **Project Status:** Pre-Alpha (Source Inspection)
+The app shell, dependency panel, path picker and source inspection are working.
+Cutting and detection are architected as reviewed skeletons and not yet
+implemented.
 
 **Current Capabilities:**
+* **Source Inspection:** Reads frame rate as an exact rational, frame count,
+  duration, start timecode and codec, and reports what it found before any
+  work starts.
+* **Masking Detection:** Multi-sample `cropdetect` finds letterbox and
+  pillarbox bars, shown for confirmation with a manual override.
+* **Variable Frame Rate Refusal:** VFR sources have no stable frame-to-time
+  mapping, so they are refused with an explanation rather than cut badly.
+* **Disk Estimation:** Estimates the mezzanine and splits against free space
+  on the output volume, before the job rather than when the drive fills.
 * **Dependency Panel:** Three-state environment reporting (ready / degraded /
   blocked), with a copyable fix command for every failure and a manual re-check.
-* **Encoder Verification:** Parses `ffmpeg -encoders` up front to confirm a
-  mezzanine codec exists, rather than discovering it mid-job.
 * **Local Path Picker:** Server-side directory browsing, so multi-gigabyte media
   is never uploaded through the browser.
 
-**Next Milestone:** Source probing — frame rate, timecode, VFR handling and
-`cropdetect` masking.
+**Next Milestone:** Frame-accurate cutting — all-intra mezzanine, stream-copy
+splits and the round-trip validation that proves them.
 
 ## Development Approach
 
@@ -77,13 +85,13 @@ Run the tests with `pytest` from the repo root.
 * SMPTE timecode engine — exact rational frame rates, drop-frame handling and
   frame-accurate seek times, covered by 62 unit tests.
 
-### Phase 2: Probe & Preprocess (Current)
+### Phase 2: Probe & Preprocess (Complete)
 * `ffprobe` metadata, exact rational frame rates, and source start timecode.
 * Variable frame rate detection, reported and refused rather than rewritten.
 * Multi-sample `cropdetect` masking with UI confirmation and override.
 * Disk requirement estimation before a job starts.
 
-### Phase 3: Cutting & Validation
+### Phase 3: Cutting & Validation (Current)
 * All-intra mezzanine and frame-accurate stream-copy splits.
 * Integrity and frame-hash round-trip validation.
 * JSON sidecar with the full resolved environment.
