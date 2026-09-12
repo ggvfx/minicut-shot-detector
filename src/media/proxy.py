@@ -28,8 +28,9 @@ from src.core.models import SourceInfo
 # --- PROXY SETTINGS ---
 
 # Small enough to seek instantly and to sit in a browser without ceremony;
-# large enough to judge whether a cut is in the right place.
-PROXY_WIDTH = 480
+# large enough to judge whether a cut is in the right place. 480 was legible
+# but soft on 1080p material.
+PROXY_WIDTH = 640
 PROXY_CRF = 23
 PROXY_PRESET = "veryfast"
 

@@ -153,6 +153,30 @@ input[type="text"] {
     cursor: pointer;
 }
 
+/* ===== INTRO ===== */
+
+.intro { margin-bottom: var(--gap); }
+.intro p { margin: 0 0 4px; }
+
+/* ===== COLLAPSIBLE SECTIONS ===== */
+
+/* Both the limitations and the environment panel are things you read once and
+   then want out of the way */
+summary {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+summary::-webkit-details-marker { color: var(--text-dim); }
+summary .summary { margin: 0; }
+.card-title { color: var(--text-dim); }
+.card-body { margin-top: 12px; }
+
 /* ===== LIMITATIONS BANNER ===== */
 
 .limitations {
@@ -163,7 +187,7 @@ input[type="text"] {
     margin-bottom: var(--gap);
 }
 
-.limitations h2 { margin-bottom: 6px; }
+.limitations ul { margin-top: 8px; }
 .limitations ul { margin: 0; padding-left: 18px; color: var(--text-dim); }
 .limitations li { margin-bottom: 2px; }
 .limitations strong { color: var(--text); font-weight: 600; }
@@ -218,19 +242,24 @@ input[type="text"] {
 
 /* ===== REVIEW PLAYER ===== */
 
+/* Height-driven, with the aspect ratio set from the source, so the picture
+   fills its box instead of sitting in the middle of a wide black one */
 #proxy-player {
-    width: 100%;
-    max-height: 55vh;
+    height: 60vh;
+    width: auto;
+    max-width: 100%;
     background: #000;
     border-radius: var(--radius);
     display: block;
+    margin: 0 auto;
 }
 
-/* Ticks sit on this strip, positioned by where their frame falls. Clicking
-   anywhere on it seeks there: stepping is for precision, this is for crossing
+/* Ticks sit on this strip, positioned by where their frame falls. Press or
+   drag anywhere on it to seek: stepping is for precision, this is for crossing
    a thousand frames. */
 .timeline {
     cursor: pointer;
+    touch-action: none;
     position: relative;
     height: 22px;
     margin: 8px 0 12px;
@@ -278,6 +307,34 @@ input[type="text"] {
     margin-left: auto;
     color: var(--text-dim);
     font-variant-numeric: tabular-nums;
+}
+
+/* The mark button sits next to the readout, because that is where the eye
+   already is while reviewing */
+.transport #mark-button { margin-left: 4px; }
+
+/* ===== PROGRESS ===== */
+
+/* Deliberately indeterminate: it says work is happening, which is true, rather
+   than a percentage, which would not be */
+.progress {
+    height: 3px;
+    margin-top: 12px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    width: 30%;
+    height: 100%;
+    background: var(--ok);
+    animation: sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(430%); }
 }
 
 .shots {

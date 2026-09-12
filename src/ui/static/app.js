@@ -100,6 +100,7 @@ function renderEnvironment(report) {
  */
 async function inspectSource() {
     const status = document.getElementById("inspect-status");
+    showProgress(true);
 
     if (!state.sourcePath) {
         status.textContent = "Choose a source first.";
@@ -117,10 +118,11 @@ async function inspectSource() {
         }),
     });
 
+    showProgress(false);
+
     if (!response.ok) {
         const problem = await response.json();
         status.textContent = problem.detail || "Could not read that file.";
-        document.getElementById("source-card").hidden = true;
         return;
     }
 
@@ -132,9 +134,6 @@ async function inspectSource() {
 
 /** Draws the probe report. */
 function renderProbe(report) {
-    const card = document.getElementById("source-card");
-    card.hidden = false;
-
     const source = report.source;
     const fps = source.fps_numerator / source.fps_denominator;
 
@@ -178,7 +177,27 @@ function renderProbe(report) {
         warnings.append(row);
     }
 
-    document.getElementById("analyse-button").disabled = !report.can_split;
+    // The next step only appears once there is something worth analysing
+    document.getElementById("job-card").hidden = !report.can_split;
+    suggestOutputDirectory();
+}
+
+/**
+ * Proposes an output directory beside the source, named after it.
+ *
+ * Writing shots into the folder holding the masters would scatter a dozen
+ * files among them, so the default is a folder of its own. Only ever a
+ * suggestion: a directory the user has already chosen is left alone.
+ */
+function suggestOutputDirectory() {
+    if (state.outputDir) return;
+
+    const separator = state.sourcePath.includes("\\") ? "\\" : "/";
+    const parts = state.sourcePath.split(/[\/]/);
+    const name = parts.pop().replace(/\.[^.]+$/, "");
+
+    state.outputDir = [...parts, `${name}_shots`].join(separator);
+    document.getElementById("output-dir").value = state.outputDir;
 }
 
 // ===== ANALYSE =====
@@ -190,7 +209,7 @@ function renderProbe(report) {
  * split itself — is fast because the encode has already happened.
  */
 async function analyseSource() {
-    const status = document.getElementById("inspect-status");
+    const status = document.getElementById("analyse-status");
     const button = document.getElementById("analyse-button");
 
     if (!state.sourcePath || !state.outputDir) {
@@ -199,7 +218,8 @@ async function analyseSource() {
     }
 
     button.disabled = true;
-    status.textContent = "Analysing… building the mezzanine and review proxy. This can take a few minutes.";
+    showProgress(true);
+    status.textContent = "Analysing… building the review copy. This can take a few minutes.";
 
     try {
         const response = await fetch("/api/analyse", {
@@ -225,6 +245,7 @@ async function analyseSource() {
 
     } finally {
         button.disabled = false;
+        showProgress(false);
     }
 }
 
@@ -293,9 +314,15 @@ function goToCut(direction) {
 /** Opens the review panel on a freshly prepared job. */
 function openReview() {
     const player = document.getElementById("proxy-player");
+    const source = state.prepared.source;
+
+    // Sized by the video's own shape, so it does not sit in a wide box with
+    // black either side of it
+    player.style.aspectRatio = `${source.width} / ${source.height}`;
     player.src = `/api/proxy?path=${encodeURIComponent(state.prepared.proxy_path)}`;
 
-    document.getElementById("job-card").hidden = false;
+    document.getElementById("review").hidden = false;
+    document.getElementById("output-card").hidden = false;
     document.getElementById("result-card").hidden = true;
 
     player.addEventListener("loadeddata", () => goToFrame(0), { once: true });
@@ -305,9 +332,11 @@ function openReview() {
 
 /** Hides the review panel — a different source needs a different proxy. */
 function closeReview() {
-    document.getElementById("job-card").hidden = true;
+    document.getElementById("review").hidden = true;
+    document.getElementById("output-card").hidden = true;
     document.getElementById("result-card").hidden = true;
     document.getElementById("proxy-player").removeAttribute("src");
+    document.getElementById("cut-count").textContent = "";
 
     state.prepared = null;
     state.boundaries = [];
@@ -344,11 +373,11 @@ function toggleMarker() {
 }
 
 /**
- * Seeks to wherever the strip was clicked.
+ * Seeks to wherever the strip was pressed, and follows the pointer if it moves.
  *
  * Stepping frame by frame is precise and useless for crossing a thousand
- * frames, so the strip doubles as a scrubber: land near a cut, then step onto
- * it exactly.
+ * frames, so the strip is also the scrubber: drag to somewhere near a cut, then
+ * step onto it exactly.
  */
 function scrubTo(event) {
     if (!state.prepared) return;
@@ -356,9 +385,26 @@ function scrubTo(event) {
     const timeline = document.getElementById("timeline");
     const bounds = timeline.getBoundingClientRect();
     const fraction = (event.clientX - bounds.left) / bounds.width;
+    const clamped = Math.max(0, Math.min(fraction, 1));
+
+    goToFrame(Math.round(clamped * (state.prepared.source.frame_count - 1)));
+}
+
+/** Starts a drag, and keeps scrubbing until the pointer is released. */
+function beginScrub(event) {
+    if (!state.prepared) return;
 
     document.getElementById("proxy-player").pause();
-    goToFrame(Math.round(fraction * (state.prepared.source.frame_count - 1)));
+    scrubTo(event);
+
+    // Listening on the window means the drag survives leaving the strip, which
+    // is what anyone dragging quickly will do
+    window.addEventListener("pointermove", scrubTo);
+    window.addEventListener("pointerup", endScrub, { once: true });
+}
+
+function endScrub() {
+    window.removeEventListener("pointermove", scrubTo);
 }
 
 /** Moves the playhead to where the player actually is. */
@@ -386,8 +432,9 @@ function renderTimeline() {
         tick.className = frame === 0 ? "tick fixed" : "tick";
         tick.style.left = `${(frame / last) * 100}%`;
         tick.title = `Frame ${frame}`;
-        tick.addEventListener("click", (event) => {
+        tick.addEventListener("pointerdown", (event) => {
             event.stopPropagation();
+            document.getElementById("proxy-player").pause();
             goToFrame(frame);
         });
         timeline.append(tick);
@@ -422,6 +469,7 @@ async function splitSource() {
     const button = document.getElementById("split-button");
 
     button.disabled = true;
+    showProgress(true);
     status.textContent = "Cutting…";
 
     try {
@@ -449,7 +497,19 @@ async function splitSource() {
 
     } finally {
         button.disabled = false;
+        showProgress(false);
     }
+}
+
+/**
+ * Shows or hides the working indicator.
+ *
+ * It reports that work is happening, not how far along it is. Per-stage
+ * progress needs streaming, which is its own task, and a percentage invented
+ * here would be a lie told confidently.
+ */
+function showProgress(running) {
+    document.getElementById("progress").hidden = !running;
 }
 
 /** Draws the finished job: the verdict, any failures, and every shot written. */
@@ -642,7 +702,7 @@ function choosePath(path) {
  * Ignored while typing in a field, or the path box could not contain an "f".
  */
 function handleKey(event) {
-    if (!state.prepared || document.getElementById("job-card").hidden) return;
+    if (!state.prepared || document.getElementById("review").hidden) return;
 
     const typing = ["INPUT", "TEXTAREA"].includes(event.target.tagName);
     if (typing) return;
@@ -709,7 +769,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("previous-cut").addEventListener("click", () => goToCut(-1));
     document.getElementById("next-cut").addEventListener("click", () => goToCut(1));
     document.getElementById("mark-button").addEventListener("click", toggleMarker);
-    document.getElementById("timeline").addEventListener("click", scrubTo);
+    document.getElementById("timeline").addEventListener("pointerdown", beginScrub);
 
     // The readout follows playback as well as stepping
     document.getElementById("proxy-player")

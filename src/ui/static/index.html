@@ -19,109 +19,139 @@
     </nav>
 </header>
 
+<!-- The page is a workflow: every section sits in the order it is used, so the
+     only direction anyone needs to move is down. -->
 <main>
 
     <!-- ===== SPLITTER TAB ===== -->
     <section id="splitter" class="tab-panel active">
 
+        <!-- What this is and what to do first, before anything it cannot do -->
+        <section class="intro">
+            <p>
+                <strong>Splits a mini cut into its shots</strong> — one file per shot, in the
+                format you gave it, with every cut checked against the source.
+            </p>
+            <p class="hint">
+                Choose a source below and <strong>Inspect</strong> it. Then <strong>Analyse</strong>
+                it, mark where each shot starts by playing through it, and split.
+            </p>
+        </section>
+
         <!-- What this version cannot do, stated before anyone feeds it a file
              rather than discovered in the output. -->
-        <section class="limitations">
-            <h2>What this version handles</h2>
+        <details class="limitations">
+            <summary>What this version handles</summary>
             <ul>
                 <li><strong>Hard cuts only.</strong> Dissolves, fades and wipes are not detected as edits.</li>
                 <li><strong>Constant frame rate only.</strong> Variable frame rate sources are refused — re-encode to constant frame rate first.</li>
                 <li><strong>Masking is reported, not applied.</strong> Letterboxing is measured and shown, but shots are always cut at full frame.</li>
                 <li><strong>h264 and h265 only.</strong> Shots come back in the codec and container they went in as, re-encoded once so cuts land on the exact frame.</li>
             </ul>
-        </section>
+        </details>
 
-        <!-- Dependency panel: three states, ok / degraded / blocked -->
-        <section class="card" id="environment-card">
-            <div class="card-header">
-                <h2>Environment</h2>
-                <button id="recheck-button" class="secondary">Re-check</button>
+        <!-- Collapsed by default: most of the time nothing is missing, and the
+             colour in the summary is all anyone needs to know. -->
+        <details class="card" id="environment-card">
+            <summary>
+                <span class="card-title">Environment</span>
+                <span id="environment-summary" class="summary">Checking…</span>
+            </summary>
+
+            <div class="card-body">
+                <ul id="environment-checks" class="checks"></ul>
+                <div class="action-row">
+                    <button id="recheck-button" class="secondary">Re-check</button>
+                    <span class="status">Click any fix command to copy it.</span>
+                </div>
             </div>
-            <p id="environment-summary" class="summary">Checking…</p>
-            <ul id="environment-checks" class="checks"></ul>
-        </section>
+        </details>
 
-        <!-- Path selection. Paths are typed or picked from the server's own
-             directory listing — media is never uploaded to the browser. -->
+        <!-- Step one: what am I working on, and can it be cut? -->
         <section class="card">
-            <h2>Source</h2>
+            <div class="card-header">
+                <h2>1 · Source</h2>
+                <span id="source-verdict" class="summary"></span>
+            </div>
+
             <div class="path-row">
                 <input type="text" id="source-path" placeholder="Path to the mini cut">
                 <button class="secondary" data-picker="source">Browse…</button>
+                <button id="inspect-button">Inspect</button>
             </div>
 
-            <h2>Output directory</h2>
+            <p id="inspect-status" class="status"></p>
+
+            <p id="source-refusal" class="refusal" hidden></p>
+            <ul id="source-warnings" class="warnings"></ul>
+            <dl id="source-facts" class="facts"></dl>
+        </section>
+
+        <!-- Step two: where are the shots? Analysis first, then review. -->
+        <section class="card" id="job-card" hidden>
+            <div class="card-header">
+                <h2>2 · Shot estimation</h2>
+                <span id="cut-count" class="summary"></span>
+            </div>
+
+            <div class="action-row">
+                <button id="analyse-button">Analyse for shot cuts</button>
+                <span id="analyse-status" class="status">Builds the review copy. This is the slow step.</span>
+            </div>
+
+            <div id="review" hidden>
+                <label class="checkbox" title="Shots are checked by comparing the frames either side of every cut against the source. Tick this to rejoin every shot and compare every frame instead: a stricter check that takes considerably longer and needs free space for a second copy of the source while it runs.">
+                    <input type="checkbox" id="full-round-trip">
+                    Full round-trip verification
+                </label>
+
+                <p class="hint">
+                    Below is a small review copy, not the output. The frame number in the corner
+                    is the frame you are on. Shots are cut from the source itself and come back
+                    at its full quality.
+                </p>
+
+                <video id="proxy-player" preload="auto"></video>
+
+                <!-- Click or drag anywhere to move; ticks mark where shots start -->
+                <div id="timeline" class="timeline"></div>
+
+                <div class="transport">
+                    <button id="play-button" class="secondary" title="Play or pause (Space)">Play</button>
+                    <button id="step-back" class="secondary" title="Back one frame (Left arrow) — ten with Shift">◀ Frame</button>
+                    <button id="step-forward" class="secondary" title="Forward one frame (Right arrow) — ten with Shift">Frame ▶</button>
+                    <button id="previous-cut" class="secondary" title="Previous shot start ([)">◀ Cut</button>
+                    <button id="next-cut" class="secondary" title="Next shot start (])">Cut ▶</button>
+
+                    <span id="frame-readout" class="readout"></span>
+                    <button id="mark-button" title="Mark or unmark the start of a shot (F)">Mark first frame</button>
+                </div>
+
+                <p id="mark-hint" class="status"></p>
+            </div>
+        </section>
+
+        <!-- Step three: where does it go, and write it -->
+        <section class="card" id="output-card" hidden>
+            <h2>3 · Output</h2>
+
             <div class="path-row">
                 <input type="text" id="output-dir" placeholder="Where shots are written">
                 <button class="secondary" data-picker="output">Browse…</button>
             </div>
 
             <div class="action-row">
-                <button id="inspect-button" class="secondary">Inspect source</button>
-                <button id="analyse-button">Analyse for cuts</button>
-                <span id="inspect-status" class="status"></span>
-            </div>
-        </section>
-
-        <!-- What probing found. Hidden until a source has been inspected. -->
-        <section class="card" id="source-card" hidden>
-            <div class="card-header">
-                <h2>Source</h2>
-                <span id="source-verdict" class="summary"></span>
-            </div>
-
-            <p id="source-refusal" class="refusal" hidden></p>
-            <ul id="source-warnings" class="warnings"></ul>
-
-            <dl id="source-facts" class="facts"></dl>
-        </section>
-
-        <!-- Review. The proxy is small, all-intra and carries its own frame
-             numbers, so what the player says and what the picture shows can be
-             checked against each other. Detection fills these markers in
-             phase 4; the panel itself does not change. -->
-        <section class="card" id="job-card" hidden>
-            <div class="card-header">
-                <h2>Cuts</h2>
-                <span id="cut-count" class="summary"></span>
-            </div>
-
-            <video id="proxy-player" preload="auto"></video>
-
-            <!-- Every first frame, as a tick you can click to jump to -->
-            <div id="timeline" class="timeline"></div>
-
-            <div class="transport">
-                <button id="play-button" class="secondary" title="Space">Play</button>
-                <button id="step-back" class="secondary" title="Left arrow — hold Shift for ten">◀ Frame</button>
-                <button id="step-forward" class="secondary" title="Right arrow — hold Shift for ten">Frame ▶</button>
-                <button id="previous-cut" class="secondary" title="[">◀ Cut</button>
-                <button id="next-cut" class="secondary" title="]">Cut ▶</button>
-                <span id="frame-readout" class="readout"></span>
-            </div>
-
-            <div class="action-row">
-                <button id="mark-button">Mark first frame</button>
-                <span id="mark-hint" class="status">Press F, or use the button</span>
-            </div>
-
-            <label class="checkbox" title="Shots are checked by comparing the frames either side of every cut against the source. Tick this to rejoin every shot and compare every frame instead: a stricter check that takes considerably longer and needs free space for a second copy of the source while it runs.">
-                <input type="checkbox" id="full-round-trip">
-                Full round-trip verification
-            </label>
-
-            <div class="action-row">
                 <button id="split-button">Split into shots</button>
                 <span id="split-status" class="status"></span>
             </div>
+
+            <!-- Shown while a job runs. It reports that work is happening, not
+                 how far along it is: per-frame progress needs streaming, which
+                 is its own task, and a made-up percentage would be a lie. -->
+            <div id="progress" class="progress" hidden><div class="progress-bar"></div></div>
         </section>
 
-        <!-- What the job produced. Hidden until there is a job. -->
+        <!-- What the job produced -->
         <section class="card" id="result-card" hidden>
             <div class="card-header">
                 <h2>Shots</h2>

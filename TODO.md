@@ -124,6 +124,62 @@ cutter and useless for actually finding cuts.
 - [x] **Typed boundaries removed from the UI.** The API still accepts frame
       numbers and timecodes as text; the page no longer asks anyone to type them.
 
+## Phase 3.6 — Interface Pass ✅ Complete
+
+From hand testing the review player. The tool works; it does not yet read as
+something you can be handed without explanation. The theme running through all
+of it: **the page should be a workflow you move down**, not a set of panels.
+
+### Layout and order
+
+- [x] **Intro above the limitations** — a short line on what this does and what
+      to do first, before the list of what it cannot do.
+- [x] **Order the page as the workflow** — every section in the order it is
+      used, so the user only ever moves downward.
+- [x] **Source, Inspect and the readout in one section** — they are one step.
+- [x] **Output directory moves to the bottom**, in its own box with the split
+      button and the progress bar. It is only needed at the moment of writing.
+- [x] **Output directory defaults from the source** — a `<source name>_shots`
+      folder beside it, created when the job runs. Writing into the folder
+      holding the masters would scatter a dozen files among them. It is only a
+      suggestion: a directory already chosen is left alone.
+- [x] **Rename "Cuts"** to something that says what it is — *Shot estimation*.
+- [x] **Analyse button at the top of the shot estimation section**, with the
+      full-verification checkbox above the player.
+- [x] **Mark button beside the frame readout**, where the eye already is.
+
+### Environment panel
+
+- [x] **Collapse it** to a single coloured status line, expandable. Most users
+      never need the detail; they need to know whether anything is missing.
+- [ ] **Decide what a user does about a missing dependency** — deferred, see
+      the open questions. The copyable fix command stands in the meantime, and
+      the panel now says it can be clicked to copy.
+
+### Player
+
+- [x] **Proxy to 640px** (from 480).
+- [x] **Size the player to the video's aspect ratio** rather than filling the
+      width and showing black either side.
+- [x] **Scrubbing** — the timeline strip is clickable but not draggable, and a
+      person expects to drag. Make it a real scrubber.
+- [x] **Tooltips on every transport button**, naming the keyboard shortcut.
+- [x] **A line explaining the proxy** — that it is a small copy for judging
+      boundaries, and the shots written will match the source exactly.
+
+### Open questions
+
+1. **A "Fix now" button for missing dependencies.** Installing Python packages
+   into our own virtual environment is bounded and safe. Installing ffmpeg is a
+   system-level change that may need elevation, takes minutes, and can fail in
+   ways we cannot report while the request blocks. My advice is to wait until
+   progress streaming exists, and to keep the copyable command until then.
+2. **What a user does when the readout is wrong.** If ffprobe reports the wrong
+   frame rate or frame count, the file's own metadata is wrong, and overriding
+   it here would silently change every calculation downstream. My advice is to
+   say so plainly rather than offer an override, and to treat re-wrapping a
+   mislabelled source as its own feature if it ever comes up.
+
 ## Phase 4 — Detection ⬅ Current
 
 TransNetV2 ONNX export, sliding-window inference, PySceneDetect cross-check,
