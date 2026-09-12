@@ -62,9 +62,16 @@ header {
 
 /* ===== LAYOUT ===== */
 
-/* The page uses the window it is given. A tool with a shot table in it should
-   not sit in a column while two thirds of a monitor goes unused. */
-main { padding: 24px; }
+/* Everything lines up left and ends where the player ends. The player is
+   height-driven, so a 16:9 picture at PLAYER_HEIGHT is exactly this wide —
+   which keeps the cards, the strip and the picture on one right edge however
+   wide the monitor is. */
+:root { --player-height: 60vh; }
+
+main {
+    padding: 24px;
+    max-width: calc(var(--player-height) * 16 / 9);
+}
 
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
@@ -160,8 +167,9 @@ input[type="text"] {
 
 /* ===== COLLAPSIBLE SECTIONS ===== */
 
-/* Both the limitations and the environment panel are things you read once and
-   then want out of the way */
+/* The environment panel is the collapsible one: most of the time nothing is
+   missing and the colour in its header is the whole message. The limitations
+   are not, because they have to be read. */
 summary {
     cursor: pointer;
     display: flex;
@@ -170,9 +178,35 @@ summary {
     color: var(--text-dim);
     font-weight: 600;
     font-size: 14px;
+    list-style: none;
 }
 
-summary::-webkit-details-marker { color: var(--text-dim); }
+summary::-webkit-details-marker { display: none; }
+
+/* An explicit arrow, because the default marker is inconsistent between
+   browsers and disappears entirely once the summary is a flex row */
+summary::before {
+    content: "▸";
+    display: inline-block;
+    transition: transform 0.15s ease;
+    color: var(--text-dim);
+}
+
+details[open] > summary::before { transform: rotate(90deg); }
+
+/* Re-check sits with the status rather than inside the panel it refreshes */
+.inline-button {
+    margin-left: auto;
+    padding: 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-weight: 400;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.inline-button:hover { background: var(--bg); }
 summary .summary { margin: 0; }
 .card-title { color: var(--text-dim); }
 .card-body { margin-top: 12px; }
@@ -187,7 +221,8 @@ summary .summary { margin: 0; }
     margin-bottom: var(--gap);
 }
 
-.limitations ul { margin-top: 8px; }
+.limitations h2 { margin-bottom: 6px; }
+.limitations ul { margin: 0; padding-left: 18px; }
 .limitations ul { margin: 0; padding-left: 18px; color: var(--text-dim); }
 .limitations li { margin-bottom: 2px; }
 .limitations strong { color: var(--text); font-weight: 600; }
@@ -245,14 +280,17 @@ summary .summary { margin: 0; }
 /* Height-driven, with the aspect ratio set from the source, so the picture
    fills its box instead of sitting in the middle of a wide black one */
 #proxy-player {
-    height: 60vh;
+    height: var(--player-height);
     width: auto;
     max-width: 100%;
     background: #000;
     border-radius: var(--radius);
     display: block;
-    margin: 0 auto;
 }
+
+/* Shrinks to the player, so the scrub strip is exactly as wide as the picture
+   it belongs to rather than as wide as the card */
+.player-wrap { width: max-content; max-width: 100%; }
 
 /* Ticks sit on this strip, positioned by where their frame falls. Press or
    drag anywhere on it to seek: stepping is for precision, this is for crossing

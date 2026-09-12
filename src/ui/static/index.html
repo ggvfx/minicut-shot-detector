@@ -40,15 +40,17 @@
 
         <!-- What this version cannot do, stated before anyone feeds it a file
              rather than discovered in the output. -->
-        <details class="limitations">
-            <summary>What this version handles</summary>
+        <!-- Not collapsible. These are the things someone needs to have read
+             before they feed it a file, so they are not hideable. -->
+        <section class="limitations">
+            <h2>What this version handles</h2>
             <ul>
                 <li><strong>Hard cuts only.</strong> Dissolves, fades and wipes are not detected as edits.</li>
                 <li><strong>Constant frame rate only.</strong> Variable frame rate sources are refused — re-encode to constant frame rate first.</li>
                 <li><strong>Masking is reported, not applied.</strong> Letterboxing is measured and shown, but shots are always cut at full frame.</li>
                 <li><strong>h264 and h265 only.</strong> Shots come back in the codec and container they went in as, re-encoded once so cuts land on the exact frame.</li>
             </ul>
-        </details>
+        </section>
 
         <!-- Collapsed by default: most of the time nothing is missing, and the
              colour in the summary is all anyone needs to know. -->
@@ -56,14 +58,13 @@
             <summary>
                 <span class="card-title">Environment</span>
                 <span id="environment-summary" class="summary">Checking…</span>
+                <!-- Not a <button>: one cannot be nested inside a <summary>
+                     without the click toggling the panel as well -->
+                <span id="recheck-button" class="inline-button" role="button" tabindex="0">Re-check</span>
             </summary>
 
             <div class="card-body">
                 <ul id="environment-checks" class="checks"></ul>
-                <div class="action-row">
-                    <button id="recheck-button" class="secondary">Re-check</button>
-                    <span class="status">Click any fix command to copy it.</span>
-                </div>
             </div>
         </details>
 
@@ -96,38 +97,42 @@
 
             <div class="action-row">
                 <button id="analyse-button">Analyse for shot cuts</button>
-                <span id="analyse-status" class="status">Builds the review copy. This is the slow step.</span>
-            </div>
 
-            <div id="review" hidden>
                 <label class="checkbox" title="Shots are checked by comparing the frames either side of every cut against the source. Tick this to rejoin every shot and compare every frame instead: a stricter check that takes considerably longer and needs free space for a second copy of the source while it runs.">
                     <input type="checkbox" id="full-round-trip">
                     Full round-trip verification
                 </label>
 
+                <span id="analyse-status" class="status">Builds the review copy. This is the slow step.</span>
+            </div>
+
+            <div id="review" hidden>
                 <p class="hint">
                     Below is a small review copy, not the output. The frame number in the corner
                     is the frame you are on. Shots are cut from the source itself and come back
                     at its full quality.
                 </p>
 
-                <video id="proxy-player" preload="auto"></video>
+                <!-- The wrapper takes the player's width, so the strip below
+                     lines up with the picture rather than with the card -->
+                <div class="player-wrap">
+                    <video id="proxy-player" preload="auto"></video>
 
-                <!-- Click or drag anywhere to move; ticks mark where shots start -->
-                <div id="timeline" class="timeline"></div>
+                    <!-- Press or drag anywhere to move; ticks mark shot starts -->
+                    <div id="timeline" class="timeline"></div>
+                </div>
 
                 <div class="transport">
                     <button id="play-button" class="secondary" title="Play or pause (Space)">Play</button>
                     <button id="step-back" class="secondary" title="Back one frame (Left arrow) — ten with Shift">◀ Frame</button>
                     <button id="step-forward" class="secondary" title="Forward one frame (Right arrow) — ten with Shift">Frame ▶</button>
-                    <button id="previous-cut" class="secondary" title="Previous shot start ([)">◀ Cut</button>
-                    <button id="next-cut" class="secondary" title="Next shot start (])">Cut ▶</button>
+                    <button id="previous-cut" class="secondary" title="Previous shot start ([)">◀ Shot</button>
+                    <button id="next-cut" class="secondary" title="Next shot start (])">Shot ▶</button>
 
                     <span id="frame-readout" class="readout"></span>
                     <button id="mark-button" title="Mark or unmark the start of a shot (F)">Mark first frame</button>
                 </div>
 
-                <p id="mark-hint" class="status"></p>
             </div>
         </section>
 

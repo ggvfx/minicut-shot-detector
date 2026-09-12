@@ -354,12 +354,9 @@ function toggleMarker() {
     if (!state.prepared) return;
 
     const frame = currentFrame();
-    const hint = document.getElementById("mark-hint");
 
-    if (frame === 0) {
-        hint.textContent = "Frame 0 always starts the first shot";
-        return;
-    }
+    // Frame 0 cannot be unmarked, and its button is disabled to say so
+    if (frame === 0) return;
 
     if (state.boundaries.includes(frame)) {
         state.boundaries = state.boundaries.filter((value) => value !== frame);
@@ -367,7 +364,6 @@ function toggleMarker() {
         state.boundaries = [...state.boundaries, frame].sort((a, b) => a - b);
     }
 
-    hint.textContent = "Press F, or use the button";
     renderTimeline();
     renderReadout(frame);
 }
@@ -744,8 +740,19 @@ function togglePlay() {
 document.addEventListener("DOMContentLoaded", () => {
     loadEnvironment();
 
-    document.getElementById("recheck-button")
-        .addEventListener("click", () => loadEnvironment(true));
+    // Inside the <summary>, so its click must not also open or close the panel
+    const recheck = document.getElementById("recheck-button");
+    recheck.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        loadEnvironment(true);
+    });
+    recheck.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            loadEnvironment(true);
+        }
+    });
 
     for (const button of document.querySelectorAll("[data-picker]")) {
         button.addEventListener("click", () => openPicker(button.dataset.picker));

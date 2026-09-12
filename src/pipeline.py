@@ -42,13 +42,15 @@ from src.validation.validator import JobValidator
 
 # --- WORKING FILES ---
 
-# The mezzanine sits alongside the shots, named after the source so two jobs in
-# one directory cannot collide. Removed when the job passes.
-MEZZANINE_SUFFIX = "_mezzanine"
-
-# Scratch space for the round trip, removed afterwards. Hidden so it does not
-# look like part of the delivery if a job is interrupted.
+# The mezzanine, the review proxy and the round trip's scratch all live here,
+# inside the output directory. Keeping them out of the delivery folder means an
+# abandoned analysis leaves one obviously temporary folder rather than two large
+# files sitting among the shots. Removed when a job passes; kept when one fails,
+# because that is when the intermediates are worth having.
 WORK_DIRECTORY = ".minicut-work"
+
+# Named after the source, so two jobs sharing an output directory cannot collide
+MEZZANINE_SUFFIX = "_mezzanine"
 
 
 class SplitterPipeline:
@@ -98,7 +100,8 @@ class SplitterPipeline:
 
         mezzanine_path = self._mezzanine(report.source, output_dir)
         proxy_path = ProxyBuilder(self.toolchain).build(
-            mezzanine_path, ProxyBuilder.proxy_path_for(report.source, output_dir)
+            mezzanine_path,
+            ProxyBuilder.proxy_path_for(report.source, output_dir / WORK_DIRECTORY),
         )
 
         return PreparedJob(
@@ -206,7 +209,8 @@ class SplitterPipeline:
         between requests, which keeps the server free of session state.
         """
         source_path = Path(source.path)
-        mezzanine_path = output_dir / f"{source_path.stem}{MEZZANINE_SUFFIX}{source_path.suffix}"
+        work_dir = ensure_directory(output_dir / WORK_DIRECTORY)
+        mezzanine_path = work_dir / f"{source_path.stem}{MEZZANINE_SUFFIX}{source_path.suffix}"
 
         builder = MezzanineBuilder(self.toolchain)
 
@@ -253,15 +257,13 @@ class SplitterPipeline:
 
         if keep_mezzanine:
             logging.warning(
-                f"Validation failed, so the mezzanine is kept at {mezzanine_path} "
-                f"for working out why"
+                f"Validation failed, so the working files are kept in "
+                f"{output_dir / WORK_DIRECTORY} for working out why"
             )
         else:
-            mezzanine_path.unlink(missing_ok=True)
-            # The proxy exists for review, which is over once the shots are cut
-            ProxyBuilder.proxy_path_for(source, output_dir).unlink(missing_ok=True)
-
-        shutil.rmtree(output_dir / WORK_DIRECTORY, ignore_errors=True)
+            # Mezzanine, proxy and scratch go together: review is over, and the
+            # shots are what was actually asked for
+            shutil.rmtree(output_dir / WORK_DIRECTORY, ignore_errors=True)
 
         logging.info(
             f"Job {'passed' if validation.passed else 'FAILED'}: "
