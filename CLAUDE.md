@@ -33,7 +33,7 @@ splitter outputs are designed to feed it.
 | Detection (primary) | TransNetV2 via ONNX Runtime | Not PyTorch — see below |
 | Detection (secondary) | PySceneDetect `AdaptiveDetector` | Cross-check only |
 | Media | ffmpeg / ffprobe as subprocesses | Never a Python binding |
-| Review | 480px all-intra h264 proxy | Frame numbers burned in |
+| Review | 640px all-intra h264 proxy | Frame numbers burned in |
 | Mezzanine | All-intra in the source's own codec | libx264 / libx265, CRF 12 |
 
 ### Why ONNX and not PyTorch
@@ -80,7 +80,7 @@ These are settled decisions. Do not revisit them without asking.
 3. **Review happens against a proxy, never the source.** Browsers seek
    long-GOP h264 and h265 approximately — landing near a frame rather than on
    it — and Chrome plays h265 only where the hardware allows. The proxy is
-   all-intra h264 at 480px, built from the mezzanine, so seeking is exact and
+   all-intra h264 at 640px, built from the mezzanine, so seeking is exact and
    it plays anywhere.
 
    **Every frame carries its own number, burned in.** The one real risk in a
@@ -93,7 +93,14 @@ These are settled decisions. Do not revisit them without asking.
    free and leaves the split as stream copies. `run()` reuses one that already
    matches its source, so preparing and then cutting encodes the file once.
 
-4. **Shots tile the source.** There is one kind of marker — the frame a shot
+4. **Working files live in `.minicut-work/` inside the output directory.**
+   The mezzanine, the review proxy and the round trip's scratch all go there,
+   never beside the shots. An analysis someone walks away from then leaves one
+   folder that is obviously not a deliverable, rather than two large files
+   sitting among the output. A job that passes deletes the folder; a job that
+   fails keeps it, which is when the intermediates are worth having.
+
+5. **Shots tile the source.** There is one kind of marker — the frame a shot
    starts on — and every frame belongs to exactly one shot. Marking frame N
    ends the previous shot at N-1. Frame 0 is always the first shot's first
    frame and cannot be unmarked.
@@ -103,7 +110,7 @@ These are settled decisions. Do not revisit them without asking.
    would weaken validation from "the shots account for every frame" to "no shot
    overlaps another" — so it is a deliberate decision, not an oversight.
 
-5. **The validation stage ships with v1.** It is not a later addition. See below.
+6. **The validation stage ships with v1.** It is not a later addition. See below.
 
    *Revised after measuring:* there are two pixel checks, not one. The default
    compares the first and last frame of every shot against the mezzanine; the
@@ -115,13 +122,13 @@ These are settled decisions. Do not revisit them without asking.
    mini cut of 17 shots: 5.9s against 34s, and the round trip writes a second
    copy of the mezzanine (893 MB) while it runs. The full check stays available
    for a final pass before a delivery.
-6. **The splitter is deterministic.** No LLM, no agent, no adaptive thresholds in
+7. **The splitter is deterministic.** No LLM, no agent, no adaptive thresholds in
    the detection path. Identical input must produce byte-identical boundaries on
    every run. Judgment work belongs in the identifier tab.
-7. **Pinned dependencies.** Exact versions in `requirements.txt`. Frame-accuracy
+8. **Pinned dependencies.** Exact versions in `requirements.txt`. Frame-accuracy
    behaviour shifts between ffmpeg builds; a floating version turns a
    reproducible pipeline into a mystery.
-8. **Detect, don't ask.** Aspect ratio and letterbox/pillarbox masking are
+9. **Detect, don't ask.** Aspect ratio and letterbox/pillarbox masking are
    detected with `cropdetect` and shown to the user. Never require them to type
    it in — a wrong answer quietly degrades detection.
 
@@ -171,7 +178,7 @@ Still expected, and still handled:
 ### 2. Prepare
 
 - Re-encode source to an all-intra mezzanine in its own codec.
-- Build the 480px review proxy from the mezzanine, frame numbers burned in.
+- Build the 640px review proxy from the mezzanine, frame numbers burned in.
 
 Both happen before anything is cut, so the review that follows costs nothing
 and the cutting afterwards is stream copies.

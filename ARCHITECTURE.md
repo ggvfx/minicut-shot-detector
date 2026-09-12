@@ -56,7 +56,7 @@ Plain functions — nothing to hold between calls.
 
 ### 3.5 Review — `ProxyBuilder` in `src/media/proxy.py`, and the front end
 
-- Builds a 480px all-intra h264 proxy from the mezzanine, with each frame's
+- Builds a 640px all-intra h264 proxy from the mezzanine, with each frame's
   number burned into the corner
 - The browser plays that rather than the source: long-GOP seeking lands near a
   frame rather than on it, and h265 playback depends on the viewer's hardware
@@ -135,6 +135,21 @@ the identifier tab and is not built here.
 | `src/ui/browse.py` | Directory listing for the path picker |
 | `src/ui/static/` | `index.html`, `app.js`, `styles.css` |
 | `scripts/export_transnetv2.py` | One-off build step producing the committed `.onnx` |
+
+---
+
+## Working files
+
+Everything a job needs but nobody asked for goes in `.minicut-work/` inside the
+output directory: the mezzanine, the review proxy, and the scratch the round
+trip uses. The delivery folder holds the shots and the sidecar, and nothing
+else.
+
+The folder is deleted when a job passes and kept when one fails, so a failure
+leaves the mezzanine to investigate with. Its path is derived from the output
+directory rather than remembered between requests, which is what lets
+`prepare()` and `run()` be separate calls without the server holding session
+state.
 
 ---
 

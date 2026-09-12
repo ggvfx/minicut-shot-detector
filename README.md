@@ -91,18 +91,23 @@ the repo root.
 
 ## Using it
 
-1. **Choose a source and an output directory.** Type the paths or browse for
-   them; nothing is uploaded, since the media and the app are on one machine.
+1. **Choose a source.** Type the path or browse for it; nothing is uploaded,
+   since the media and the app are on one machine.
 2. **Inspect source.** Quick. Confirms the file is what you think it is, and
    refuses anything that cannot be cut accurately before you wait on it.
 3. **Analyse for cuts.** The slow step: the all-intra mezzanine and the review
    proxy are built here, once.
 4. **Review.** Play through, step with `←` and `→` (hold Shift for ten), jump
-   between marks with `[` and `]`, and press `F` to mark or unmark the frame a
-   shot starts on. Click the timeline to move about quickly.
-5. **Split into shots.** Fast, because the encode already happened. Every cut
-   is verified against the source before the job is called done, and a JSON
-   sidecar records what produced it.
+   between shots with `[` and `]`, and press `F` to mark or unmark the frame a
+   shot starts on. Drag the timeline to move about quickly.
+5. **Split into shots.** The output directory defaults to a folder beside the
+   source, named after it. Splitting is fast, because the encode already
+   happened. Every cut is verified against the source before the job is called
+   done, and a JSON sidecar records what produced it.
+
+Working files — the mezzanine and the review copy — live in a `.minicut-work`
+folder inside the output directory and are removed when a job passes. A job
+that fails keeps them, so there is something to investigate with.
 
 The number burned into the corner of the proxy is the frame you are on. If it
 ever disagrees with the readout, stop and say so — that is the one thing in
@@ -130,7 +135,7 @@ here that must never drift.
 * JSON sidecar with the full resolved environment.
 
 ### Phase 3.5: Review Player (Complete)
-* 480px all-intra proxy with burned-in frame numbers, built from the mezzanine.
+* 640px all-intra proxy with burned-in frame numbers, built from the mezzanine.
 * Frame stepping, cut-to-cut jumps, a scrubbable timeline, and one key to mark
   or unmark where a shot starts.
 

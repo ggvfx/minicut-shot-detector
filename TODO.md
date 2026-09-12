@@ -111,7 +111,7 @@ the round trip, not by eye.
 Added after testing showed that typing frame numbers is fine for proving the
 cutter and useless for actually finding cuts.
 
-- [x] **Proxy** — 480px all-intra h264 built from the mezzanine, with each
+- [x] **Proxy** — all-intra h264 built from the mezzanine, with each
       frame's number burned into the corner. All-intra so the browser seeks
       exactly; h264 so it plays anywhere; numbered so the player's idea of the
       current frame and the picture's own can be checked against each other.

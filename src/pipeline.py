@@ -101,7 +101,7 @@ class SplitterPipeline:
         mezzanine_path = self._mezzanine(report.source, output_dir)
         proxy_path = ProxyBuilder(self.toolchain).build(
             mezzanine_path,
-            ProxyBuilder.proxy_path_for(report.source, output_dir / WORK_DIRECTORY),
+            ProxyBuilder.proxy_path_for(report.source, self._work_dir(output_dir)),
         )
 
         return PreparedJob(
@@ -145,6 +145,11 @@ class SplitterPipeline:
         return self._report(report.source, shots, validation, mezzanine_path, output_dir)
 
     # --- STAGES ---
+
+    @staticmethod
+    def _work_dir(output_dir: Path) -> Path:
+        """Where the mezzanine, the proxy and the round trip's scratch live."""
+        return output_dir / WORK_DIRECTORY
 
     def _resolve_paths(self):
         """
@@ -209,7 +214,7 @@ class SplitterPipeline:
         between requests, which keeps the server free of session state.
         """
         source_path = Path(source.path)
-        work_dir = ensure_directory(output_dir / WORK_DIRECTORY)
+        work_dir = ensure_directory(self._work_dir(output_dir))
         mezzanine_path = work_dir / f"{source_path.stem}{MEZZANINE_SUFFIX}{source_path.suffix}"
 
         builder = MezzanineBuilder(self.toolchain)
@@ -231,7 +236,7 @@ class SplitterPipeline:
             shots,
             source,
             mezzanine_path,
-            output_dir / WORK_DIRECTORY,
+            self._work_dir(output_dir),
             full_round_trip=self.config.full_round_trip,
         )
 
@@ -258,12 +263,12 @@ class SplitterPipeline:
         if keep_mezzanine:
             logging.warning(
                 f"Validation failed, so the working files are kept in "
-                f"{output_dir / WORK_DIRECTORY} for working out why"
+                f"{self._work_dir(output_dir)} for working out why"
             )
         else:
             # Mezzanine, proxy and scratch go together: review is over, and the
             # shots are what was actually asked for
-            shutil.rmtree(output_dir / WORK_DIRECTORY, ignore_errors=True)
+            shutil.rmtree(self._work_dir(output_dir), ignore_errors=True)
 
         logging.info(
             f"Job {'passed' if validation.passed else 'FAILED'}: "
