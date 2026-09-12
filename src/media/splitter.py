@@ -17,9 +17,14 @@ from src.core.timecode import Timecode
 
 # --- NAMING ---
 
-# Zero-padded so shots sort correctly in every file browser, and stable so the
-# identifier tab can rename from this without guessing.
-SHOT_FILENAME_TEMPLATE = "shot_{index:03d}{suffix}"
+# Named after the mini cut they came from, so splitting two cuts into one
+# directory cannot have the second overwrite the first. Zero-padded so shots
+# sort correctly in every file browser.
+#
+# These names are deliberately plain: the identifier tab renames shots from the
+# supplied shot list, so padding and increments are not worth making options
+# when the result is replaced one step later.
+SHOT_FILENAME_TEMPLATE = "{stem}_shot_{index:03d}{suffix}"
 
 
 class ShotSplitter:
@@ -50,14 +55,23 @@ class ShotSplitter:
         self.output_dir = output_dir
         self.timecode = Timecode.from_source(source)
 
-        # Shots keep the source's container, because they keep its codec
-        self.suffix = Path(source.path).suffix or ".mp4"
+        # Shots keep the source's container, because they keep its codec, and
+        # its name, so output from two mini cuts can share one directory
+        source_file = Path(source.path)
+        self.suffix = source_file.suffix or ".mp4"
+        self.stem = source_file.stem
 
     # --- NAMING ---
 
     def filename_for(self, shot: Shot) -> str:
-        """Returns the output filename for a shot, e.g. 'shot_007.mov'."""
-        return SHOT_FILENAME_TEMPLATE.format(index=shot.index, suffix=self.suffix)
+        """
+        Returns the output filename for a shot.
+
+        e.g. 'CHAS_006_hatem_Edit_E_v02_shot_007.mp4'.
+        """
+        return SHOT_FILENAME_TEMPLATE.format(
+            stem=self.stem, index=shot.index, suffix=self.suffix
+        )
 
     # --- CUTTING ---
 
