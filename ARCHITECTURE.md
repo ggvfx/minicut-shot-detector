@@ -7,7 +7,11 @@ produces byte-identical boundaries every run.
 
 **Data flow (high level):**
 
-Probe → Detect → Reconcile → Cut → Validate → Sidecar
+Probe → Mezzanine → Proxy → Detect → Review → Cut → Validate → Sidecar
+
+The pipeline has two entry points, because a person sits in the middle of it:
+`prepare()` does everything up to the proxy, and `run()` takes the reviewed
+boundaries through to the sidecar.
 
 ---
 
@@ -49,6 +53,17 @@ Plain functions — nothing to hold between calls.
 - Merges shots below the minimum length: the flash frame filter. Merges are
   recorded on the shot, never applied silently.
 - Converts boundaries into `Shot` ranges that tile the source exactly
+
+### 3.5 Review — `ProxyBuilder` in `src/media/proxy.py`, and the front end
+
+- Builds a 480px all-intra h264 proxy from the mezzanine, with each frame's
+  number burned into the corner
+- The browser plays that rather than the source: long-GOP seeking lands near a
+  frame rather than on it, and h265 playback depends on the viewer's hardware
+- The burned-in number is a check, not decoration — the player's idea of the
+  current frame and the picture's own can be compared at a glance
+- Markers are placed and removed here. Detection fills them in; it never
+  replaces the person
 
 ### 4. Cut — `src/media/`
 
@@ -110,6 +125,7 @@ the identifier tab and is not built here.
 | `src/core/sidecar.py` | Sidecar read and write |
 | `src/media/probe.py` | `SourceProbe` — source inspection and crop detection |
 | `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra re-encode in the source's codec |
+| `src/media/proxy.py` | `ProxyBuilder` — the small numbered proxy the player scrubs |
 | `src/media/splitter.py` | `ShotSplitter` — per-shot extraction |
 | `src/detection/transnet.py` | `TransNetDetector` — primary detector |
 | `src/detection/scene_detect.py` | `SceneDetectCrossCheck` — cross-check detector |
@@ -150,6 +166,7 @@ reach into a domain package.
 - `shot` — an inclusive range, `start_frame..end_frame`
 - `timecode` — a display string, derived from frames only at output time
 - `mezzanine` — the all-intra intermediate every split is cut from
+- `proxy` — the small numbered copy the browser plays during review
 - `golden set` — hand-labelled true cut frames in `tests/golden/`, the regression suite
 
 ---

@@ -11,20 +11,25 @@ be split, named and registered before anyone can schedule, review or version
 what is in it. This automates the splitting and naming half.
 
 ## Project Status
-🚦 **Project Status:** Alpha (Splitting by hand)
-The app splits a mini cut into frame-accurate shots end to end: type where the
-cuts are, get back one verified file per shot with a JSON sidecar. Finding
-those cuts automatically is the next phase.
+🚦 **Project Status:** Alpha (Splitting with human review)
+The app splits a mini cut into frame-accurate shots end to end: play through it,
+mark where the shots start, and get back one verified file per shot with a JSON
+sidecar. Finding those marks automatically is the next phase; the review that
+follows them is already built.
 
 **Current Capabilities:**
-* **Splitting:** Cuts a mini cut into one file per shot on typed boundaries —
-  frame numbers or timecodes — with audio carried through, then verifies every
-  cut landed on the frame asked for and writes a JSON sidecar.
+* **Frame-Accurate Review:** Plays a small all-intra proxy with each frame's
+  number burned in, so the player's frame and the picture's frame can be
+  checked against each other. Step a frame at a time, jump cut to cut, and mark
+  where each shot starts with one key.
+* **Splitting:** Cuts a mini cut into one file per shot with audio carried
+  through, verifies every cut landed on the frame asked for, and writes a JSON
+  sidecar recording what produced it.
 * **Source Inspection:** Reads frame rate as an exact rational, frame count,
   duration, start timecode and codec, and reports what it found before any
   work starts.
 * **Masking Detection:** Multi-sample `cropdetect` finds letterbox and
-  pillarbox bars, shown for confirmation with a manual override.
+  pillarbox bars and reports them. Shots are always cut at full frame.
 * **Variable Frame Rate Refusal:** VFR sources have no stable frame-to-time
   mapping, so they are refused with an explanation rather than cut badly.
 * **Disk Estimation:** Estimates the mezzanine and splits against free space
@@ -35,7 +40,8 @@ those cuts automatically is the next phase.
   is never uploaded through the browser.
 
 **Next Milestone:** Automatic detection — TransNetV2 through ONNX Runtime with
-a PySceneDetect cross-check, replacing the typed boundaries.
+a PySceneDetect cross-check, filling in the markers a person currently places
+by hand. Review stays exactly as it is: detection proposes, the human decides.
 
 ## Development Approach
 
@@ -83,6 +89,25 @@ If ffmpeg is missing: `winget install Gyan.FFmpeg` on Windows,
 Run the tests with `pytest` and the linter with `ruff check .`, both from
 the repo root.
 
+## Using it
+
+1. **Choose a source and an output directory.** Type the paths or browse for
+   them; nothing is uploaded, since the media and the app are on one machine.
+2. **Inspect source.** Quick. Confirms the file is what you think it is, and
+   refuses anything that cannot be cut accurately before you wait on it.
+3. **Analyse for cuts.** The slow step: the all-intra mezzanine and the review
+   proxy are built here, once.
+4. **Review.** Play through, step with `←` and `→` (hold Shift for ten), jump
+   between marks with `[` and `]`, and press `F` to mark or unmark the frame a
+   shot starts on. Click the timeline to move about quickly.
+5. **Split into shots.** Fast, because the encode already happened. Every cut
+   is verified against the source before the job is called done, and a JSON
+   sidecar records what produced it.
+
+The number burned into the corner of the proxy is the frame you are on. If it
+ever disagrees with the readout, stop and say so — that is the one thing in
+here that must never drift.
+
 ## Strategic Roadmap
 
 ### Phase 1: Scaffold & Foundations (Complete)
@@ -103,6 +128,11 @@ the repo root.
   splits out of it.
 * Integrity and frame-hash round-trip validation.
 * JSON sidecar with the full resolved environment.
+
+### Phase 3.5: Review Player (Complete)
+* 480px all-intra proxy with burned-in frame numbers, built from the mezzanine.
+* Frame stepping, cut-to-cut jumps, a scrubbable timeline, and one key to mark
+  or unmark where a shot starts.
 
 ### Phase 4: Detection (Current)
 * TransNetV2 ONNX export as a committed build step.
@@ -146,6 +176,11 @@ shot is a lossless stream copy out of it.
 
 ## ✨ Key Features
 
+* **Review Before You Cut:** The mezzanine is built first, so scrubbing and
+  adjusting cost nothing and the split afterwards is a stream copy. Marks are
+  placed against a numbered proxy rather than the source, because browsers seek
+  long-GOP video approximately and h265 playback depends on the viewer's
+  hardware.
 * **Frame-Accurate Splitting:** Re-encodes once to an all-intra mezzanine, then
   stream-copies each shot out of it. Cutting a long-GOP source directly snaps
   silently to the nearest keyframe — often seconds from the requested frame.
@@ -187,7 +222,7 @@ shot is a lossless stream copy out of it.
 ## 📂 Project Structure
 * `main.py`: Entry point — starts the local server and opens the UI.
 * `src/core/`: Config, data models, timecode maths, ffmpeg toolchain, environment checks.
-* `src/media/`: Source probing, mezzanine creation and shot extraction.
+* `src/media/`: Source probing, mezzanine creation, review proxy and shot extraction.
 * `src/detection/`: TransNetV2, PySceneDetect cross-check and boundary reconciliation.
 * `src/validation/`: Integrity and round-trip checks that can block a job.
 * `src/ui/`: FastAPI routes, path picker and the browser front end.

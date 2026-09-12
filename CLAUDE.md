@@ -33,6 +33,7 @@ splitter outputs are designed to feed it.
 | Detection (primary) | TransNetV2 via ONNX Runtime | Not PyTorch — see below |
 | Detection (secondary) | PySceneDetect `AdaptiveDetector` | Cross-check only |
 | Media | ffmpeg / ffprobe as subprocesses | Never a Python binding |
+| Review | 480px all-intra h264 proxy | Frame numbers burned in |
 | Mezzanine | All-intra in the source's own codec | libx264 / libx265, CRF 12 |
 
 ### Why ONNX and not PyTorch
@@ -76,7 +77,33 @@ These are settled decisions. Do not revisit them without asking.
    span. "Smart cutting" (stream-copy the aligned middle, re-encode only the
    partial groups at each end) is the only way to avoid that generation, and is
    deliberately out of scope.
-3. **The validation stage ships with v1.** It is not a later addition. See below.
+3. **Review happens against a proxy, never the source.** Browsers seek
+   long-GOP h264 and h265 approximately — landing near a frame rather than on
+   it — and Chrome plays h265 only where the hardware allows. The proxy is
+   all-intra h264 at 480px, built from the mezzanine, so seeking is exact and
+   it plays anywhere.
+
+   **Every frame carries its own number, burned in.** The one real risk in a
+   frame-accurate player is the readout drifting from the picture, and this
+   turns that from something to trust into something to see. Do not remove it
+   without replacing the check it provides.
+
+   **The mezzanine is built before review, not after.** It has to exist either
+   way and it is the slow part of a job, so building it first makes scrubbing
+   free and leaves the split as stream copies. `run()` reuses one that already
+   matches its source, so preparing and then cutting encodes the file once.
+
+4. **Shots tile the source.** There is one kind of marker — the frame a shot
+   starts on — and every frame belongs to exactly one shot. Marking frame N
+   ends the previous shot at N-1. Frame 0 is always the first shot's first
+   frame and cannot be unmarked.
+
+   This was chosen over independent first/last markers, which would let a user
+   leave material in no shot at all. That is a legitimate thing to want and it
+   would weaken validation from "the shots account for every frame" to "no shot
+   overlaps another" — so it is a deliberate decision, not an oversight.
+
+5. **The validation stage ships with v1.** It is not a later addition. See below.
 
    *Revised after measuring:* there are two pixel checks, not one. The default
    compares the first and last frame of every shot against the mezzanine; the
@@ -88,13 +115,13 @@ These are settled decisions. Do not revisit them without asking.
    mini cut of 17 shots: 5.9s against 34s, and the round trip writes a second
    copy of the mezzanine (893 MB) while it runs. The full check stays available
    for a final pass before a delivery.
-4. **The splitter is deterministic.** No LLM, no agent, no adaptive thresholds in
+6. **The splitter is deterministic.** No LLM, no agent, no adaptive thresholds in
    the detection path. Identical input must produce byte-identical boundaries on
    every run. Judgment work belongs in the identifier tab.
-5. **Pinned dependencies.** Exact versions in `requirements.txt`. Frame-accuracy
+7. **Pinned dependencies.** Exact versions in `requirements.txt`. Frame-accuracy
    behaviour shifts between ffmpeg builds; a floating version turns a
    reproducible pipeline into a mystery.
-6. **Detect, don't ask.** Aspect ratio and letterbox/pillarbox masking are
+8. **Detect, don't ask.** Aspect ratio and letterbox/pillarbox masking are
    detected with `cropdetect` and shown to the user. Never require them to type
    it in — a wrong answer quietly degrades detection.
 
@@ -141,23 +168,37 @@ Still expected, and still handled:
 - Estimate disk requirement and warn before the job, not after the drive fills.
   All-intra h264 at 1080p24 is roughly 0.21 GB/min, and we write mezzanine + splits.
 
-### 2. Detect
+### 2. Prepare
+
+- Re-encode source to an all-intra mezzanine in its own codec.
+- Build the 480px review proxy from the mezzanine, frame numbers burned in.
+
+Both happen before anything is cut, so the review that follows costs nothing
+and the cutting afterwards is stream copies.
+
+### 3. Detect
 
 - Pass 1: TransNetV2 ONNX. Per-frame transition probability, not a binary.
 - Pass 2: PySceneDetect `AdaptiveDetector`.
 - Reconcile into a boundary list. Both agree → high confidence. One fires only →
   flag for review. Apply minimum shot length merge.
 
-### 3. Cut
+### 4. Review
 
-- Re-encode source to an all-intra mezzanine in its own codec.
+- The boundaries appear as markers on the proxy's timeline. A person scrubs,
+  steps frame by frame, and marks or unmarks where shots start.
+- Detection fills these markers; it does not replace them. The human has the
+  last word before anything is written, and a typed list is not asked for.
+
+### 5. Cut
+
 - Split each shot with `-c copy` against the mezzanine.
 - Emit JSON sidecar (see below).
 
 One file per shot is the whole output. Stills, thumbnails and contact sheets
 belong to the identifier tab.
 
-### 4. Validate
+### 6. Validate
 
 - Assert shot durations sum to total duration, zero gaps, zero overlaps.
 - Frame-hash the first and last frame of every shot against the mezzanine. This
@@ -218,28 +259,16 @@ eye. Re-run on every parameter change — it is the regression suite.
 
 ## Task breakdown
 
-Build in this order. Each should be independently verifiable and separately
-committed.
+**[TODO.md](TODO.md) is the task list.** It holds the current phase broken into
+tasks, what is done, and every cut that was made deliberately. Keeping a second
+copy here would only let the two disagree.
 
-0. **Scaffold + dependency panel** *(done)* — FastAPI server, localhost UI
-   shell, path picker, environment checks.
-1. **Timecode engine** *(done)* — frame/timecode conversion, drop-frame, exact
-   seek times. First because every stage after it depends on this arithmetic
-   being right, and it is testable without a single video file.
-2. **Probe + preprocess** — ffprobe, VFR handling, cropdetect, disk estimate.
-3. **Cutting** — mezzanine, frame-accurate splits, JSON sidecar.
-4. **Validation** — integrity assertions and the frame-hash round trip.
-5. **Detection** — ONNX export, TransNetV2 inference, PySceneDetect pass,
-   reconciliation. *This is the task that will take real debugging; the output
-   window handling is the fiddly part.*
-6. **Progress UI + job wiring** — SSE progress, shot table, pipeline behind one
-   button.
-
-Cutting comes before detection deliberately. With probe done, a hand-typed pair
-of frame numbers exercises the mezzanine, the splits, the round-trip check and
-the sidecar without the ONNX export existing — so when a boundary later lands a
-frame late, the cutter has already been proven on known input and the detector
-is the only suspect.
+The ordering principle, which is worth keeping in mind when adding to it:
+**cutting was built before detection, on purpose.** A hand-placed pair of frame
+numbers exercised the mezzanine, the splits, the verification and the sidecar
+without the ONNX export existing — so when a boundary later lands a frame late,
+the cutter has already been proven on numbers we chose, and the detector is the
+only suspect.
 
 ---
 
