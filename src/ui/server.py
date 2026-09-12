@@ -19,9 +19,10 @@ from pydantic import BaseModel
 from src.core.config import STATIC_DIR, ProjectConfig
 from src.core.environment import EnvironmentChecker
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import Boundary, JobResult, ProbeReport
+from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport
 from src.core.timecode import Timecode
 from src.media.probe import SourceProbe
+from src.media.proxy import PROXY_SUFFIX
 from src.pipeline import SplitterPipeline
 from src.ui import browse
 
@@ -127,6 +128,56 @@ def post_probe(request: ProbeRequest) -> ProbeReport:
         raise HTTPException(status_code=404, detail=f"Source not found: {source_path}")
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
+
+
+# --- PREPARING FOR REVIEW ---
+
+
+@app.post("/api/analyse")
+def post_analyse(request: ProbeRequest) -> PreparedJob:
+    """
+    Gets a source ready for its cuts to be reviewed.
+
+    Builds the mezzanine and the small proxy the player scrubs through. This is
+    the slow call — the encode happens here rather than at split time, so
+    adjusting boundaries costs nothing and cutting afterwards is quick.
+
+    Blocking, like the split. Streaming progress is Phase 5.
+    """
+    if not request.output_dir:
+        raise HTTPException(status_code=422, detail="Choose an output directory first")
+
+    config = ProjectConfig(source_path=request.source_path, output_dir=request.output_dir)
+
+    try:
+        return SplitterPipeline(config, toolchain).prepare()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Source not found: {request.source_path}")
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+
+
+@app.get("/api/proxy")
+def get_proxy(path: str):
+    """
+    Serves a review proxy for the player.
+
+    Range requests are what let the browser seek without downloading the whole
+    file first, and FileResponse handles them.
+
+    Only proxies are served, never arbitrary media: the player has no business
+    reading anything else, and neither does anyone who finds this endpoint.
+    """
+    proxy_path = Path(path)
+
+    if not proxy_path.name.endswith(PROXY_SUFFIX):
+        raise HTTPException(status_code=403, detail="Only review proxies can be served")
+    if not proxy_path.is_file():
+        raise HTTPException(status_code=404, detail=f"No proxy at {proxy_path}")
+
+    return FileResponse(proxy_path, media_type="video/mp4")
 
 
 # --- SPLITTING ---

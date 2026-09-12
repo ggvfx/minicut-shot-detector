@@ -84,8 +84,6 @@ main { padding: 24px; }
     margin-bottom: 8px;
 }
 
-.placeholder { color: var(--text-dim); font-style: italic; }
-
 /* ===== BUTTONS AND INPUTS ===== */
 
 button {
@@ -102,6 +100,11 @@ button.secondary {
     background: transparent;
     color: var(--text);
     border: 1px solid var(--border);
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .path-row { display: flex; gap: 8px; margin-bottom: var(--gap); }
@@ -197,25 +200,9 @@ input[type="text"] {
     margin-bottom: 8px;
 }
 
-.crop-row { display: flex; align-items: center; gap: 8px; }
-.crop-row label { color: var(--text-dim); white-space: nowrap; }
-
 /* ===== CUTS AND RESULTS ===== */
 
 .hint { color: var(--text-dim); font-size: 13px; margin: 0 0 8px; }
-
-textarea {
-    width: 100%;
-    box-sizing: border-box;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    padding: 8px 10px;
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-    resize: vertical;
-}
 
 /* The label carries the tooltip, so the whole row is the hover target */
 .checkbox {
@@ -228,6 +215,70 @@ textarea {
 }
 
 .checkbox input { cursor: pointer; }
+
+/* ===== REVIEW PLAYER ===== */
+
+#proxy-player {
+    width: 100%;
+    max-height: 55vh;
+    background: #000;
+    border-radius: var(--radius);
+    display: block;
+}
+
+/* Ticks sit on this strip, positioned by where their frame falls. Clicking
+   anywhere on it seeks there: stepping is for precision, this is for crossing
+   a thousand frames. */
+.timeline {
+    cursor: pointer;
+    position: relative;
+    height: 22px;
+    margin: 8px 0 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.tick {
+    position: absolute;
+    top: 2px;
+    width: 3px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 1px;
+    background: var(--ok);
+    cursor: pointer;
+    transform: translateX(-1px);
+}
+
+.tick:hover { height: 18px; top: 1px; }
+
+.playhead {
+    position: absolute;
+    top: -2px;
+    width: 1px;
+    height: 24px;
+    background: var(--text);
+    pointer-events: none;
+}
+
+/* Frame 0 always starts the first shot and cannot be removed */
+.tick.fixed { background: var(--text-dim); cursor: pointer; }
+
+.transport {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: var(--gap);
+}
+
+.readout {
+    margin-left: auto;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
 
 .shots {
     width: 100%;

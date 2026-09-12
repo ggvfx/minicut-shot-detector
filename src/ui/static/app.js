@@ -7,7 +7,9 @@
  * Responsibilities:
  * - Load and render the dependency panel
  * - Drive the path picker against the server's browse endpoint
- * - Hold the chosen paths until a job can be started (task 2 onwards)
+ * - Inspect a source, then analyse it into a mezzanine and a review proxy
+ * - Review cuts frame by frame in the proxy, and mark where shots start
+ * - Split, and show what was written
  */
 
 // ===== STATE =====
@@ -19,6 +21,8 @@ const state = {
     pickerMode: null,      // "source" | "output" while the dialog is open
     pickerPath: "",        // Directory currently shown in the dialog
     probe: null,           // Last ProbeReport from the server
+    prepared: null,        // Last PreparedJob: source, mezzanine and proxy
+    boundaries: [],        // Frames on which shots start, frame 0 implied
 };
 
 // ===== ENVIRONMENT PANEL =====
@@ -90,7 +94,9 @@ function renderEnvironment(report) {
 
 /**
  * Asks the server to probe the chosen source and renders what it found.
- * Takes a moment on a long file — cropdetect samples several points.
+ *
+ * Quick, and its job is to catch the wrong file, a variable frame rate or a
+ * full disk before committing to the long analyse step.
  */
 async function inspectSource() {
     const status = document.getElementById("inspect-status");
@@ -119,7 +125,7 @@ async function inspectSource() {
     }
 
     status.textContent = "";
-    document.getElementById("result-card").hidden = true;
+    closeReview();
     state.probe = await response.json();
     renderProbe(state.probe);
 }
@@ -172,33 +178,251 @@ function renderProbe(report) {
         warnings.append(row);
     }
 
-    showJobPanel(report.can_split);
+    document.getElementById("analyse-button").disabled = !report.can_split;
+}
+
+// ===== ANALYSE =====
+
+/**
+ * Builds the mezzanine and proxy, then opens the review player.
+ *
+ * This is the slow call. Everything after it — scrubbing, marking, and the
+ * split itself — is fast because the encode has already happened.
+ */
+async function analyseSource() {
+    const status = document.getElementById("inspect-status");
+    const button = document.getElementById("analyse-button");
+
+    if (!state.sourcePath || !state.outputDir) {
+        status.textContent = "Choose a source and an output directory first.";
+        return;
+    }
+
+    button.disabled = true;
+    status.textContent = "Analysing… building the mezzanine and review proxy. This can take a few minutes.";
+
+    try {
+        const response = await fetch("/api/analyse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                source_path: state.sourcePath,
+                output_dir: state.outputDir,
+            }),
+        });
+
+        const body = await response.json();
+
+        if (!response.ok) {
+            status.textContent = body.detail || "Could not analyse that file.";
+            return;
+        }
+
+        status.textContent = "";
+        state.prepared = body;
+        state.boundaries = [...body.boundaries];
+        openReview();
+
+    } finally {
+        button.disabled = false;
+    }
+}
+
+// ===== REVIEW PLAYER =====
+
+/*
+ * Frames, not seconds.
+ *
+ * The proxy is all-intra, so the browser can seek to any frame exactly. The
+ * awkward direction is reading back: currentTime after a seek is a float that
+ * does not land cleanly on a frame boundary, and at 23.976 rounding it the
+ * obvious way drifts.
+ *
+ * So we seek to the MIDDLE of a frame's duration, where there is most room
+ * either side, and read it back the same way. The frame number burned into the
+ * proxy is the check: if the readout and the picture disagree, this is wrong.
+ */
+
+/** The source's exact rate as a number — the rational itself lives on the server. */
+function frameRate() {
+    const source = state.prepared.source;
+    return source.fps_numerator / source.fps_denominator;
+}
+
+/** The moment at which a frame is unambiguously on screen. */
+function secondsForFrame(frame) {
+    return (frame + 0.5) / frameRate();
+}
+
+/** The frame currently on screen. */
+function currentFrame() {
+    const player = document.getElementById("proxy-player");
+    return Math.floor(player.currentTime * frameRate());
+}
+
+/** Moves to a frame, clamped to the source. */
+function goToFrame(frame) {
+    const player = document.getElementById("proxy-player");
+    const last = state.prepared.source.frame_count - 1;
+    const target = Math.max(0, Math.min(frame, last));
+
+    player.currentTime = secondsForFrame(target);
+    renderReadout(target);
+}
+
+/** Steps forward or back, pausing first — stepping while playing is meaningless. */
+function stepFrames(count) {
+    document.getElementById("proxy-player").pause();
+    goToFrame(currentFrame() + count);
+}
+
+/** Jumps to the nearest marker in a direction, for working cut to cut. */
+function goToCut(direction) {
+    const frame = currentFrame();
+    const markers = [0, ...state.boundaries];
+    const candidates = direction > 0
+        ? markers.filter((value) => value > frame)
+        : markers.filter((value) => value < frame);
+
+    if (candidates.length === 0) return;
+
+    document.getElementById("proxy-player").pause();
+    goToFrame(direction > 0 ? Math.min(...candidates) : Math.max(...candidates));
+}
+
+/** Opens the review panel on a freshly prepared job. */
+function openReview() {
+    const player = document.getElementById("proxy-player");
+    player.src = `/api/proxy?path=${encodeURIComponent(state.prepared.proxy_path)}`;
+
+    document.getElementById("job-card").hidden = false;
+    document.getElementById("result-card").hidden = true;
+
+    player.addEventListener("loadeddata", () => goToFrame(0), { once: true });
+
+    renderTimeline();
+}
+
+/** Hides the review panel — a different source needs a different proxy. */
+function closeReview() {
+    document.getElementById("job-card").hidden = true;
+    document.getElementById("result-card").hidden = true;
+    document.getElementById("proxy-player").removeAttribute("src");
+
+    state.prepared = null;
+    state.boundaries = [];
+}
+
+// ===== MARKERS =====
+
+/**
+ * Adds a first frame here, or removes the one already here.
+ *
+ * Frame 0 always starts the first shot, so it is shown but cannot be removed:
+ * there is no shot before it for its frames to join.
+ */
+function toggleMarker() {
+    if (!state.prepared) return;
+
+    const frame = currentFrame();
+    const hint = document.getElementById("mark-hint");
+
+    if (frame === 0) {
+        hint.textContent = "Frame 0 always starts the first shot";
+        return;
+    }
+
+    if (state.boundaries.includes(frame)) {
+        state.boundaries = state.boundaries.filter((value) => value !== frame);
+    } else {
+        state.boundaries = [...state.boundaries, frame].sort((a, b) => a - b);
+    }
+
+    hint.textContent = "Press F, or use the button";
+    renderTimeline();
+    renderReadout(frame);
+}
+
+/**
+ * Seeks to wherever the strip was clicked.
+ *
+ * Stepping frame by frame is precise and useless for crossing a thousand
+ * frames, so the strip doubles as a scrubber: land near a cut, then step onto
+ * it exactly.
+ */
+function scrubTo(event) {
+    if (!state.prepared) return;
+
+    const timeline = document.getElementById("timeline");
+    const bounds = timeline.getBoundingClientRect();
+    const fraction = (event.clientX - bounds.left) / bounds.width;
+
+    document.getElementById("proxy-player").pause();
+    goToFrame(Math.round(fraction * (state.prepared.source.frame_count - 1)));
+}
+
+/** Moves the playhead to where the player actually is. */
+function renderPlayhead(frame) {
+    const playhead = document.getElementById("playhead");
+    const last = state.prepared.source.frame_count - 1;
+    playhead.style.left = `${(frame / last) * 100}%`;
+}
+
+/** Draws a tick for every first frame, placed where it falls in the source. */
+function renderTimeline() {
+    const timeline = document.getElementById("timeline");
+    const last = state.prepared.source.frame_count - 1;
+    timeline.innerHTML = "";
+
+    // The playhead lives on the strip too, so it is redrawn with the ticks
+    const playhead = document.createElement("div");
+    playhead.id = "playhead";
+    playhead.className = "playhead";
+    timeline.append(playhead);
+
+    // Frame 0 is a first frame too, drawn differently because it is fixed
+    for (const frame of [0, ...state.boundaries]) {
+        const tick = document.createElement("button");
+        tick.className = frame === 0 ? "tick fixed" : "tick";
+        tick.style.left = `${(frame / last) * 100}%`;
+        tick.title = `Frame ${frame}`;
+        tick.addEventListener("click", (event) => {
+            event.stopPropagation();
+            goToFrame(frame);
+        });
+        timeline.append(tick);
+    }
+
+    const shots = state.boundaries.length + 1;
+    document.getElementById("cut-count").textContent = `${shots} shot${shots === 1 ? "" : "s"}`;
+}
+
+/** Shows the current frame, and what the mark button would do to it. */
+function renderReadout(frame) {
+    const last = state.prepared.source.frame_count - 1;
+    document.getElementById("frame-readout").textContent = `Frame ${frame} of ${last}`;
+    renderPlayhead(frame);
+
+    const marked = frame === 0 || state.boundaries.includes(frame);
+    const button = document.getElementById("mark-button");
+    button.textContent = marked ? "Remove first frame" : "Mark first frame";
+    button.disabled = frame === 0;
 }
 
 // ===== SPLITTING =====
 
 /**
- * Sends the typed boundaries to the server and renders the finished job.
+ * Sends the marked boundaries to the server and renders the finished job.
  *
- * Blocking: a long source takes minutes and there is no progress feed yet, so
- * the button says what it is doing and stays disabled until it is done.
+ * Quick, because the mezzanine already exists: the shots are stream copies out
+ * of it, and only the verification takes any real time.
  */
 async function splitSource() {
     const status = document.getElementById("split-status");
     const button = document.getElementById("split-button");
 
-    if (!state.outputDir) {
-        status.textContent = "Choose an output directory first.";
-        return;
-    }
-
-    const boundaries = document.getElementById("boundaries").value
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-
     button.disabled = true;
-    status.textContent = "Splitting… this can take a few minutes, and the page will wait.";
+    status.textContent = "Cutting…";
 
     try {
         const response = await fetch("/api/split", {
@@ -207,7 +431,7 @@ async function splitSource() {
             body: JSON.stringify({
                 source_path: state.sourcePath,
                 output_dir: state.outputDir,
-                boundaries: boundaries,
+                boundaries: state.boundaries.map(String),
                 full_round_trip: document.getElementById("full-round-trip").checked,
             }),
         });
@@ -269,14 +493,7 @@ function renderJob(job) {
     }
 
     const sidecar = document.getElementById("result-sidecar");
-    sidecar.textContent = job.sidecar_path
-        ? `Sidecar: ${fileNameOf(job.sidecar_path)}`
-        : "";
-}
-
-/** The cuts panel is only useful once a source is known to be splittable. */
-function showJobPanel(canSplit) {
-    document.getElementById("job-card").hidden = !canSplit;
+    sidecar.textContent = job.sidecar_path ? `Sidecar: ${fileNameOf(job.sidecar_path)}` : "";
 }
 
 /**
@@ -417,6 +634,51 @@ function choosePath(path) {
     document.getElementById("picker").close();
 }
 
+// ===== KEYBOARD =====
+
+/**
+ * Transport shortcuts, so review can be done without leaving the keyboard.
+ *
+ * Ignored while typing in a field, or the path box could not contain an "f".
+ */
+function handleKey(event) {
+    if (!state.prepared || document.getElementById("job-card").hidden) return;
+
+    const typing = ["INPUT", "TEXTAREA"].includes(event.target.tagName);
+    if (typing) return;
+
+    const step = event.shiftKey ? 10 : 1;
+    const actions = {
+        ArrowLeft: () => stepFrames(-step),
+        ArrowRight: () => stepFrames(step),
+        "[": () => goToCut(-1),
+        "]": () => goToCut(1),
+        f: toggleMarker,
+        F: toggleMarker,
+        " ": togglePlay,
+    };
+
+    const action = actions[event.key];
+    if (action) {
+        event.preventDefault();
+        action();
+    }
+}
+
+/** Play or pause, and keep the button's label honest. */
+function togglePlay() {
+    const player = document.getElementById("proxy-player");
+    const button = document.getElementById("play-button");
+
+    if (player.paused) {
+        player.play();
+        button.textContent = "Pause";
+    } else {
+        player.pause();
+        button.textContent = "Play";
+    }
+}
+
 // ===== WIRING =====
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -436,11 +698,26 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("picker-choose")
         .addEventListener("click", () => choosePath(state.pickerPath));
 
-    document.getElementById("inspect-button")
-        .addEventListener("click", inspectSource);
+    document.getElementById("inspect-button").addEventListener("click", inspectSource);
+    document.getElementById("analyse-button").addEventListener("click", analyseSource);
+    document.getElementById("split-button").addEventListener("click", splitSource);
 
-    document.getElementById("split-button")
-        .addEventListener("click", splitSource);
+    // Transport
+    document.getElementById("play-button").addEventListener("click", togglePlay);
+    document.getElementById("step-back").addEventListener("click", (e) => stepFrames(e.shiftKey ? -10 : -1));
+    document.getElementById("step-forward").addEventListener("click", (e) => stepFrames(e.shiftKey ? 10 : 1));
+    document.getElementById("previous-cut").addEventListener("click", () => goToCut(-1));
+    document.getElementById("next-cut").addEventListener("click", () => goToCut(1));
+    document.getElementById("mark-button").addEventListener("click", toggleMarker);
+    document.getElementById("timeline").addEventListener("click", scrubTo);
+
+    // The readout follows playback as well as stepping
+    document.getElementById("proxy-player")
+        .addEventListener("timeupdate", () => {
+            if (state.prepared) renderReadout(currentFrame());
+        });
+
+    document.addEventListener("keydown", handleKey);
 
     // Typed paths are as valid as picked ones
     document.getElementById("source-path")

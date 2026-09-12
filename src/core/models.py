@@ -72,6 +72,24 @@ class ProbeReport(BaseModel):
     warnings: List[str] = Field(default_factory=list)
 
 
+class PreparedJob(BaseModel):
+    """
+    What a source needs before its cuts can be reviewed.
+
+    The mezzanine is the expensive part of a job and has to exist before
+    anything can be cut, so it is built first and the review happens against
+    it. Cutting afterwards is stream copies, which are quick.
+    """
+
+    source: SourceInfo
+    mezzanine_path: str
+    proxy_path: str
+
+    # Boundaries found automatically, once detection exists. Until then this is
+    # empty and every boundary is placed by hand.
+    boundaries: List[int] = Field(default_factory=list)
+
+
 # --- DETECTION ---
 
 

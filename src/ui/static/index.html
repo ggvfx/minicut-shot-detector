@@ -62,7 +62,8 @@
             </div>
 
             <div class="action-row">
-                <button id="inspect-button">Inspect source</button>
+                <button id="inspect-button" class="secondary">Inspect source</button>
+                <button id="analyse-button">Analyse for cuts</button>
                 <span id="inspect-status" class="status"></span>
             </div>
         </section>
@@ -80,15 +81,34 @@
             <dl id="source-facts" class="facts"></dl>
         </section>
 
-        <!-- Splitting by hand. Automatic detection replaces the boundary box
-             in phase 4; everything below it stays as it is. -->
+        <!-- Review. The proxy is small, all-intra and carries its own frame
+             numbers, so what the player says and what the picture shows can be
+             checked against each other. Detection fills these markers in
+             phase 4; the panel itself does not change. -->
         <section class="card" id="job-card" hidden>
-            <h2>Cuts</h2>
-            <p class="hint">
-                One boundary per line — the frame each new shot starts on.
-                Frame numbers or timecodes, whichever you have.
-            </p>
-            <textarea id="boundaries" rows="5" placeholder="120&#10;01:00:12:11&#10;455"></textarea>
+            <div class="card-header">
+                <h2>Cuts</h2>
+                <span id="cut-count" class="summary"></span>
+            </div>
+
+            <video id="proxy-player" preload="auto"></video>
+
+            <!-- Every first frame, as a tick you can click to jump to -->
+            <div id="timeline" class="timeline"></div>
+
+            <div class="transport">
+                <button id="play-button" class="secondary" title="Space">Play</button>
+                <button id="step-back" class="secondary" title="Left arrow — hold Shift for ten">◀ Frame</button>
+                <button id="step-forward" class="secondary" title="Right arrow — hold Shift for ten">Frame ▶</button>
+                <button id="previous-cut" class="secondary" title="[">◀ Cut</button>
+                <button id="next-cut" class="secondary" title="]">Cut ▶</button>
+                <span id="frame-readout" class="readout"></span>
+            </div>
+
+            <div class="action-row">
+                <button id="mark-button">Mark first frame</button>
+                <span id="mark-hint" class="status">Press F, or use the button</span>
+            </div>
 
             <label class="checkbox" title="Shots are checked by comparing the frames either side of every cut against the source. Tick this to rejoin every shot and compare every frame instead: a stricter check that takes considerably longer and needs free space for a second copy of the source while it runs.">
                 <input type="checkbox" id="full-round-trip">

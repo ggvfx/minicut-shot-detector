@@ -8,16 +8,19 @@ runs, in what order, what each stage is given, and what happens when one fails.
 Keeping it thin is what lets any single stage be reasoned about — or replaced —
 on its own.
 
-Stage order:
-    1. Probe     What is this file, and will the job fit on disk?
-    2. Shots     Where are the cuts, and does the resulting list add up?
-    3. Cut       Mezzanine, then one file per shot
-    4. Validate  Do the numbers and the pixels agree?
-    5. Report    Write the sidecar, and tidy up
+Two entry points, because a person reviews the cuts in between:
+
+    prepare()  Probe, build the mezzanine, build the review proxy
+    run()      Turn boundaries into shots, cut, validate, write the sidecar
+
+The expensive work happens in prepare(), so scrubbing through the proxy and
+adjusting boundaries costs nothing, and cutting afterwards is stream copies.
+run() reuses a mezzanine that is already there and still matches its source,
+so the two calls together encode the file once.
 
 Boundaries are supplied by the caller. Finding them automatically is Phase 4;
-until then they are typed by hand, which is deliberate — it means the cutter is
-proven on numbers we chose before any detector is allowed to choose them.
+until then they are placed by hand, which is deliberate — it means the cutter
+is proven on numbers we chose before any detector is allowed to choose them.
 """
 
 import logging
@@ -27,12 +30,13 @@ from typing import List, Optional
 
 from src.core.config import ProjectConfig
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import Boundary, JobResult, ProbeReport, Shot, SourceInfo
+from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport, Shot, SourceInfo
 from src.core.sidecar import capture_environment, sidecar_path_for, write_sidecar
 from src.core.utils import ensure_directory
 from src.detection.reconcile import boundaries_to_shots
 from src.media.mezzanine import MezzanineBuilder
 from src.media.probe import SourceProbe
+from src.media.proxy import ProxyBuilder
 from src.media.splitter import ShotSplitter
 from src.validation.validator import JobValidator
 
@@ -69,9 +73,43 @@ class SplitterPipeline:
 
     # --- PIPELINE ---
 
+    def prepare(self) -> PreparedJob:
+        """
+        Gets a source ready for its cuts to be reviewed.
+
+        Probes it, builds the mezzanine, and builds the small proxy the browser
+        plays while boundaries are chosen. Finding those boundaries
+        automatically joins here in Phase 4.
+
+        Doing this before review rather than after is what makes the interaction
+        bearable: the slow work happens once, up front, and cutting afterwards
+        is stream copies.
+
+        Returns:
+            PreparedJob: the probed source and the two files review needs.
+
+        Raises:
+            ValueError: If the config has no source or output directory.
+            RuntimeError: If the source cannot be cut accurately, or the
+                mezzanine does not match it.
+        """
+        source_path, output_dir = self._resolve_paths()
+        report = self._probe(source_path, output_dir)
+
+        mezzanine_path = self._mezzanine(report.source, output_dir)
+        proxy_path = ProxyBuilder(self.toolchain).build(
+            mezzanine_path, ProxyBuilder.proxy_path_for(report.source, output_dir)
+        )
+
+        return PreparedJob(
+            source=report.source,
+            mezzanine_path=str(mezzanine_path),
+            proxy_path=str(proxy_path),
+        )
+
     def run(self, boundaries: List[Boundary]) -> JobResult:
         """
-        Runs a full splitter job.
+        Runs a full splitter job, preparing the source first if needed.
 
         Args:
             boundaries: The frames on which new shots start. An empty list is
@@ -93,7 +131,12 @@ class SplitterPipeline:
 
         report = self._probe(source_path, output_dir)
         shots = self._shots(boundaries, report.source)
-        mezzanine_path, shots = self._cut(report.source, shots, output_dir)
+
+        mezzanine_path = self._mezzanine(report.source, output_dir)
+        shots = ShotSplitter(
+            self.toolchain, mezzanine_path, report.source, output_dir
+        ).extract_all(shots)
+
         validation = self._validate(report.source, shots, mezzanine_path, output_dir)
 
         return self._report(report.source, shots, validation, mezzanine_path, output_dir)
@@ -153,20 +196,25 @@ class SplitterPipeline:
         logging.info(f"{len(shots)} shots to cut")
         return shots
 
-    def _cut(self, source: SourceInfo, shots: List[Shot], output_dir: Path):
+    def _mezzanine(self, source: SourceInfo, output_dir: Path) -> Path:
         """
-        Stage 3. Builds the mezzanine, then writes one file per shot.
+        Stage 3. The all-intra intermediate every shot is cut from.
 
-        Returns:
-            (mezzanine_path, shots) with each shot's file recorded.
+        Reuses one that is already there and still matches the source, so
+        reviewing boundaries and then cutting does not encode the same file
+        twice. The path is derived from the source name rather than remembered
+        between requests, which keeps the server free of session state.
         """
         source_path = Path(source.path)
         mezzanine_path = output_dir / f"{source_path.stem}{MEZZANINE_SUFFIX}{source_path.suffix}"
 
-        MezzanineBuilder(self.toolchain).build(source, mezzanine_path)
-        shots = ShotSplitter(self.toolchain, mezzanine_path, source, output_dir).extract_all(shots)
+        builder = MezzanineBuilder(self.toolchain)
 
-        return mezzanine_path, shots
+        if mezzanine_path.is_file() and builder.verify(source, mezzanine_path):
+            logging.info(f"Reusing the mezzanine already at {mezzanine_path}")
+            return mezzanine_path
+
+        return builder.build(source, mezzanine_path)
 
     def _validate(self, source: SourceInfo, shots: List[Shot], mezzanine_path: Path, output_dir: Path):
         """
@@ -210,6 +258,8 @@ class SplitterPipeline:
             )
         else:
             mezzanine_path.unlink(missing_ok=True)
+            # The proxy exists for review, which is over once the shots are cut
+            ProxyBuilder.proxy_path_for(source, output_dir).unlink(missing_ok=True)
 
         shutil.rmtree(output_dir / WORK_DIRECTORY, ignore_errors=True)
 

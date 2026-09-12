@@ -106,6 +106,24 @@ ourselves, so the detector is the only suspect.
 you want it cut, and get back shot files that are exactly right — verified by
 the round trip, not by eye.
 
+## Phase 3.5 — Review Player ✅ Complete
+
+Added after testing showed that typing frame numbers is fine for proving the
+cutter and useless for actually finding cuts.
+
+- [x] **Proxy** — 480px all-intra h264 built from the mezzanine, with each
+      frame's number burned into the corner. All-intra so the browser seeks
+      exactly; h264 so it plays anywhere; numbered so the player's idea of the
+      current frame and the picture's own can be checked against each other.
+- [x] **prepare() / run() split** — the mezzanine is built before review rather
+      than after, so scrubbing is free and cutting afterwards is stream copies.
+      `run()` reuses a mezzanine that already matches its source.
+- [x] **Player** — frame stepping, cut-to-cut jumps, a scrubbable timeline with
+      a tick per first frame, and one button that marks or unmarks the current
+      frame. Frame 0 is shown and cannot be removed.
+- [x] **Typed boundaries removed from the UI.** The API still accepts frame
+      numbers and timecodes as text; the page no longer asks anyone to type them.
+
 ## Phase 4 — Detection ⬅ Current
 
 TransNetV2 ONNX export, sliding-window inference, PySceneDetect cross-check,
