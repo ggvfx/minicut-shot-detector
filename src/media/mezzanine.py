@@ -10,6 +10,10 @@ that lands exactly where it was asked to.
 
 The cost is disk and one slow pass at the start of the job. That trade is
 settled — see CLAUDE.md.
+
+The mezzanine is always full frame. Detected letterboxing is information about
+the source, not an instruction to reshape it: a splitter's output must be the
+source's own shots, bars and all.
 """
 
 import logging
@@ -48,14 +52,13 @@ class MezzanineBuilder:
 
     # --- TRANSCODE ---
 
-    def build(self, source: SourceInfo, output_path: Path, crop: Optional[str] = None) -> Path:
+    def build(self, source: SourceInfo, output_path: Path) -> Path:
         """
-        Writes an all-intra copy of the source.
+        Writes an all-intra copy of the source, at full frame.
 
         Args:
             source: Probed source information.
             output_path: Where the mezzanine is written.
-            crop: Optional "w:h:x:y" mask to bake in.
 
         Returns:
             Path to the mezzanine.
@@ -64,9 +67,15 @@ class MezzanineBuilder:
             RuntimeError: If ffmpeg fails, or if the output frame count does not
                 match the source. A mezzanine one frame short would shift every
                 shot after it.
+
+        Notes:
+            No crop filter. Baking a detected mask in here would hand the user
+            shots that are not the shots they gave us — and cropdetect is
+            approximate, reporting heights a couple of pixels apart on files
+            from the same delivery.
         """
         # PSEUDOCODE
-        # 1. Build the command: -i <source> [-vf crop=...] <ENCODER_ARGUMENTS>
+        # 1. Build the command: -i <source> <ENCODER_ARGUMENTS>
         #    -an (audio is handled separately) <output>
         # 2. Run it, allowing plenty of time — this is the slow pass of the job.
         # 3. On exit, verify() the result before returning.

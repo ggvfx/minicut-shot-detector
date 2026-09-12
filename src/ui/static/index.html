@@ -24,6 +24,17 @@
     <!-- ===== SPLITTER TAB ===== -->
     <section id="splitter" class="tab-panel active">
 
+        <!-- What this version cannot do, stated before anyone feeds it a file
+             rather than discovered in the output. -->
+        <section class="limitations">
+            <h2>What this version handles</h2>
+            <ul>
+                <li><strong>Hard cuts only.</strong> Dissolves, fades and wipes are not detected as edits.</li>
+                <li><strong>Constant frame rate only.</strong> Variable frame rate sources are refused — re-encode to constant frame rate first.</li>
+                <li><strong>Masking is reported, not applied.</strong> Letterboxing is measured and shown, but shots are always cut at full frame.</li>
+            </ul>
+        </section>
+
         <!-- Dependency panel: three states, ok / degraded / blocked -->
         <section class="card" id="environment-card">
             <div class="card-header">
@@ -66,14 +77,6 @@
             <ul id="source-warnings" class="warnings"></ul>
 
             <dl id="source-facts" class="facts"></dl>
-
-            <!-- Detected, not asked for. The user confirms or overrides it;
-                 typing a mask in blind is how detection quietly degrades. -->
-            <div class="crop-row">
-                <label for="crop-override">Mask (w:h:x:y)</label>
-                <input type="text" id="crop-override" placeholder="none detected">
-                <button id="crop-reset" class="secondary">Use detected</button>
-            </div>
         </section>
 
         <!-- Detection, cutting and the shot table land here in phases 3 and 4. -->

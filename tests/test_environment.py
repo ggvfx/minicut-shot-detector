@@ -10,9 +10,30 @@ from src.core.environment import (
     DEGRADED,
     OK,
     EnvironmentChecker,
+    platform_name,
+    windows_release,
     worst_status,
 )
 from src.core.ffmpeg_tools import MediaToolchain
+
+# --- PLATFORM NAMING ---
+
+
+def test_windows_11_is_not_called_windows_10():
+    """
+    Windows 11 reports its release as "10"; only the build tells them apart.
+
+    Taking platform.release() at face value labels every Windows 11 machine as
+    Windows 10, which makes the panel look broken to anyone reading it.
+    """
+    assert windows_release("10", 26200) == "11"
+    assert windows_release("10", 22000) == "11"
+    assert windows_release("10", 19045) == "10"
+
+
+def test_platform_name_is_not_empty():
+    assert platform_name().strip()
+
 
 # --- STATUS ROLL-UP ---
 

@@ -47,6 +47,16 @@ To be broken into tasks when we start.
 TransNetV2 ONNX export, sliding-window inference, PySceneDetect cross-check,
 boundary reconciliation and the minimum shot length filter.
 
+Golden set material to include, because these are where detection will be
+weakest and guessing about them now would be premature:
+
+- **A foreground wipe** — an object passing close to camera. As a transition it
+  is not a hard cut, so it may be missed or placed a few frames off; mid-shot it
+  may read as a false positive. One of the `D:\minicutExamples` files has one.
+- **A letterboxed source** — to measure whether masking actually helps
+  detection, before deciding to feed the detector a crop.
+- **Camera flashes**, to check the minimum shot length filter is doing its job.
+
 ## Phase 5 — Progress & Orchestration
 
 SSE progress streaming, the shot review table, and the whole pipeline behind

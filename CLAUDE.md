@@ -61,9 +61,16 @@ These are settled decisions. Do not revisit them without asking.
    behaviour shifts between ffmpeg builds; a floating version turns a
    reproducible pipeline into a mystery.
 6. **Detect, don't ask.** Aspect ratio and letterbox/pillarbox masking are
-   detected with `cropdetect`. Show the user what was found and allow an
-   override. Never require them to type it in — a wrong answer quietly degrades
-   detection.
+   detected with `cropdetect` and shown to the user. Never require them to type
+   it in — a wrong answer quietly degrades detection.
+
+   *Revised after testing real deliveries:* the mask is **reported, never
+   applied**. Two files from the same show returned 1920:922:0:72 and
+   1920:920:0:72, because cropdetect's answer depends on picture content; and a
+   mini cut can mix masked and unmasked shots, which one global crop cannot
+   describe. Output is always full frame — the splitter returns the source's
+   own shots, bars and all. Feeding a mask to the detector only is a possible
+   refinement, measured against the golden set, not an assumption.
 
 ---
 

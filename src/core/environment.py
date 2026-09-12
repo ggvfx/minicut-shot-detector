@@ -87,6 +87,34 @@ def ffmpeg_fix() -> str:
     return FFMPEG_INSTALL.get(platform.system(), "Install ffmpeg and put it on PATH")
 
 
+# --- PLATFORM NAMING ---
+
+# Windows 11 still reports itself as major version 10; only the build number
+# tells them apart. Anything from this build onwards is 11.
+WINDOWS_11_BUILD = 22000
+
+
+def windows_release(release: str, build: int) -> str:
+    """Corrects the release name Windows reports for itself."""
+    return "11" if build >= WINDOWS_11_BUILD else release
+
+
+def platform_name() -> str:
+    """
+    The operating system, named the way the user would name it.
+
+    The build number is included because it is what actually identifies a
+    Windows version, and because this string is recorded in job sidecars.
+    """
+    system = platform.system()
+
+    if system == "Windows":
+        build = sys.getwindowsversion().build
+        return f"Windows {windows_release(platform.release(), build)} (build {build})"
+
+    return f"{system} {platform.release()}"
+
+
 def worst_status(statuses: List[str]) -> str:
     """
     The most severe status in a list, which becomes the panel's overall state.
@@ -159,7 +187,7 @@ class EnvironmentChecker:
 
         return EnvironmentReport(
             overall=overall,
-            platform=f"{platform.system()} {platform.release()}",
+            platform=platform_name(),
             checks=checks,
         )
 

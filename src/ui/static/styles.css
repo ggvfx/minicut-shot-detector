@@ -148,6 +148,21 @@ input[type="text"] {
     cursor: pointer;
 }
 
+/* ===== LIMITATIONS BANNER ===== */
+
+.limitations {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--degraded);
+    border-radius: var(--radius);
+    padding: 12px var(--gap);
+    margin-bottom: var(--gap);
+}
+
+.limitations h2 { margin-bottom: 6px; }
+.limitations ul { margin: 0; padding-left: 18px; color: var(--text-dim); }
+.limitations li { margin-bottom: 2px; }
+.limitations strong { color: var(--text); font-weight: 600; }
+
 /* ===== SOURCE FACTS ===== */
 
 .action-row { display: flex; align-items: center; gap: 12px; }

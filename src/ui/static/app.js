@@ -143,10 +143,13 @@ function renderProbe(report) {
         "Frames": source.frame_count.toLocaleString(),
         "Duration": report.duration_timecode,
         "Start timecode": source.start_timecode,
-        // Crop detection is skipped on a refused source, so say so rather than
-        // reporting "full frame" for something never looked at
-        "Mask": report.can_split
-            ? (report.detected_crop || "none — full frame")
+        // Reported for information only — shots are always cut at full frame.
+        // Skipped entirely on a refused source, so say so rather than claiming
+        // "full frame" for something never looked at.
+        "Masking": report.can_split
+            ? (report.detected_crop
+                ? `${report.detected_crop} (letterboxed — not applied)`
+                : "none — full frame")
             : "not checked",
         "Disk needed": `${report.estimated_gb.toFixed(1)} GB` +
             (report.free_gb === null ? "" : ` of ${report.free_gb.toFixed(0)} GB free`),
@@ -168,8 +171,6 @@ function renderProbe(report) {
         warnings.append(row);
     }
 
-    // The detected mask is a starting point the user can correct
-    document.getElementById("crop-override").value = report.detected_crop || "";
 }
 
 /** Renders a label/value map into the facts list. */
@@ -298,13 +299,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("inspect-button")
         .addEventListener("click", inspectSource);
-
-    // Putting the detected mask back after an edit, without re-probing
-    document.getElementById("crop-reset")
-        .addEventListener("click", () => {
-            document.getElementById("crop-override").value =
-                (state.probe && state.probe.detected_crop) || "";
-        });
 
     // Typed paths are as valid as picked ones
     document.getElementById("source-path")
