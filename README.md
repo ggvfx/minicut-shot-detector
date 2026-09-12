@@ -70,10 +70,12 @@ Run the tests with `pytest` from the repo root.
 
 ## Strategic Roadmap
 
-### Phase 1: Scaffold & Dependency Panel (Complete)
+### Phase 1: Scaffold & Foundations (Complete)
 * FastAPI server on localhost with a no-build-step front end.
 * Three-state environment checks with copyable fixes and result caching.
 * Server-side path picker for source and output selection.
+* SMPTE timecode engine — exact rational frame rates, drop-frame handling and
+  frame-accurate seek times, covered by 62 unit tests.
 
 ### Phase 2: Probe & Preprocess (Current)
 * `ffprobe` metadata, exact rational frame rates, and source start timecode.
@@ -81,15 +83,18 @@ Run the tests with `pytest` from the repo root.
 * Multi-sample `cropdetect` masking with UI confirmation and override.
 * Disk requirement estimation before a job starts.
 
-### Phase 3: Detection
+### Phase 3: Cutting & Validation
+* All-intra mezzanine, frame-accurate stream-copy splits, per-shot stills.
+* Integrity and frame-hash round-trip validation.
+* JSON sidecar with the full resolved environment.
+
+### Phase 4: Detection
 * TransNetV2 ONNX export as a committed build step.
 * Sliding-window inference and per-frame transition probabilities.
 * PySceneDetect cross-check pass and boundary reconciliation.
 
-### Phase 4: Cutting & Validation
-* All-intra mezzanine, frame-accurate stream-copy splits, per-shot stills.
-* Integrity and frame-hash round-trip validation.
-* JSON sidecar with the full resolved environment.
+### Phase 5: Progress & Orchestration
+* SSE progress streaming, shot review table, full pipeline behind one button.
 
 ## 🚀 Overview
 

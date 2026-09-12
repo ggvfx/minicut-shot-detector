@@ -170,14 +170,25 @@ eye. Re-run on every parameter change — it is the regression suite.
 Build in this order. Each should be independently verifiable and separately
 committed.
 
-1. **Scaffold + dependency panel** — FastAPI server, localhost UI shell, path
-   picker, environment checks.
+0. **Scaffold + dependency panel** *(done)* — FastAPI server, localhost UI
+   shell, path picker, environment checks.
+1. **Timecode engine** *(done)* — frame/timecode conversion, drop-frame, exact
+   seek times. First because every stage after it depends on this arithmetic
+   being right, and it is testable without a single video file.
 2. **Probe + preprocess** — ffprobe, VFR handling, cropdetect, disk estimate.
-3. **Detection** — ONNX export, TransNetV2 inference, PySceneDetect pass,
+3. **Cutting** — mezzanine, frame-accurate splits, stills, JSON sidecar.
+4. **Validation** — integrity assertions and the frame-hash round trip.
+5. **Detection** — ONNX export, TransNetV2 inference, PySceneDetect pass,
    reconciliation. *This is the task that will take real debugging; the output
    window handling is the fiddly part.*
-4. **Cutting** — mezzanine, frame-accurate splits, stills, JSON sidecar.
-5. **Validation + progress UI** — assertions, round-trip check, SSE wired up.
+6. **Progress UI + job wiring** — SSE progress, shot table, pipeline behind one
+   button.
+
+Cutting comes before detection deliberately. With probe done, a hand-typed pair
+of frame numbers exercises the mezzanine, the splits, the round-trip check and
+the sidecar without the ONNX export existing — so when a boundary later lands a
+frame late, the cutter has already been proven on known input and the detector
+is the only suspect.
 
 ---
 
