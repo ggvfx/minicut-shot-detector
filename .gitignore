@@ -1,0 +1,89 @@
+# --- Python ---
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+.hypothesis/
+
+# Type checkers / linters
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Editors
+.idea/
+.cursorignore
+.cursorindexingignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# --- Minicut Shot Detector Specifics ---
+
+# Media. Mini cuts, mezzanines and splits are far past GitHub's file size
+# limits, and removing them from history afterwards is painful.
+*.mov
+*.mp4
+*.mxf
+*.mkv
+*.avi
+*.r3d
+*.braw
+*.prores
+*.dnx
+
+# Stills extracted per shot
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.exr
+*.dpx
+
+# Job output: mezzanines, splits, sidecars, stills
+output/
+outputs/
+work/
+mezzanine/
+stills/
+
+# Test media. Golden-set CSV ground truth IS tracked; the videos are not.
+tests/media/
+!tests/golden/*.csv
+
+# The TransNetV2 .onnx export is deliberately committed (see CLAUDE.md), so it
+# is NOT ignored here. Intermediate export artefacts are.
+models/*.pth
+models/*.pb
+models/tmp/
+
+# Logs
+logs/
+*.log
