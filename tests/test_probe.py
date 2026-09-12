@@ -202,11 +202,15 @@ def test_short_file_is_sampled_once():
 # --- DISK ESTIMATION ---
 
 
-def test_disk_estimate_scales_with_duration(probe):
-    """One minute of 1080p25 needs the reference figure, doubled for the splits."""
-    one_minute = make_source(frame_count=1500)
+def test_disk_estimate_matches_the_reference_figure(probe):
+    """
+    One minute of 1080p24 is the reference case, doubled for the splits.
 
-    assert probe.estimate_disk_required(one_minute) == pytest.approx(2.4)
+    1.15 GB/min of mezzanine plus the same again of shot files.
+    """
+    one_minute = make_source(fps_numerator=24, frame_count=1440)
+
+    assert probe.estimate_disk_required(one_minute) == pytest.approx(2.3)
 
 
 def test_disk_estimate_scales_with_resolution(probe):
@@ -218,8 +222,8 @@ def test_disk_estimate_scales_with_resolution(probe):
 
 
 def test_disk_estimate_scales_with_frame_rate(probe):
-    """Fifty frames a second is twice the data of twenty-five, for the same duration."""
-    at_25 = probe.estimate_disk_required(make_source(fps_numerator=25, frame_count=1500))
-    at_50 = probe.estimate_disk_required(make_source(fps_numerator=50, frame_count=3000))
+    """Forty-eight frames a second is twice the data of twenty-four, same duration."""
+    at_24 = probe.estimate_disk_required(make_source(fps_numerator=24, frame_count=1440))
+    at_48 = probe.estimate_disk_required(make_source(fps_numerator=48, frame_count=2880))
 
-    assert at_50 == pytest.approx(at_25 * 2)
+    assert at_48 == pytest.approx(at_24 * 2)

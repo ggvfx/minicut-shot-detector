@@ -31,9 +31,16 @@ MIN_PYTHON = (3, 11)
 # Many ffmpeg builds ship without either, which otherwise only surfaces mid-job.
 MEZZANINE_ENCODERS = ("prores_ks", "dnxhd")
 
-# ProRes 422 at 1080p25 is roughly 1.2 GB per minute, and a job writes a
+# ProRes 422 at 1080p24 is roughly 1.15 GB per minute, and a job writes a
 # mezzanine plus a full set of splits — so budget for two passes of it.
-GB_PER_MINUTE_PRORES_1080P25 = 1.2
+#
+# Deliberately conservative: Apple's published rate for ProRes 422 at 1080p24
+# works out nearer 0.9 GB/min. Over-estimating means the warning fires early;
+# under-estimating means the drive fills mid-transcode.
+GB_PER_MINUTE_PRORES_1080P24 = 1.15
+
+# The rate the figure above is quoted at, used to scale other frame rates.
+REFERENCE_RATE = 24
 MIN_FREE_GB = 20.0
 
 # Extensions the path picker offers as source media.

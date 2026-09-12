@@ -105,7 +105,7 @@ Still expected, and still handled:
   Normalizing them is deferred until a real VFR source turns up.
 - `cropdetect` for masking. Report findings to the UI.
 - Estimate disk requirement and warn before the job, not after the drive fills.
-  ProRes 422 at 1080p25 is roughly 1.2 GB/min, and we write mezzanine + splits.
+  ProRes 422 at 1080p24 is roughly 1.15 GB/min, and we write mezzanine + splits.
 
 ### 2. Detect
 

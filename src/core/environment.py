@@ -401,8 +401,8 @@ class EnvironmentChecker:
         free_gb = shutil.disk_usage(target).free / (1024 ** 3)
 
         # Mezzanine plus splits is roughly two copies of the source
-        minutes_of_footage = free_gb / (config.GB_PER_MINUTE_PRORES_1080P25 * 2)
-        detail = f"{free_gb:.0f} GB free — about {minutes_of_footage:.0f} min of 1080p25 source"
+        minutes_of_footage = free_gb / (config.GB_PER_MINUTE_PRORES_1080P24 * 2)
+        detail = f"{free_gb:.0f} GB free — about {minutes_of_footage:.0f} min of 1080p24 source"
 
         if free_gb < config.MIN_FREE_GB:
             return Check(

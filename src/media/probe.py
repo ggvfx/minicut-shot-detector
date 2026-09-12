@@ -20,7 +20,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import List, Optional
 
-from src.core.config import GB_PER_MINUTE_PRORES_1080P25
+from src.core.config import GB_PER_MINUTE_PRORES_1080P24, REFERENCE_RATE
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import ProbeReport, SourceInfo
 from src.core.timecode import Timecode
@@ -41,10 +41,9 @@ CROP_PATTERN = re.compile(r"crop=(\d+:\d+:\d+:\d+)")
 
 # --- DISK ESTIMATION ---
 
-# The 1.2 GB/min reference is quoted for 1080p at 25 fps, so both resolution and
-# frame rate scale it.
+# The reference figure in config is quoted for 1080p at 24 fps, so both
+# resolution and frame rate scale it.
 REFERENCE_PIXELS = 1920 * 1080
-REFERENCE_RATE = 25
 
 # A job writes the mezzanine and then the splits, which together are roughly a
 # second copy of it.
@@ -367,7 +366,7 @@ class SourceProbe:
         Reported before the job starts, so the user finds out now rather than
         when the drive fills mid-transcode.
 
-        The reference figure is ProRes 422 at 1080p25, so both resolution and
+        The reference figure is ProRes 422 at 1080p24, so both resolution and
         frame rate scale it.
 
         Returns:
@@ -379,4 +378,4 @@ class SourceProbe:
         pixel_scale = (source.width * source.height) / REFERENCE_PIXELS
         rate_scale = float(rate) / REFERENCE_RATE
 
-        return GB_PER_MINUTE_PRORES_1080P25 * minutes * pixel_scale * rate_scale * DISK_COPIES
+        return GB_PER_MINUTE_PRORES_1080P24 * minutes * pixel_scale * rate_scale * DISK_COPIES
