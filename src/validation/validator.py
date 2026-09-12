@@ -1,23 +1,25 @@
 """
 Job Validation.
 
-Proves that the shots written to disk are actually correct. Two kinds of check,
-weakest first:
+The checks that have to decode frames, and the verdict that combines them with
+the arithmetic in `integrity.py`.
 
-1. **Integrity** — plain arithmetic on the shot list. Durations sum to the
-   source, no gaps, no overlaps, correct bounds. Catches the whole class of
-   off-by-one bugs: a shot list where the frames do not add up is wrong no
-   matter how good the detection was.
+That is the line this module is drawn along: integrity proves the NUMBERS add
+up and needs nothing but a shot list, while everything here proves the PIXELS
+do and needs ffmpeg to find out.
 
-2. **Round trip** — join the splits back together and prove the result is
-   frame-for-frame identical to the mezzanine. Integrity proves the NUMBERS
-   add up; this proves the PIXELS do. It catches a dropped frame at a split
-   point, a duplicated frame from a seek landing early, or shots written in the
-   wrong order — none of which show in a thumbnail, and all of which ruin every
-   clip downstream.
+Two pixel checks, cheapest first:
 
-Both ship with v1. Any failure blocks the job: this stage never warns and
-continues.
+1. **Boundary frames** — compares the first and last frame of every shot
+   against the mezzanine. Shots are stream copies, so their interiors cannot
+   change: every failure a cut can produce moves an edge frame. The default.
+
+2. **Round trip** — rejoins every shot and compares every frame. Slower, and it
+   writes a second copy of the mezzanine while it runs, so it is there for a
+   final pass before a delivery rather than for every job.
+
+Validation ships with v1. Any failure blocks the job: this stage never warns
+and continues.
 """
 
 import logging
@@ -28,6 +30,7 @@ from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Shot, SourceInfo, ValidationResult
 from src.core.timecode import Timecode
 from src.core.utils import ensure_directory
+from src.validation.integrity import validate_shot_list
 
 # --- TIMEOUTS ---
 
@@ -41,70 +44,24 @@ FRAME_HASH_TIMEOUT = 120.0
 
 # --- CHECK NAMES ---
 
-# Stable keys, recorded in the sidecar's validation block.
-CHECK_FRAMES_SUM = "frames_sum"
-CHECK_NO_GAPS = "no_gaps"
-CHECK_NO_OVERLAPS = "no_overlaps"
-CHECK_BOUNDS = "bounds"
+# Stable keys, recorded in the sidecar's validation block. The arithmetic ones
+# live beside the checks that set them, in integrity.py.
 CHECK_BOUNDARY_FRAMES = "boundary_frames"
 CHECK_ROUND_TRIP = "round_trip"
-
-# The arithmetic checks, which run without touching a single video file.
-INTEGRITY_CHECKS = (CHECK_FRAMES_SUM, CHECK_NO_GAPS, CHECK_NO_OVERLAPS, CHECK_BOUNDS)
 
 
 class JobValidator:
     """
     Runs every correctness check for one job.
 
-    Holds the toolchain, since the round trip needs ffmpeg for both the concat
-    and the frame hashing.
+    Holds the toolchain, since every check here decodes frames. The arithmetic
+    that does not is in integrity.py, and `validate_job` calls into it.
     """
 
     def __init__(self, toolchain: MediaToolchain):
         self.toolchain = toolchain
 
     # --- PUBLIC API ---
-
-    def validate_shot_list(self, shots: List[Shot], source: SourceInfo) -> ValidationResult:
-        """
-        Runs the arithmetic checks on a shot list.
-
-        Called twice in a job: once immediately after detection, so a broken
-        list stops the job before an hour of transcoding, and once on the shots
-        as written.
-
-        Returns:
-            ValidationResult with one entry per check. `passed` is False if any
-            check failed.
-        """
-        if not shots:
-            return ValidationResult(
-                passed=False,
-                checks={name: False for name in INTEGRITY_CHECKS},
-                failures=["The shot list is empty, so there is nothing to cut"],
-            )
-
-        ordered = sorted(shots, key=lambda shot: shot.start_frame)
-
-        results = {
-            CHECK_FRAMES_SUM: self._check_frames_sum(ordered, source.frame_count),
-            CHECK_NO_GAPS: self._check_no_gaps(ordered),
-            CHECK_NO_OVERLAPS: self._check_no_overlaps(ordered),
-            CHECK_BOUNDS: self._check_bounds(ordered, source.frame_count),
-        }
-
-        failures = [failure for problems in results.values() for failure in problems]
-
-        for name, problems in results.items():
-            if problems:
-                logging.error(f"Validation check {name} failed: {'; '.join(problems)}")
-
-        return ValidationResult(
-            passed=not failures,
-            checks={name: not problems for name, problems in results.items()},
-            failures=failures,
-        )
 
     def validate_job(
         self,
@@ -132,7 +89,7 @@ class JobValidator:
             Its failure would be a consequence of the first problem rather than
             a second finding, and it is the expensive check of the two.
         """
-        result = self.validate_shot_list(shots, source)
+        result = validate_shot_list(shots, source)
         check_name = CHECK_ROUND_TRIP if full_round_trip else CHECK_BOUNDARY_FRAMES
 
         if not result.passed:
@@ -230,94 +187,6 @@ class JobValidator:
             raise RuntimeError(f"Could not read frame {frame_index} of {video_path.name}")
 
         return hashes[0]
-
-    # --- INTEGRITY CHECKS ---
-
-    @staticmethod
-    def _check_frames_sum(shots: List[Shot], frame_count: int) -> List[str]:
-        """
-        Every source frame belongs to exactly one shot.
-
-        Compared exactly, with no tolerance: a shot list one frame short is a
-        shot list that is wrong somewhere.
-        """
-        total = sum(shot.frame_count for shot in shots)
-        if total == frame_count:
-            return []
-
-        difference = total - frame_count
-        direction = "more than" if difference > 0 else "fewer than"
-        return [
-            f"Shots total {total} frames, {abs(difference)} {direction} "
-            f"the source's {frame_count}"
-        ]
-
-    @staticmethod
-    def _check_no_gaps(shots: List[Shot]) -> List[str]:
-        """
-        Each shot starts on the frame immediately after the previous one ends.
-
-        A gap means frames of the source belong to no shot at all, so they would
-        simply never be written.
-        """
-        problems = []
-        for current, following in zip(shots, shots[1:]):
-            expected = current.end_frame + 1
-            if following.start_frame > expected:
-                missing = following.start_frame - expected
-                problems.append(
-                    f"Gap of {missing} frame{'s' if missing > 1 else ''} between "
-                    f"shot {current.index} (ends {current.end_frame}) and "
-                    f"shot {following.index} (starts {following.start_frame})"
-                )
-        return problems
-
-    @staticmethod
-    def _check_no_overlaps(shots: List[Shot]) -> List[str]:
-        """
-        No frame appears in two shots.
-
-        An overlap means a frame is written twice, which the round trip would
-        also catch — but naming the two shots here is far more useful than a
-        hash mismatch later.
-        """
-        problems = []
-        for current, following in zip(shots, shots[1:]):
-            if following.start_frame <= current.end_frame:
-                shared = current.end_frame - following.start_frame + 1
-                problems.append(
-                    f"Shot {current.index} (ends {current.end_frame}) and "
-                    f"shot {following.index} (starts {following.start_frame}) "
-                    f"share {shared} frame{'s' if shared > 1 else ''}"
-                )
-        return problems
-
-    @staticmethod
-    def _check_bounds(shots: List[Shot], frame_count: int) -> List[str]:
-        """The shot list covers the source exactly, and no shot is inside out."""
-        problems = []
-
-        if shots[0].start_frame != 0:
-            problems.append(
-                f"First shot starts at frame {shots[0].start_frame}, not 0, "
-                f"so the head of the source belongs to no shot"
-            )
-
-        last_frame = frame_count - 1
-        if shots[-1].end_frame != last_frame:
-            problems.append(
-                f"Last shot ends at frame {shots[-1].end_frame}, not {last_frame}, "
-                f"so the tail of the source is unaccounted for"
-            )
-
-        for shot in shots:
-            if shot.end_frame < shot.start_frame:
-                problems.append(
-                    f"Shot {shot.index} ends at frame {shot.end_frame}, "
-                    f"before it starts at {shot.start_frame}"
-                )
-
-        return problems
 
     # --- ROUND TRIP ---
 

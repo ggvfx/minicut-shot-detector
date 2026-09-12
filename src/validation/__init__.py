@@ -1,4 +1,6 @@
 """
-Correctness checks that can block a job: shot list arithmetic and the
-frame-hash round trip against the mezzanine.
+Correctness checks that can block a job.
+
+Split on whether a check needs ffmpeg: `integrity.py` is arithmetic on the shot
+list and needs nothing, while `validator.py` decodes frames to compare pixels.
 """

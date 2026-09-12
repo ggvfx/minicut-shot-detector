@@ -38,6 +38,7 @@ from src.media.mezzanine import MezzanineBuilder
 from src.media.probe import SourceProbe
 from src.media.proxy import ProxyBuilder
 from src.media.splitter import ShotSplitter
+from src.validation.integrity import validate_shot_list
 from src.validation.validator import JobValidator
 
 # --- WORKING FILES ---
@@ -197,7 +198,8 @@ class SplitterPipeline:
         """
         shots = boundaries_to_shots(boundaries, source.frame_count)
 
-        integrity = JobValidator(self.toolchain).validate_shot_list(shots, source)
+        # Plain arithmetic: no toolchain, no files, nothing to decode
+        integrity = validate_shot_list(shots, source)
         if not integrity.passed:
             raise RuntimeError("The shot list does not add up: " + "; ".join(integrity.failures))
 

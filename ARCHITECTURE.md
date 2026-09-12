@@ -82,7 +82,7 @@ a keyframe, so cutting the original data can only land where keyframes already
 are. Verified by hand — 30 frames requested out of an all-intra mezzanine gives
 30 frames, pixel-identical.
 
-### 5. Validate — `JobValidator` in `src/validation/validator.py`
+### 5. Validate — `src/validation/`
 
 - **Integrity:** durations sum to the source, no gaps, no overlaps, correct
   bounds. Proves the numbers add up.
@@ -94,6 +94,12 @@ are. Verified by hand — 30 frames requested out of an all-intra mezzanine give
   It decodes the whole job twice and writes a second copy of the mezzanine, so
   it is offered as a checkbox for a final pass before a delivery rather than as
   the default. CLAUDE.md records what that cost measured on one real mini cut.
+
+The two modules split on whether a check needs ffmpeg. `integrity.py` holds
+the arithmetic as plain functions — no toolchain, no files, nothing decoded —
+so it runs in milliseconds and its tests pass on a machine with no ffmpeg at
+all. `validator.py` holds everything that decodes frames, and `validate_job()`
+combines the two into one verdict.
 
 Any failure blocks the job and surfaces in the UI. This stage never
 warns-and-continues, and it ships with v1.
@@ -130,7 +136,8 @@ the identifier tab and is not built here.
 | `src/detection/transnet.py` | `TransNetDetector` — primary detector |
 | `src/detection/scene_detect.py` | `SceneDetectCrossCheck` — cross-check detector |
 | `src/detection/reconcile.py` | Merge, filter, convert to shots |
-| `src/validation/validator.py` | `JobValidator` — integrity and round trip |
+| `src/validation/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
+| `src/validation/validator.py` | `JobValidator` — the checks that decode frames |
 | `src/ui/server.py` | FastAPI routes. The only module that knows about HTTP. |
 | `src/ui/browse.py` | Directory listing for the path picker |
 | `src/ui/static/` | `index.html`, `app.js`, `styles.css` |
@@ -198,7 +205,9 @@ reach into a domain package.
 - **`server.py` holds no logic** for the same reason — if a route grows a
   decision, that decision belongs in a stage module.
 - **Classes where state is shared across calls, functions where it is not.**
-  A detector holds a loaded model; reconciliation holds nothing.
+  A detector holds a loaded model; reconciliation and the integrity checks hold
+  nothing, so they are functions. The pipeline's first validation therefore
+  needs no toolchain at all — it is checking that numbers add up.
 
 ---
 
