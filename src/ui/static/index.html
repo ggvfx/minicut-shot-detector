@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minicut Shot Detector</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<!-- ===== HEADER AND TABS ===== -->
+<header>
+    <h1>Minicut Shot Detector</h1>
+    <nav class="tabs">
+        <button class="tab active" data-tab="splitter">Splitter</button>
+        <!-- The identifier is deliberately not built. It is shown disabled so
+             the two-tab shape is visible, not so it can be clicked. -->
+        <button class="tab" data-tab="identifier" disabled title="Not built yet">Identifier</button>
+    </nav>
+</header>
+
+<main>
+
+    <!-- ===== SPLITTER TAB ===== -->
+    <section id="splitter" class="tab-panel active">
+
+        <!-- Dependency panel: three states, ok / degraded / blocked -->
+        <section class="card" id="environment-card">
+            <div class="card-header">
+                <h2>Environment</h2>
+                <button id="recheck-button" class="secondary">Re-check</button>
+            </div>
+            <p id="environment-summary" class="summary">Checking…</p>
+            <ul id="environment-checks" class="checks"></ul>
+        </section>
+
+        <!-- Path selection. Paths are typed or picked from the server's own
+             directory listing — media is never uploaded to the browser. -->
+        <section class="card">
+            <h2>Source</h2>
+            <div class="path-row">
+                <input type="text" id="source-path" placeholder="Path to the mini cut">
+                <button class="secondary" data-picker="source">Browse…</button>
+            </div>
+
+            <h2>Output directory</h2>
+            <div class="path-row">
+                <input type="text" id="output-dir" placeholder="Where shots are written">
+                <button class="secondary" data-picker="output">Browse…</button>
+            </div>
+        </section>
+
+        <!-- Probe results, detection settings, progress and the shot table all
+             land here as tasks 2-5 are built. -->
+        <section class="card" id="job-card">
+            <h2>Job</h2>
+            <p class="placeholder">Probe and detection are not built yet — see the task list in CLAUDE.md.</p>
+        </section>
+
+    </section>
+
+</main>
+
+<!-- ===== PATH PICKER DIALOG ===== -->
+<dialog id="picker">
+    <div class="picker-header">
+        <span id="picker-path" class="picker-path"></span>
+        <button id="picker-close" class="secondary">Close</button>
+    </div>
+    <div id="picker-roots" class="picker-roots"></div>
+    <ul id="picker-entries" class="picker-entries"></ul>
+    <div class="picker-footer">
+        <button id="picker-choose">Choose this folder</button>
+    </div>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

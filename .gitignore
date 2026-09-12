@@ -67,6 +67,9 @@ Thumbs.db
 *.exr
 *.dpx
 
+# UI screenshots and icons are the exception — they belong in the repo
+!assets/**
+
 # Job output: mezzanines, splits, sidecars, stills
 output/
 outputs/

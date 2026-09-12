@@ -1,63 +1,154 @@
 # Minicut Shot Detector
 
-A local web app that breaks finished video edits ("mini cuts") into their
-constituent shots, and — later — names those shots against a supplied shot list.
+**Minicut Shot Detector** is a frame-accurate shot segmentation utility for
+finished video edits. It breaks a "mini cut" back into its constituent shots as
+individual media files, then — in a later phase — names those shots against a
+supplied shot list. Built for VFX and post-production editorial turnovers,
+where a delivered cut has to be reversed back into per-shot media without a
+single frame landing on the wrong side of a boundary.
 
-Two tabs are planned:
+## Project Status
+🚦 **Project Status:** Pre-Alpha (Scaffold & Architecture)
+The application shell, dependency panel and path picker are working. Detection
+and cutting are architected as reviewed skeletons and not yet implemented.
 
-1. **Splitter** — load a mini cut, detect shot boundaries, split into individual
-   files in an output directory.
-2. **Identifier** — load a directory of split shots, describe them, match them
-   against a shot list, human-review the matches, rename on approval.
+**Current Capabilities:**
+* **Dependency Panel:** Three-state environment reporting (ready / degraded /
+  blocked), with a copyable fix command for every failure and a manual re-check.
+* **Encoder Verification:** Parses `ffmpeg -encoders` up front to confirm a
+  mezzanine codec exists, rather than discovering it mid-job.
+* **Local Path Picker:** Server-side directory browsing, so multi-gigabyte media
+  is never uploaded through the browser.
 
-**Current scope is the Splitter only.** Detection is deterministic: the same
-input produces byte-identical boundaries on every run.
+**Next Milestone:** Source probing — frame rate, timecode, VFR handling and
+`cropdetect` masking.
 
-## Status
+## Development Approach
 
-🚦 Pre-alpha — repository scaffolding. Nothing is implemented yet.
+This project is developed with an AI coding assistant (Claude Code) under a
+deliberate process rather than an open-ended one:
 
-Build order:
+* **Architecture first.** Data flow, module boundaries and settled technical
+  decisions were agreed in writing before implementation began — see
+  [ARCHITECTURE.md](ARCHITECTURE.md) and [CLAUDE.md](CLAUDE.md).
+* **Skeletons before code.** Modules land first as signatures, docstrings and
+  pseudocode, reviewed and approved before they are implemented.
+* **One task at a time.** Each stage is built, tested and reviewed before the
+  next begins, and committed separately so any change can be traced.
+* **Reviewed and understood.** I read every module. Anything I cannot follow
+  gets rewritten or explained, not merged.
 
-1. Scaffold + dependency panel
-2. Probe + preprocess
-3. Detection
-4. Cutting
-5. Validation + progress UI
+The engineering decisions here are mine; the assistant works to them.
 
-## How it works
+## Install & Run
 
-| Stage | What happens |
-|---|---|
-| Probe | `ffprobe` the source for fps, resolution, start timecode; `cropdetect` for letterbox masking; estimate disk use |
-| Detect | TransNetV2 (ONNX Runtime) as primary, PySceneDetect `AdaptiveDetector` as cross-check, reconciled into one boundary list |
-| Cut | Transcode once to an all-intra mezzanine, then stream-copy each shot out of it for frame-accurate splits |
-| Validate | Durations sum, no gaps or overlaps, and a concat round-trip frame-hash against the mezzanine |
+Requires **Python 3.11+** and **ffmpeg** on `PATH` with either the `prores_ks`
+or `dnxhd` encoder. The app checks all of this on launch and tells you how to
+fix anything missing.
 
-Every job writes a JSON sidecar recording the shots, their frame boundaries and
-timecodes, detector agreement, and the resolved tool and model versions that
-produced them.
+```bash
+# 1. Clone and enter the repo
+git clone https://github.com/ggvfx/minicut-shot-detector.git
+cd minicut-shot-detector
 
-Current scope is hard cuts only — no dissolves, fades or wipes.
+# 2. Create a virtual environment
+python -m venv venv
+venv\Scripts\activate          # Windows
+source venv/bin/activate       # macOS
 
-## Requirements
+# 3. Install pinned dependencies
+pip install -r requirements.txt
 
-- Python 3.11+
-- `ffmpeg` and `ffprobe` on `PATH`, with a `prores_ks` or `dnxhd` encoder
-  available
-- Roughly 1.2 GB per minute of free disk at 1080p25, for mezzanine plus splits
+# 4. Run — opens http://127.0.0.1:8765 in your browser
+python main.py
+```
 
-The app checks all of this on launch and reports anything missing with a
-copyable fix command. CPU-only inference is supported but slower.
+If ffmpeg is missing: `winget install Gyan.FFmpeg` on Windows,
+`brew install ffmpeg` on macOS.
 
-## Stack
+Run the tests with `pytest` from the repo root.
 
-Python 3.11 + FastAPI backend, plain HTML/CSS/vanilla JS frontend served on
-localhost. No npm, no build step, no native packaging. `ffmpeg` and `ffprobe`
-are invoked as subprocesses, never through Python bindings.
+## Strategic Roadmap
 
-Developed on Windows; also targets macOS.
+### Phase 1: Scaffold & Dependency Panel (Complete)
+* FastAPI server on localhost with a no-build-step front end.
+* Three-state environment checks with copyable fixes and result caching.
+* Server-side path picker for source and output selection.
+
+### Phase 2: Probe & Preprocess (Current)
+* `ffprobe` metadata, exact rational frame rates, and source start timecode.
+* Variable frame rate detection and normalisation.
+* Multi-sample `cropdetect` masking with UI confirmation and override.
+* Disk requirement estimation before a job starts.
+
+### Phase 3: Detection
+* TransNetV2 ONNX export as a committed build step.
+* Sliding-window inference and per-frame transition probabilities.
+* PySceneDetect cross-check pass and boundary reconciliation.
+
+### Phase 4: Cutting & Validation
+* All-intra mezzanine, frame-accurate stream-copy splits, per-shot stills.
+* Integrity and frame-hash round-trip validation.
+* JSON sidecar with the full resolved environment.
+
+## 🚀 Overview
+
+A delivered mini cut is a single file. Getting back to per-shot media by hand
+means scrubbing for cuts, noting timecodes, and trimming clip by clip — slow,
+and easy to be a frame out in a way nobody notices until the work is downstream.
+
+The tool follows a **"Deterministic"** and **"Prove It"** philosophy:
+
+1. **Deterministic:** No LLM, no agent, no adaptive thresholds in the detection
+   path. Identical input produces byte-identical boundaries on every run.
+   Judgment work belongs in the identifier tab, not the splitter.
+2. **Prove It:** Every job is validated before it is handed over. The splits are
+   joined back together and frame-hash compared against the source, so a dropped
+   or duplicated frame fails the job rather than reaching a downstream artist.
+
+## ✨ Key Features
+
+* **Frame-Accurate Splitting:** Transcodes once to an all-intra mezzanine, then
+  stream-copies each shot. Cutting a long-GOP source directly snaps silently to
+  the nearest keyframe — up to half a second away from the requested frame.
+* **Two-Detector Reconciliation:** TransNetV2 runs as the primary pass with
+  PySceneDetect as an independent cross-check. Agreement means confidence;
+  disagreement flags the boundary for human review, which is what makes an
+  unattended run safe to trust.
+* **Integer Frames Throughout:** Frame numbers are integers everywhere and
+  timecode is derived only at output. Frame rates are held as exact rationals
+  (24000/1001), never as rounded floats that drift a frame over a long edit.
+* **Round-Trip Verification:** Concatenates the written shots and compares
+  per-frame hashes against the mezzanine. Any failure blocks the job — the
+  validation stage never warns and continues.
+* **Flash-Frame Filtering:** A minimum shot length merges the sub-threshold
+  shots that camera flashes produce, and every merge is logged on the shot
+  rather than silently applied.
+* **Detect, Don't Ask:** Aspect ratio and letterbox masking are found with
+  `cropdetect`, sampled across the file, then shown for confirmation with an
+  override. A mask typed in wrongly quietly degrades detection.
+* **Honest Dependency Reporting:** Three states, not two. CPU-only inference is
+  degraded rather than failed — the cost is shown and the user decides.
+* **Reproducible Sidecars:** Every job records the resolved ffmpeg build,
+  runtime versions and model checksum alongside the shots, so a boundary that
+  looks wrong months later can be traced to what produced it.
+
+## 🛠️ Technical Stack
+* **Language:** Python 3.11+
+* **Backend:** FastAPI, Uvicorn, Pydantic
+* **Frontend:** Plain HTML, CSS and vanilla JavaScript — no npm, no build step
+* **Detection:** TransNetV2 via ONNX Runtime, PySceneDetect
+* **Media Engine:** ffmpeg / ffprobe as subprocesses, never a Python binding
+
+## 📂 Project Structure
+* `main.py`: Entry point — starts the local server and opens the UI.
+* `src/core/`: Config, data models, timecode maths, ffmpeg toolchain, environment checks.
+* `src/media/`: Source probing, mezzanine creation, splitting and stills.
+* `src/detection/`: TransNetV2, PySceneDetect cross-check and boundary reconciliation.
+* `src/validation/`: Integrity and round-trip checks that can block a job.
+* `src/ui/`: FastAPI routes, path picker and the browser front end.
+* `scripts/`: One-off build steps, including the TransNetV2 ONNX export.
+* `tests/`: Unit tests and the hand-labelled golden set.
 
 ## Licence
-
 MIT — see [LICENSE](LICENSE).

@@ -1,0 +1,17 @@
+# Versions are pinned exactly on purpose. Frame-accuracy behaviour shifts
+# between releases, and a floating version turns a reproducible pipeline into
+# a mystery. Update deliberately, then re-run the golden set.
+
+# --- CORE FRAMEWORK ---
+fastapi==0.141.1         # Local web server and JSON API
+uvicorn==0.52.4          # ASGI server that runs it
+pydantic==2.13.5         # Data models, config, and sidecar validation
+
+# --- DETECTION ---
+onnxruntime==1.30.0      # TransNetV2 inference — no torch dependency
+numpy==2.4.6             # Frame buffers and probability arrays
+scenedetect==0.7.1       # AdaptiveDetector cross-check pass
+opencv-python==5.0.0.93  # Video reader used by PySceneDetect
+
+# --- DEVELOPMENT ---
+pytest==9.1.1            # Golden set and unit tests

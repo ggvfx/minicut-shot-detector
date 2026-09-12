@@ -208,6 +208,58 @@ result with a manual re-check button.
 
 ---
 
+## Code conventions
+
+**Read `D:\_repos\CODE_STYLE.md` first.** It holds the agreed conventions for
+every repo and the working practice we follow — architecture first, an ordered
+TODO list, one task at a time, tested before the next begins. What follows here
+is only what is specific to this project.
+
+The point of all of it is that the author can open any file months later and
+follow it without re-reading the whole project. Readability beats cleverness.
+
+**Layout**
+- `main.py` at the repo root is the entry point. Everything else lives under
+  `src/<package>/`, imported absolutely: `from src.core.models import Shot`.
+- Packages group by *role*, not by pipeline order: `core`, `media`, `detection`,
+  `validation`, `ui`. A new module goes in the package whose description in
+  `src/<package>/__init__.py` already covers it, or the grouping is wrong.
+- `src/pipeline.py` holds stage order and nothing else. Logic lives in stages.
+- `src/ui/server.py` is the only module that knows about HTTP.
+- `src/media/ffmpeg_tools.py` is the only module that runs a subprocess.
+
+**Every module starts with a docstring** giving its Title Case name, what it
+does, and — where a decision is not obvious — why it exists at all. The "why"
+is the part worth writing; the "what" is usually visible in the code.
+
+**Sections are separated by `# --- CAPS ---` banners.** Group related functions
+under one. It should be possible to find a function by skimming banners.
+
+**Data models are Pydantic `BaseModel`**, not dicts and not bare dataclasses.
+A model gives the sidecar validation on the way in and on the way out. Fields
+carry a short trailing comment when the name does not fully explain them.
+
+**Docstrings** are short, with `Args:` / `Returns:` / `Raises:` when a function
+takes more than one argument. `Notes:` is for the trap a future reader would
+otherwise fall into.
+
+**Comments explain why, never what.** No comment restating the line below it.
+Do comment: an off-by-one that looks wrong but is not, a constant with a
+non-obvious origin, an argument order that matters.
+
+**Naming**
+- Functions are verb phrases: `build_mezzanine`, `merge_detections`.
+- Anything holding a frame number says so: `start_frame`, not `start`.
+- No abbreviations beyond the domain's own (`fps`, `tc`, `sha256` are fine).
+
+**Pseudocode before implementation.** New functions land as a signature, a real
+docstring, and numbered `# PSEUDOCODE` steps ending in `raise NotImplementedError`.
+That is a reviewable plan. The author reads and agrees the plan before it
+becomes code.
+
+**Ask before restructuring.** Moving or renaming modules, adding a package, or
+changing a settled decision is a conversation first, not a commit.
+
 ## Repo conventions
 
 - Commit at task granularity or finer. When an agent-written change breaks
