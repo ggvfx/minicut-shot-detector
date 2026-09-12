@@ -62,7 +62,9 @@ header {
 
 /* ===== LAYOUT ===== */
 
-main { padding: 24px; max-width: 900px; }
+/* The page uses the window it is given. A tool with a shot table in it should
+   not sit in a column while two thirds of a monitor goes unused. */
+main { padding: 24px; }
 
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
