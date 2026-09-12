@@ -113,6 +113,40 @@ def clips(ffmpeg_available, tmp_path_factory):
     )
     paths["vfr"] = vfr
 
+    # Video with a soundtrack, to prove audio survives the mezzanine. Most real
+    # mini cuts have sound; two of the six reference deliveries do not.
+    with_audio = directory / "with_audio.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "lavfi", "-i", f"testsrc=size={CLIP_WIDTH}x{CLIP_HEIGHT}:rate=24:duration=2",
+            "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-shortest",
+            str(with_audio),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    paths["with_audio"] = with_audio
+
+    # h265, because its keyframe interval is set differently from h264 and its
+    # stream-copy behaviour is proven rather than assumed
+    h265 = directory / "h265.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "lavfi", "-i", f"testsrc=size={CLIP_WIDTH}x{CLIP_HEIGHT}:rate=24:duration=2",
+            "-c:v", "libx265", "-preset", "ultrafast", "-tag:v", "hvc1",
+            "-pix_fmt", "yuv420p",
+            str(h265),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    paths["h265"] = h265
+
     # Audio only, to prove a source with no video stream is rejected
     audio = directory / "audio_only.mov"
     subprocess.run(

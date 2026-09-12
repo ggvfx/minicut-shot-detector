@@ -20,6 +20,7 @@ Both ship with v1. Any failure blocks the job: this stage never warns and
 continues.
 """
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -34,6 +35,9 @@ CHECK_NO_GAPS = "no_gaps"
 CHECK_NO_OVERLAPS = "no_overlaps"
 CHECK_BOUNDS = "bounds"
 CHECK_ROUND_TRIP = "round_trip"
+
+# The arithmetic checks, which run without touching a single video file.
+INTEGRITY_CHECKS = (CHECK_FRAMES_SUM, CHECK_NO_GAPS, CHECK_NO_OVERLAPS, CHECK_BOUNDS)
 
 
 class JobValidator:
@@ -61,11 +65,33 @@ class JobValidator:
             ValidationResult with one entry per check. `passed` is False if any
             check failed.
         """
-        # PSEUDOCODE
-        # 1. Run each _check_* method, recording pass/fail under its CHECK_ name.
-        # 2. Collect every failure description into one list.
-        # 3. passed = no failures.
-        raise NotImplementedError
+        if not shots:
+            return ValidationResult(
+                passed=False,
+                checks={name: False for name in INTEGRITY_CHECKS},
+                failures=["The shot list is empty, so there is nothing to cut"],
+            )
+
+        ordered = sorted(shots, key=lambda shot: shot.start_frame)
+
+        results = {
+            CHECK_FRAMES_SUM: self._check_frames_sum(ordered, source.frame_count),
+            CHECK_NO_GAPS: self._check_no_gaps(ordered),
+            CHECK_NO_OVERLAPS: self._check_no_overlaps(ordered),
+            CHECK_BOUNDS: self._check_bounds(ordered, source.frame_count),
+        }
+
+        failures = [failure for problems in results.values() for failure in problems]
+
+        for name, problems in results.items():
+            if problems:
+                logging.error(f"Validation check {name} failed: {'; '.join(problems)}")
+
+        return ValidationResult(
+            passed=not failures,
+            checks={name: not problems for name, problems in results.items()},
+            failures=failures,
+        )
 
     def validate_job(
         self, shots: List[Shot], source: SourceInfo, mezzanine_path: Path, work_dir: Path
@@ -85,55 +111,91 @@ class JobValidator:
 
     # --- INTEGRITY CHECKS ---
 
-    def _check_frames_sum(self, shots: List[Shot], frame_count: int) -> Optional[str]:
+    @staticmethod
+    def _check_frames_sum(shots: List[Shot], frame_count: int) -> List[str]:
         """
         Every source frame belongs to exactly one shot.
 
-        Returns:
-            None when the lengths total frame_count, otherwise a description of
-            the difference.
+        Compared exactly, with no tolerance: a shot list one frame short is a
+        shot list that is wrong somewhere.
         """
-        # PSEUDOCODE
-        # 1. Sum shot.frame_count across the list.
-        # 2. Compare to frame_count exactly — no tolerance.
-        raise NotImplementedError
+        total = sum(shot.frame_count for shot in shots)
+        if total == frame_count:
+            return []
 
-    def _check_no_gaps(self, shots: List[Shot]) -> List[str]:
+        difference = total - frame_count
+        direction = "more than" if difference > 0 else "fewer than"
+        return [
+            f"Shots total {total} frames, {abs(difference)} {direction} "
+            f"the source's {frame_count}"
+        ]
+
+    @staticmethod
+    def _check_no_gaps(shots: List[Shot]) -> List[str]:
         """
         Each shot starts on the frame immediately after the previous one ends.
 
-        Returns:
-            Descriptions of any gaps, empty when contiguous.
+        A gap means frames of the source belong to no shot at all, so they would
+        simply never be written.
         """
-        # PSEUDOCODE
-        # 1. Walk adjacent pairs.
-        # 2. Report anywhere next.start_frame != current.end_frame + 1.
-        raise NotImplementedError
+        problems = []
+        for current, following in zip(shots, shots[1:]):
+            expected = current.end_frame + 1
+            if following.start_frame > expected:
+                missing = following.start_frame - expected
+                problems.append(
+                    f"Gap of {missing} frame{'s' if missing > 1 else ''} between "
+                    f"shot {current.index} (ends {current.end_frame}) and "
+                    f"shot {following.index} (starts {following.start_frame})"
+                )
+        return problems
 
-    def _check_no_overlaps(self, shots: List[Shot]) -> List[str]:
+    @staticmethod
+    def _check_no_overlaps(shots: List[Shot]) -> List[str]:
         """
         No frame appears in two shots.
 
-        Returns:
-            Descriptions of any overlaps, empty when clean.
+        An overlap means a frame is written twice, which the round trip would
+        also catch — but naming the two shots here is far more useful than a
+        hash mismatch later.
         """
-        # PSEUDOCODE
-        # 1. Walk adjacent pairs.
-        # 2. Report anywhere next.start_frame <= current.end_frame.
-        raise NotImplementedError
+        problems = []
+        for current, following in zip(shots, shots[1:]):
+            if following.start_frame <= current.end_frame:
+                shared = current.end_frame - following.start_frame + 1
+                problems.append(
+                    f"Shot {current.index} (ends {current.end_frame}) and "
+                    f"shot {following.index} (starts {following.start_frame}) "
+                    f"share {shared} frame{'s' if shared > 1 else ''}"
+                )
+        return problems
 
-    def _check_bounds(self, shots: List[Shot], frame_count: int) -> List[str]:
-        """
-        The shot list covers the source exactly, and no shot is inside out.
+    @staticmethod
+    def _check_bounds(shots: List[Shot], frame_count: int) -> List[str]:
+        """The shot list covers the source exactly, and no shot is inside out."""
+        problems = []
 
-        Returns:
-            Descriptions of any problems, empty when correct.
-        """
-        # PSEUDOCODE
-        # 1. shots[0].start_frame must be 0.
-        # 2. shots[-1].end_frame must be frame_count - 1.
-        # 3. No shot may have end_frame < start_frame.
-        raise NotImplementedError
+        if shots[0].start_frame != 0:
+            problems.append(
+                f"First shot starts at frame {shots[0].start_frame}, not 0, "
+                f"so the head of the source belongs to no shot"
+            )
+
+        last_frame = frame_count - 1
+        if shots[-1].end_frame != last_frame:
+            problems.append(
+                f"Last shot ends at frame {shots[-1].end_frame}, not {last_frame}, "
+                f"so the tail of the source is unaccounted for"
+            )
+
+        for shot in shots:
+            if shot.end_frame < shot.start_frame:
+                problems.append(
+                    f"Shot {shot.index} ends at frame {shot.end_frame}, "
+                    f"before it starts at {shot.start_frame}"
+                )
+
+        return problems
 
     # --- ROUND TRIP ---
 

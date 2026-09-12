@@ -42,17 +42,19 @@ hand-typed boundaries before any detector exists. If a shot lands a frame late
 in Phase 4, the cutter will already have been proven on numbers we chose
 ourselves, so the detector is the only suspect.
 
-- [ ] **3.1 Boundaries to shots, and the integrity checks**
-  `reconcile.boundaries_to_shots()` and `JobValidator.validate_shot_list()`:
-  frames sum to the source, no gaps, no overlaps, first shot starts at 0, last
-  ends at `frame_count - 1`. Pure arithmetic, no media, fast tests.
-  **Done when:** a bad shot list cannot pass, and the failure names the frame.
+- [x] **3.1 Boundaries to shots, and the integrity checks** *(30 tests)*
+  `reconcile.boundaries_to_shots()` and `JobValidator.validate_shot_list()`.
+  A boundary at frame 0 is dropped as redundant; one past the end, a duplicate,
+  or an empty source is rejected by name. Every failure says which frames are
+  at fault rather than that something is wrong.
 
-- [ ] **3.2 Mezzanine build and verify**
-  `MezzanineBuilder.build()` / `verify()`. Re-encode to all-intra in the
-  source's codec, then confirm frame count, rate and geometry match.
-  **Done when:** a mezzanine built from a real mini cut has the same frame count
-  as its source and every frame is a keyframe.
+- [x] **3.2 Mezzanine build and verify** *(17 tests)*
+  Re-encodes to all-intra in the source's own codec, maps the first video
+  stream plus any audio, copies audio rather than re-encoding it, and verifies
+  frame count, geometry and rate before returning. Refuses to hand back a
+  mezzanine that does not match its source.
+  Measured on a real h265 mini cut: 674 frames in, 674 out, every frame a
+  keyframe, 24s to encode 28s of footage.
 
 - [ ] **3.3 Shot extraction**
   `ShotSplitter.extract()` / `extract_all()`. Stream copy each shot, assert the

@@ -19,12 +19,15 @@ letterboxing is information about the source, not an instruction to reshape it:
 a splitter's output must be the source's own shots, bars and all.
 """
 
+import logging
+from fractions import Fraction
 from pathlib import Path
 from typing import List
 
 from src.core.config import MEZZANINE_CRF, MEZZANINE_ENCODERS, MEZZANINE_PRESET
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import SourceInfo
+from src.media.probe import SourceProbe
 
 # --- ENCODER SETTINGS ---
 
@@ -33,6 +36,24 @@ INTRA_ARGUMENTS = {
     "libx264": ["-g", "1"],
     "libx265": ["-x265-params", "keyint=1"],
 }
+
+# Take the first video stream and any audio, and nothing else. The "?" makes
+# audio optional, so a silent source is not an error. Data streams such as a
+# timecode track are deliberately left behind: the start timecode travels in
+# SourceInfo, and a stray stream only complicates the stream copies later.
+STREAM_MAPPING = ["-map", "0:v:0", "-map", "0:a?"]
+
+# Audio is copied, not re-encoded. It is already what the user gave us, and a
+# second generation of lossy audio would buy nothing.
+AUDIO_ARGUMENTS = ["-c:a", "copy"]
+
+# --- TIMEOUTS ---
+
+# An all-intra encode at this preset runs faster than real time, so ten times
+# the source duration is generous without leaving a hung ffmpeg to block the
+# app indefinitely.
+ENCODE_TIMEOUT_FACTOR = 10
+MINIMUM_ENCODE_TIMEOUT = 600.0
 
 
 class MezzanineBuilder:
@@ -101,13 +122,46 @@ class MezzanineBuilder:
                 match the source. A mezzanine one frame short would shift every
                 shot after it.
         """
-        # PSEUDOCODE
-        # 1. Build the command: -i <source> arguments_for(source)
-        #    -an (audio is handled separately) <output>
-        # 2. Run it with a generous timeout — this is the slow pass of the job.
-        # 3. Raise on a non-zero exit, with ffmpeg's own stderr attached.
-        # 4. verify() the result before returning it.
-        raise NotImplementedError
+        source_path = Path(source.path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        command = [
+            "-y",
+            "-i", str(source_path),
+            *STREAM_MAPPING,
+            *self.arguments_for(source),
+            *AUDIO_ARGUMENTS,
+            str(output_path),
+        ]
+
+        logging.info(f"Building mezzanine for {source_path.name} at {output_path}")
+        result = self.toolchain.run_ffmpeg(command, timeout=self._timeout_for(source))
+
+        if result.returncode != 0:
+            # ffmpeg's own last words are far more useful than ours
+            reason = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "no output"
+            raise RuntimeError(f"Could not build a mezzanine for {source_path.name}: {reason}")
+
+        if not self.verify(source, output_path):
+            raise RuntimeError(
+                f"The mezzanine for {source_path.name} does not match its source. "
+                f"Cutting it would put every shot on the wrong frames."
+            )
+
+        return output_path
+
+    @staticmethod
+    def _timeout_for(source: SourceInfo) -> float:
+        """
+        How long to allow the encode, scaled to the length of the source.
+
+        A fixed timeout would either abandon a long job or let a hung one block
+        the app for hours.
+        """
+        rate = Fraction(source.fps_numerator, source.fps_denominator)
+        duration_seconds = float(source.frame_count / rate)
+
+        return max(MINIMUM_ENCODE_TIMEOUT, duration_seconds * ENCODE_TIMEOUT_FACTOR)
 
     def verify(self, source: SourceInfo, mezzanine_path: Path) -> bool:
         """
@@ -120,8 +174,30 @@ class MezzanineBuilder:
         Returns:
             True when it matches. Logs precisely which field differs when not.
         """
-        # PSEUDOCODE
-        # 1. Probe the mezzanine.
-        # 2. Compare frame_count, fps rational and dimensions against `source`.
-        # 3. Log the differing field before returning False.
-        raise NotImplementedError
+        if not mezzanine_path.is_file():
+            logging.error(f"No mezzanine was written at {mezzanine_path}")
+            return False
+
+        mezzanine = SourceProbe(self.toolchain).probe(mezzanine_path)
+
+        differences = []
+        if mezzanine.frame_count != source.frame_count:
+            differences.append(
+                f"frame count {mezzanine.frame_count} against the source's {source.frame_count}"
+            )
+        if (mezzanine.width, mezzanine.height) != (source.width, source.height):
+            differences.append(
+                f"size {mezzanine.width}x{mezzanine.height} against "
+                f"{source.width}x{source.height}"
+            )
+
+        source_rate = Fraction(source.fps_numerator, source.fps_denominator)
+        mezzanine_rate = Fraction(mezzanine.fps_numerator, mezzanine.fps_denominator)
+        if mezzanine_rate != source_rate:
+            differences.append(f"frame rate {mezzanine_rate} against {source_rate}")
+
+        if differences:
+            logging.error(f"Mezzanine mismatch — {'; '.join(differences)}")
+            return False
+
+        return True

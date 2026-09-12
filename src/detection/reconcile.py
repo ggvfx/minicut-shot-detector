@@ -11,7 +11,8 @@ This is where confidence is decided:
   recorded on the shot rather than silently applied
 """
 
-from typing import List
+import logging
+from typing import List, Optional
 
 from src.core.models import Boundary, Shot
 
@@ -79,21 +80,67 @@ def boundaries_to_shots(boundaries: List[Boundary], frame_count: int) -> List[Sh
     Turns cut points into the inclusive frame ranges the cutter uses.
 
     Args:
-        boundaries: Final boundary list, sorted by frame.
+        boundaries: Cut points. Sorted here rather than assumed sorted, because
+            these can be typed by hand as well as produced by a detector.
         frame_count: Total frames in the source.
 
     Returns:
         Shots covering every frame exactly once, numbered from 1.
+
+    Raises:
+        ValueError: If frame_count is not positive, or a boundary falls outside
+            the source, or two boundaries share a frame. Each would produce a
+            shot list that cannot be cut, and saying so here names the frame at
+            fault rather than leaving it to fail later.
 
     Notes:
         The first shot starts at frame 0 whether or not a boundary was detected
         there, and the last shot ends at frame_count - 1. Each shot ends on the
         frame BEFORE the next boundary — this single subtraction is where an
         off-by-one would land a frame of the next shot on the end of this one.
+
+        A boundary at frame 0 is redundant rather than wrong: the first shot
+        already starts there. It is dropped, not rejected.
     """
-    # PSEUDOCODE
-    # 1. Build start frames: [0] + [b.frame for b in boundaries].
-    # 2. For each start, end = next_start - 1, or frame_count - 1 for the last.
-    # 3. Carry confidence and detectors_agreed from the boundary that opened it.
-    # 4. Assert the shots tile the source with no gap or overlap.
-    raise NotImplementedError
+    if frame_count <= 0:
+        raise ValueError(f"A source must have at least one frame, got {frame_count}")
+
+    ordered = sorted(boundaries, key=lambda boundary: boundary.frame)
+
+    # Frame 0 is where the first shot starts anyway, so a boundary there adds
+    # nothing. Keeping it would open a shot with no frames in it.
+    ordered = [boundary for boundary in ordered if boundary.frame != 0]
+
+    seen = set()
+    for boundary in ordered:
+        if not 0 < boundary.frame < frame_count:
+            raise ValueError(
+                f"Boundary at frame {boundary.frame} is outside the source "
+                f"(0-{frame_count - 1})"
+            )
+        if boundary.frame in seen:
+            raise ValueError(f"Two boundaries share frame {boundary.frame}")
+        seen.add(boundary.frame)
+
+    # The boundary that opens each shot, so its confidence can be carried over.
+    # The first shot is opened by the start of the file, not by a detection.
+    openers: List[Optional[Boundary]] = [None, *ordered]
+    starts = [0, *(boundary.frame for boundary in ordered)]
+
+    shots = []
+    for index, (start, opener) in enumerate(zip(starts, openers), start=1):
+        is_last = index == len(starts)
+        end = frame_count - 1 if is_last else starts[index] - 1
+
+        shots.append(
+            Shot(
+                index=index,
+                start_frame=start,
+                end_frame=end,
+                confidence=opener.confidence if opener else 1.0,
+                detectors_agreed=opener.detectors_agreed if opener else True,
+            )
+        )
+
+    logging.info(f"{len(shots)} shots from {len(ordered)} boundaries over {frame_count} frames")
+    return shots
