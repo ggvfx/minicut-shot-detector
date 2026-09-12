@@ -9,18 +9,20 @@ decision belongs in a stage module instead.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from src.core.config import STATIC_DIR
+from src.core.config import STATIC_DIR, ProjectConfig
 from src.core.environment import EnvironmentChecker
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import ProbeReport
+from src.core.models import Boundary, JobResult, ProbeReport
+from src.core.timecode import Timecode
 from src.media.probe import SourceProbe
+from src.pipeline import SplitterPipeline
 from src.ui import browse
 
 app = FastAPI(title="Minicut Shot Detector")
@@ -39,6 +41,21 @@ class ProbeRequest(BaseModel):
 
     source_path: str
     output_dir: Optional[str] = None
+
+
+class SplitRequest(BaseModel):
+    """A request to split a source on hand-typed boundaries."""
+
+    source_path: str
+    output_dir: str
+
+    # Each entry is a frame number or a timecode, as typed. Interpreted against
+    # the source's own frame rate, so the two cannot be confused.
+    boundaries: List[str] = []
+
+    # Rejoin every shot and compare every frame, rather than comparing the
+    # frames either side of each cut.
+    full_round_trip: bool = False
 
 # --- PAGE ---
 
@@ -112,14 +129,52 @@ def post_probe(request: ProbeRequest) -> ProbeReport:
         raise HTTPException(status_code=422, detail=str(error))
 
 
-# --- JOBS (NOT BUILT YET) ---
+# --- SPLITTING ---
 
-# Phase 3 onwards adds:
-#   POST /api/job               start a splitter run, return a job id
-#   GET  /api/job/{id}/events   SSE progress stream for that run
-#
-# Long operations must never block a request — the UI has to stay responsive
-# while a transcode runs.
+
+@app.post("/api/split")
+def post_split(request: SplitRequest) -> JobResult:
+    """
+    Splits a source on the given boundaries and returns the finished job.
+
+    Blocking, and on a long source that means minutes. Streaming progress is
+    Phase 5; until then the front end says so rather than pretending otherwise.
+
+    Boundaries arrive as typed text and are read against the source's own frame
+    rate, so "1247" and "01:00:51:23" both work and cannot be confused.
+    """
+    source_path = Path(request.source_path)
+    config = ProjectConfig(
+        source_path=request.source_path,
+        output_dir=request.output_dir,
+        full_round_trip=request.full_round_trip,
+    )
+
+    try:
+        source = SourceProbe(toolchain).probe(source_path)
+        timecode = Timecode.from_source(source)
+        boundaries = [
+            Boundary(frame=timecode.parse_frame_reference(value))
+            for value in request.boundaries
+            if value.strip()
+        ]
+
+        return SplitterPipeline(config, toolchain).run(boundaries)
+
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Source not found: {source_path}")
+    except ValueError as error:
+        # A bad boundary or a missing setting: the user can fix both
+        raise HTTPException(status_code=422, detail=str(error))
+    except RuntimeError as error:
+        # A refused source, or a stage that could not complete
+        raise HTTPException(status_code=409, detail=str(error))
+
+
+# --- PROGRESS (NOT BUILT YET) ---
+
+# Phase 5 adds SSE progress for a running job, so a long split does not sit
+# behind a blocking request with nothing to show for it.
 
 
 # --- STATIC FILES ---

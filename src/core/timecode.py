@@ -193,6 +193,37 @@ class Timecode:
 
         return labels
 
+    def parse_frame_reference(self, value: str) -> int:
+        """
+        Reads a hand-typed boundary as a frame index.
+
+        Accepts either form, because both are natural depending on where the
+        number came from: "1247" straight from a frame counter, or
+        "01:00:51:23" read off an editor's timeline.
+
+        Args:
+            value: A frame number or a timecode.
+
+        Returns:
+            Frame index within the source.
+
+        Raises:
+            ValueError: If the text is neither, saying what was expected.
+        """
+        text = value.strip()
+        if not text:
+            raise ValueError("Empty boundary")
+
+        if ":" in text or ";" in text:
+            return self.timecode_to_frame_index(text)
+
+        try:
+            return int(text)
+        except ValueError:
+            raise ValueError(
+                f"{value!r} is neither a frame number nor a timecode (HH:MM:SS:FF)"
+            )
+
     def timecode_to_frame_index(self, timecode: str) -> int:
         """
         Converts a displayed timecode back to a frame index within the source.

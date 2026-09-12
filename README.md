@@ -1,19 +1,25 @@
 # Minicut Shot Detector
 
-**Minicut Shot Detector** is a frame-accurate shot segmentation utility for
-finished video edits. It breaks a "mini cut" back into its constituent shots as
-individual media files, then — in a later phase — names those shots against a
-supplied shot list. Built for VFX and post-production editorial turnovers,
-where a delivered cut has to be reversed back into per-shot media without a
-single frame landing on the wrong side of a boundary.
+**Minicut Shot Detector** breaks a generative AI "mini cut" back into its
+constituent shots as individual, frame-accurate media files — and, in a later
+phase, names those shots against a supplied shot list so they can be tracked
+like any other shot in the pipeline.
+
+Models such as Seedance can now return a *sequence* rather than a shot: several
+cuts arriving as one clip. Production tracks work per shot, so that clip has to
+be split, named and registered before anyone can schedule, review or version
+what is in it. This automates the splitting and naming half.
 
 ## Project Status
-🚦 **Project Status:** Pre-Alpha (Source Inspection)
-The app shell, dependency panel, path picker and source inspection are working.
-Cutting and detection are architected as reviewed skeletons and not yet
-implemented.
+🚦 **Project Status:** Alpha (Splitting by hand)
+The app splits a mini cut into frame-accurate shots end to end: type where the
+cuts are, get back one verified file per shot with a JSON sidecar. Finding
+those cuts automatically is the next phase.
 
 **Current Capabilities:**
+* **Splitting:** Cuts a mini cut into one file per shot on typed boundaries —
+  frame numbers or timecodes — with audio carried through, then verifies every
+  cut landed on the frame asked for and writes a JSON sidecar.
 * **Source Inspection:** Reads frame rate as an exact rational, frame count,
   duration, start timecode and codec, and reports what it found before any
   work starts.
@@ -28,8 +34,8 @@ implemented.
 * **Local Path Picker:** Server-side directory browsing, so multi-gigabyte media
   is never uploaded through the browser.
 
-**Next Milestone:** Frame-accurate cutting — all-intra mezzanine, stream-copy
-splits and the round-trip validation that proves them.
+**Next Milestone:** Automatic detection — TransNetV2 through ONNX Runtime with
+a PySceneDetect cross-check, replacing the typed boundaries.
 
 ## Development Approach
 
@@ -92,13 +98,13 @@ the repo root.
 * Multi-sample `cropdetect` masking with UI confirmation and override.
 * Disk requirement estimation before a job starts.
 
-### Phase 3: Cutting & Validation (Current)
+### Phase 3: Cutting & Validation (Complete)
 * All-intra mezzanine in the source's own codec, and frame-accurate stream-copy
   splits out of it.
 * Integrity and frame-hash round-trip validation.
 * JSON sidecar with the full resolved environment.
 
-### Phase 4: Detection
+### Phase 4: Detection (Current)
 * TransNetV2 ONNX export as a committed build step.
 * Sliding-window inference and per-frame transition probabilities.
 * PySceneDetect cross-check pass and boundary reconciliation.
@@ -108,9 +114,20 @@ the repo root.
 
 ## 🚀 Overview
 
-A delivered mini cut is a single file. Getting back to per-shot media by hand
-means scrubbing for cuts, noting timecodes, and trimming clip by clip — slow,
-and easy to be a frame out in a way nobody notices until the work is downstream.
+An artist generates a mini cut in minutes. Getting it into a production
+pipeline takes considerably longer: scrubbing for every cut, noting timecodes,
+trimming clip by clip, then naming and registering each one. It is slow, it is
+nobody's favourite task, and it is easy to land a frame out in a way nobody
+notices until the work is downstream.
+
+The real cost is what never makes it through at all. Material sits inside a
+mini cut, gets seen once, and never becomes a shot anyone can find again —
+until a director remembers something they saw and nobody can place it. A
+sequence that was never split is a sequence the pipeline cannot track.
+
+Nothing here is specific to generative material: the same job comes up whenever
+a delivered edit has to be reversed back into per-shot media. That is simply
+not the problem that prompted it.
 
 The tool follows a **"Deterministic"** and **"Prove It"** philosophy:
 

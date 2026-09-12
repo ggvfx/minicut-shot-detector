@@ -1,7 +1,14 @@
 # Shot Splitter & Identifier
 
-A local web app for breaking down finished video edits ("mini cuts") into their
-constituent shots and naming those shots against a supplied shot list.
+A local web app for breaking down "mini cuts" into their constituent shots and
+naming those shots against a supplied shot list.
+
+The trigger is generative AI: models such as Seedance return a multi-shot
+sequence as a single clip, and production tracks work per shot, so those clips
+have to be split, named and registered before anything in them can be
+scheduled, reviewed or versioned. Doing it by hand is slow enough that material
+gets seen once and never enters the pipeline at all. Traditional editorial
+turnovers are the same job, and work here too.
 
 Two tabs:
 

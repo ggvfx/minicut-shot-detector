@@ -35,7 +35,7 @@ That is the whole job. Anything else is in `Deferred` at the bottom.
 
 ---
 
-## Phase 3 — Cutting & Validation ⬅ Current
+## Phase 3 — Cutting & Validation ✅ Complete
 
 Everything needed to turn a list of frame numbers into shot files, proven with
 hand-typed boundaries before any detector exists. If a shot lands a frame late
@@ -81,31 +81,32 @@ ourselves, so the detector is the only suspect.
   checksum. Written whether the job passed or failed, and proven to read back
   into the model so the identifier tab has a valid entry point.
 
-- [ ] **3.7 Pipeline wiring**
-  `SplitterPipeline.run()` joining probe → shots → mezzanine → splits →
-  validate → sidecar, with the mezzanine removed unless kept.
-  **Done when:** one call takes a source and a boundary list to finished shots.
+- [x] **3.7 Pipeline wiring** *(13 tests)*
+  `SplitterPipeline.run(boundaries)` joins probe → shots → mezzanine → splits →
+  validate → sidecar. A refused source or a shot list that does not add up
+  stops the job before any transcoding, and nothing is written. The mezzanine
+  is deleted on a pass and kept on a failure.
 
-- [ ] **3.8 Manual boundary entry in the UI**
-  `POST /api/split`, plus a panel to type boundaries as frame numbers or
-  timecodes, and a table of what was written with the validation result.
-
-  Include a **"Full round-trip verification"** checkbox, off by default, with a
-  tooltip on hover along these lines:
+- [x] **3.8 Manual boundary entry in the UI** *(7 route tests)*
+  `POST /api/split` plus a Cuts panel: one boundary per line, as frame numbers
+  or timecodes, a "Full round-trip verification" checkbox with the tooltip
+  below, and a table of the shots written with the validation verdict and the
+  sidecar name.
 
   > Shots are checked by comparing the frames either side of every cut against
   > the source. Tick this to rejoin every shot and compare every frame instead:
   > a stricter check that takes considerably longer and needs free space for a
   > second copy of the source while it runs.
 
-  **Done when:** you can split a real mini cut by hand, end to end, in the
-  browser.
+  Driven by hand in the browser on a real h265 mini cut: 674 frames split into
+  four shots on boundaries typed as `120`, `00:00:12:12` and `455`, verified,
+  sidecar written, mezzanine cleaned up.
 
 **Phase done when:** you can point the app at a mini cut, type the frames where
 you want it cut, and get back shot files that are exactly right — verified by
 the round trip, not by eye.
 
-## Phase 4 — Detection
+## Phase 4 — Detection ⬅ Current
 
 TransNetV2 ONNX export, sliding-window inference, PySceneDetect cross-check,
 boundary reconciliation and the minimum shot length filter.

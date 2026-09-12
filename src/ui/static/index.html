@@ -80,10 +80,50 @@
             <dl id="source-facts" class="facts"></dl>
         </section>
 
-        <!-- Detection, cutting and the shot table land here in phases 3 and 4. -->
-        <section class="card" id="job-card">
-            <h2>Job</h2>
-            <p class="placeholder">Detection and cutting are not built yet — see TODO.md.</p>
+        <!-- Splitting by hand. Automatic detection replaces the boundary box
+             in phase 4; everything below it stays as it is. -->
+        <section class="card" id="job-card" hidden>
+            <h2>Cuts</h2>
+            <p class="hint">
+                One boundary per line — the frame each new shot starts on.
+                Frame numbers or timecodes, whichever you have.
+            </p>
+            <textarea id="boundaries" rows="5" placeholder="120&#10;01:00:12:11&#10;455"></textarea>
+
+            <label class="checkbox" title="Shots are checked by comparing the frames either side of every cut against the source. Tick this to rejoin every shot and compare every frame instead: a stricter check that takes considerably longer and needs free space for a second copy of the source while it runs.">
+                <input type="checkbox" id="full-round-trip">
+                Full round-trip verification
+            </label>
+
+            <div class="action-row">
+                <button id="split-button">Split into shots</button>
+                <span id="split-status" class="status"></span>
+            </div>
+        </section>
+
+        <!-- What the job produced. Hidden until there is a job. -->
+        <section class="card" id="result-card" hidden>
+            <div class="card-header">
+                <h2>Shots</h2>
+                <span id="result-verdict" class="summary"></span>
+            </div>
+
+            <ul id="result-failures" class="warnings"></ul>
+
+            <table id="shot-table" class="shots">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Frames</th>
+                        <th>Length</th>
+                        <th>Timecode</th>
+                        <th>File</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <p id="result-sidecar" class="hint"></p>
         </section>
 
     </section>

@@ -5,6 +5,8 @@ Exercises the API through FastAPI's test client, so the JSON the front end
 actually receives is what gets asserted.
 """
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from src.ui.server import app
@@ -106,3 +108,107 @@ def test_probe_non_video_is_422(clips):
 
     assert response.status_code == 422
     assert "No video stream" in response.json()["detail"]
+
+
+# --- SPLIT ---
+
+
+def test_split_writes_shots_and_returns_the_job(clips, tmp_path):
+    response = client.post(
+        "/api/split",
+        json={
+            "source_path": str(clips["pal"]),
+            "output_dir": str(tmp_path),
+            "boundaries": ["20", "35"],
+        },
+    )
+
+    assert response.status_code == 200
+    job = response.json()
+
+    assert job["validation"]["passed"] is True
+    assert [shot["start_frame"] for shot in job["shots"]] == [0, 20, 35]
+    assert all(Path(shot["file"]).is_file() for shot in job["shots"])
+
+
+def test_boundaries_can_be_typed_as_timecodes(clips, tmp_path):
+    """
+    A timecode and a frame number can both name the same cut.
+
+    Both are natural depending on whether the number came from a frame counter
+    or an editor's timeline, so both are accepted. The pal clip starts at
+    10:00:00:00, so this timecode is frame 20.
+    """
+    response = client.post(
+        "/api/split",
+        json={
+            "source_path": str(clips["pal"]),
+            "output_dir": str(tmp_path),
+            "boundaries": ["10:00:00:20"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert [shot["start_frame"] for shot in response.json()["shots"]] == [0, 20]
+
+
+def test_no_boundaries_gives_one_shot(clips, tmp_path):
+    response = client.post(
+        "/api/split",
+        json={"source_path": str(clips["pal"]), "output_dir": str(tmp_path), "boundaries": []},
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()["shots"]) == 1
+
+
+def test_an_unreadable_boundary_is_422(clips, tmp_path):
+    """The user can fix a typo, so it is a bad request rather than a failure."""
+    response = client.post(
+        "/api/split",
+        json={
+            "source_path": str(clips["pal"]),
+            "output_dir": str(tmp_path),
+            "boundaries": ["twenty"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "neither a frame number nor a timecode" in response.json()["detail"]
+
+
+def test_a_boundary_past_the_end_is_422(clips, tmp_path):
+    response = client.post(
+        "/api/split",
+        json={
+            "source_path": str(clips["pal"]),
+            "output_dir": str(tmp_path),
+            "boundaries": ["9999"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "outside the source" in response.json()["detail"]
+
+
+def test_a_refused_source_is_409(clips, tmp_path):
+    """
+    Variable frame rate is not the user mistyping something — the file itself
+    cannot be cut accurately, which is a conflict rather than a bad request.
+    """
+    response = client.post(
+        "/api/split",
+        json={"source_path": str(clips["vfr"]), "output_dir": str(tmp_path), "boundaries": ["20"]},
+    )
+
+    assert response.status_code == 409
+    assert "variable frame rate" in response.json()["detail"]
+
+
+def test_split_missing_source_is_404(tmp_path):
+    response = client.post(
+        "/api/split",
+        json={"source_path": str(tmp_path / "gone.mov"), "output_dir": str(tmp_path)},
+    )
+
+    assert response.status_code == 404

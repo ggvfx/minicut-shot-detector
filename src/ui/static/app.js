@@ -119,6 +119,7 @@ async function inspectSource() {
     }
 
     status.textContent = "";
+    document.getElementById("result-card").hidden = true;
     state.probe = await response.json();
     renderProbe(state.probe);
 }
@@ -171,6 +172,144 @@ function renderProbe(report) {
         warnings.append(row);
     }
 
+    showJobPanel(report.can_split);
+}
+
+// ===== SPLITTING =====
+
+/**
+ * Sends the typed boundaries to the server and renders the finished job.
+ *
+ * Blocking: a long source takes minutes and there is no progress feed yet, so
+ * the button says what it is doing and stays disabled until it is done.
+ */
+async function splitSource() {
+    const status = document.getElementById("split-status");
+    const button = document.getElementById("split-button");
+
+    if (!state.outputDir) {
+        status.textContent = "Choose an output directory first.";
+        return;
+    }
+
+    const boundaries = document.getElementById("boundaries").value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+    button.disabled = true;
+    status.textContent = "Splitting… this can take a few minutes, and the page will wait.";
+
+    try {
+        const response = await fetch("/api/split", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                source_path: state.sourcePath,
+                output_dir: state.outputDir,
+                boundaries: boundaries,
+                full_round_trip: document.getElementById("full-round-trip").checked,
+            }),
+        });
+
+        const body = await response.json();
+
+        if (!response.ok) {
+            status.textContent = body.detail || "The split could not be completed.";
+            document.getElementById("result-card").hidden = true;
+            return;
+        }
+
+        status.textContent = "";
+        renderJob(body);
+
+    } finally {
+        button.disabled = false;
+    }
+}
+
+/** Draws the finished job: the verdict, any failures, and every shot written. */
+function renderJob(job) {
+    document.getElementById("result-card").hidden = false;
+
+    const verdict = document.getElementById("result-verdict");
+    verdict.textContent = job.validation.passed
+        ? `Verified — ${job.shots.length} shots`
+        : "Validation failed";
+    verdict.className = `summary ${job.validation.passed ? "ok" : "blocked"}`;
+
+    const failures = document.getElementById("result-failures");
+    failures.innerHTML = "";
+    for (const failure of job.validation.failures) {
+        const row = document.createElement("li");
+        row.textContent = failure;
+        failures.append(row);
+    }
+
+    const body = document.querySelector("#shot-table tbody");
+    body.innerHTML = "";
+
+    for (const shot of job.shots) {
+        const row = document.createElement("tr");
+        const length = shot.end_frame - shot.start_frame + 1;
+
+        for (const value of [
+            shot.index,
+            `${shot.start_frame} – ${shot.end_frame}`,
+            `${length} frames`,
+            timecodeFor(shot.start_frame, job.source),
+            fileNameOf(shot.file),
+        ]) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.append(cell);
+        }
+
+        body.append(row);
+    }
+
+    const sidecar = document.getElementById("result-sidecar");
+    sidecar.textContent = job.sidecar_path
+        ? `Sidecar: ${fileNameOf(job.sidecar_path)}`
+        : "";
+}
+
+/** The cuts panel is only useful once a source is known to be splittable. */
+function showJobPanel(canSplit) {
+    document.getElementById("job-card").hidden = !canSplit;
+}
+
+/**
+ * Frame number as a timecode, for reading against an editor's timeline.
+ *
+ * Deliberately simple: the server owns the exact arithmetic, including
+ * drop-frame, and this is a display convenience over whole frames.
+ */
+function timecodeFor(frame, source) {
+    const labelsPerSecond = Math.ceil(source.fps_numerator / source.fps_denominator);
+    const total = frame + startFrames(source.start_timecode, labelsPerSecond);
+
+    const frames = total % labelsPerSecond;
+    const seconds = Math.floor(total / labelsPerSecond);
+
+    const pad = (value) => String(value).padStart(2, "0");
+    return [
+        pad(Math.floor(seconds / 3600) % 24),
+        pad(Math.floor(seconds / 60) % 60),
+        pad(seconds % 60),
+        pad(frames),
+    ].join(":");
+}
+
+/** The source's start timecode as a frame count. */
+function startFrames(timecode, labelsPerSecond) {
+    const [hours, minutes, seconds, frames] = timecode.split(/[:;]/).map(Number);
+    return ((hours * 60 + minutes) * 60 + seconds) * labelsPerSecond + frames;
+}
+
+/** Last path segment, so a full Windows path does not fill the table. */
+function fileNameOf(path) {
+    return path ? path.split(/[\\/]/).pop() : "";
 }
 
 /** Renders a label/value map into the facts list. */
@@ -299,6 +438,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("inspect-button")
         .addEventListener("click", inspectSource);
+
+    document.getElementById("split-button")
+        .addEventListener("click", splitSource);
 
     // Typed paths are as valid as picked ones
     document.getElementById("source-path")
