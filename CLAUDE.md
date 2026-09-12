@@ -94,7 +94,8 @@ Still expected, and still handled:
 
 - `ffprobe` the source. Capture duration, resolution, codec, `r_frame_rate`,
   `avg_frame_rate`, start timecode.
-- Reject or explicitly normalize VFR sources (`r_frame_rate != avg_frame_rate`).
+- Reject VFR sources (`r_frame_rate != avg_frame_rate`) with a clear message.
+  Normalizing them is deferred until a real VFR source turns up.
 - `cropdetect` for masking. Report findings to the UI.
 - Estimate disk requirement and warn before the job, not after the drive fills.
   ProRes 422 at 1080p25 is roughly 1.2 GB/min, and we write mezzanine + splits.
@@ -111,8 +112,9 @@ Still expected, and still handled:
 - Transcode source to all-intra mezzanine.
 - Split each shot with `-c copy` against the mezzanine.
 - Emit JSON sidecar (see below).
-- Extract 3 stills per shot (head, middle, tail) — QC for this tab, input for the
-  identifier tab.
+
+One file per shot is the whole output. Stills, thumbnails and contact sheets
+belong to the identifier tab.
 
 ### 4. Validate
 
@@ -137,7 +139,7 @@ One JSON sidecar per source job:
     { "index": 1, "start_frame": 0, "end_frame": 74,
       "start_tc": "10:00:00:00", "end_tc": "10:00:02:24",
       "confidence": 0.99, "detectors_agreed": true,
-      "file": "shot_001.mov", "stills": ["..."] }
+      "file": "shot_001.mov" }
   ],
   "validation": { "passed": true, "checks": { } }
 }
@@ -176,7 +178,7 @@ committed.
    seek times. First because every stage after it depends on this arithmetic
    being right, and it is testable without a single video file.
 2. **Probe + preprocess** — ffprobe, VFR handling, cropdetect, disk estimate.
-3. **Cutting** — mezzanine, frame-accurate splits, stills, JSON sidecar.
+3. **Cutting** — mezzanine, frame-accurate splits, JSON sidecar.
 4. **Validation** — integrity assertions and the frame-hash round trip.
 5. **Detection** — ONNX export, TransNetV2 inference, PySceneDetect pass,
    reconciliation. *This is the task that will take real debugging; the output
@@ -285,6 +287,14 @@ changing a settled decision is a conversation first, not a commit.
 
 ## Deferred — do not build yet
 
+The splitter detects cuts and writes one file per shot. That is the whole job.
+
+- **Per-shot stills** — QC and identifier input. The shot files are enough to
+  check a boundary; stills belong to the identifier tab.
+- **VFR normalisation** — VFR is detected and refused, not rewritten.
+- **Exact frame counting by decode** — a fallback for containers that lie about
+  `nb_frames`. Add it the first time one actually does.
+- **Reading sidecars back** — the identifier tab's entry point.
 - Identifier tab in any form.
 - Dissolve / fade / wipe transition handling.
 - Character reference image matching.

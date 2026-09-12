@@ -57,7 +57,7 @@ class ProjectConfig(BaseModel):
 
     # Path Persistence
     source_path: Optional[str] = None      # The mini cut to split
-    output_dir: str = "outputs"            # Mezzanine, shots, stills and sidecar land here
+    output_dir: str = "outputs"            # Mezzanine, shot files and sidecar land here
     last_directory: str = ""               # Where the path picker reopens
 
     # Detection Logic
@@ -72,7 +72,6 @@ class ProjectConfig(BaseModel):
     # Mezzanine & Cutting
     mezzanine_encoder: str = "prores_ks"   # Verified against this ffmpeg build before a job starts
     keep_mezzanine: bool = True            # Large, but allows re-cutting without re-transcoding
-    stills_per_shot: int = Field(default=3, ge=1)  # Head, middle, tail
 
     # Masking
     # Letterbox/pillarbox crop as "w:h:x:y". None means the user has accepted

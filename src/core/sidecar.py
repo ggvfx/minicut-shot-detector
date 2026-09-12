@@ -1,21 +1,21 @@
 """
-JSON Sidecar Writing and Loading.
+JSON Sidecar Writing.
 
-One sidecar per job, written next to the split shots. It is the handover format
-to the identifier tab and the record of how a set of shots came to exist.
+One sidecar per job, written next to the split shots: the record of how a set
+of shots came to exist.
 
-Functions rather than a class: writing and reading share no state, and the
-identifier will call `load_sidecar()` with no toolchain and no config at all.
+It is what makes a wrong boundary diagnosable. Without it, a shot that starts a
+frame late tells you nothing about what the detectors scored, whether they
+agreed, or which ffmpeg build cut it.
 
-The environment block matters as much as the shots. When a boundary looks wrong
-months later, the resolved ffmpeg build, onnxruntime version and model checksum
-are how you work out what produced it.
+Functions rather than a class — writing a single file shares no state between
+calls. Reading sidecars back is the identifier tab's job and is not built here.
 """
 
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import JobResult
@@ -74,19 +74,4 @@ def write_sidecar(result: JobResult, output_path: Path) -> Path:
     # PSEUDOCODE
     # 1. result.model_dump() for a plain dictionary (Pydantic v2).
     # 2. json.dump with indent=2 and UTF-8 encoding.
-    raise NotImplementedError
-
-
-def load_sidecar(path: Path) -> Optional[JobResult]:
-    """
-    Reads a sidecar back into a JobResult, re-validating it on the way in.
-
-    Returns:
-        JobResult, or None when the file is missing or corrupt. This is how the
-        identifier tab will pick up a completed splitter job.
-    """
-    # PSEUDOCODE
-    # 1. Return None if the path does not exist.
-    # 2. json.load, then JobResult(**data) so Pydantic re-validates.
-    # 3. Log and return None on JSONDecodeError or validation failure.
     raise NotImplementedError

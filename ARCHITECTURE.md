@@ -16,8 +16,8 @@ Probe → Detect → Reconcile → Cut → Validate → Sidecar
 ### 1. Probe — `SourceProbe` in `src/media/probe.py`
 
 - Reads frame rate, duration, resolution, codec and start timecode via `ffprobe`
-- Rejects or normalises variable frame rate sources, where the frame-to-time
-  mapping is unstable and every boundary would drift
+- Refuses variable frame rate sources, where the frame-to-time mapping is
+  unstable and every boundary would drift
 - Finds letterbox/pillarbox bars with `cropdetect`, sampled at several points,
   and reports them for confirmation — never asks the user to type a mask in
 - Estimates the disk the job needs, before the job rather than after the drive fills
@@ -57,8 +57,9 @@ Plain functions — nothing to hold between calls.
   boundary by up to a GOP length, silently
 - `ShotSplitter` — stream-copies each shot out of the mezzanine, landing exactly
   on the requested frame
-- `StillExtractor` — head, middle and tail frames per shot; QC now, identifier
-  input later
+
+One file per shot is the entire output of this stage. Thumbnails, contact
+sheets and stills belong to the identifier tab, not here.
 
 ### 5. Validate — `JobValidator` in `src/validation/validator.py`
 
@@ -77,8 +78,9 @@ One JSON file per job: the shots with frame and timecode boundaries, the
 validation outcome, and the resolved environment that produced them — ffmpeg
 build, onnxruntime version, model checksum.
 
-Written whether the job passed or failed. Plain functions, because the
-identifier tab will read a sidecar with no toolchain and no config at all.
+Written whether the job passed or failed — a failed job's sidecar is the most
+useful thing to look at when working out why. Reading sidecars back belongs to
+the identifier tab and is not built here.
 
 ---
 
@@ -98,7 +100,6 @@ identifier tab will read a sidecar with no toolchain and no config at all.
 | `src/media/probe.py` | `SourceProbe` — source inspection and crop detection |
 | `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra transcode |
 | `src/media/splitter.py` | `ShotSplitter` — per-shot extraction |
-| `src/media/stills.py` | `StillExtractor` — per-shot stills |
 | `src/detection/transnet.py` | `TransNetDetector` — primary detector |
 | `src/detection/scene_detect.py` | `SceneDetectCrossCheck` — cross-check detector |
 | `src/detection/reconcile.py` | Merge, filter, convert to shots |
@@ -160,8 +161,16 @@ reach into a domain package.
 
 ## Not built yet
 
-Deferred deliberately, in this order of likelihood:
+The splitter's job is to detect cuts and write one file per shot. Anything
+beyond that is deferred until it is actually needed:
 
+- **Per-shot stills** — QC contact sheets and identifier input. Belongs to the
+  identifier tab; the shot files themselves are enough to check a boundary.
+- **Variable frame rate normalisation** — VFR is detected and refused. Rewriting
+  it to constant frame rate is a whole feature, and waits for a real VFR source.
+- **Exact frame counting by decode** — a fallback for containers that lie about
+  `nb_frames`. Add it the first time one does.
+- **Reading sidecars back** — the identifier tab's entry point.
 - Identifier tab in any form
 - Dissolve / fade / wipe handling — a boundary would become a range
 - Excel shot list ingestion and fuzzy matching

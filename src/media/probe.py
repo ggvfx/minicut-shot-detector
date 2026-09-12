@@ -5,12 +5,14 @@ Stage 1 of the pipeline. Reads everything we need to know about the source
 before any work starts: frame rate, duration, timecode, letterboxing and the
 disk cost of the job.
 
-Nothing here modifies the source.
+Nothing here modifies the source. Variable frame rate sources are reported and
+refused rather than rewritten — normalising them is a whole feature, and one
+that waits until a real VFR file turns up.
 """
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import SourceInfo
@@ -61,20 +63,6 @@ class SourceProbe:
         # 7. Return a SourceInfo.
         raise NotImplementedError
 
-    def count_frames_exactly(self, source_path: Path) -> int:
-        """
-        Counts frames by decoding, for sources where nb_frames is missing or lies.
-
-        Slow — it walks the whole file — so it is only used when the container
-        metadata cannot be trusted. An incorrect frame count silently shifts
-        every boundary in the job.
-        """
-        # PSEUDOCODE
-        # 1. run_ffprobe: -count_frames -select_streams v:0
-        #    -show_entries stream=nb_read_frames
-        # 2. Parse and return the integer.
-        raise NotImplementedError
-
     # --- MASKING ---
 
     def detect_crop(self, source_path: Path, duration_frames: int) -> Optional[str]:
@@ -99,31 +87,11 @@ class SourceProbe:
         # 4. Return None if it matches the full frame.
         raise NotImplementedError
 
-    # --- VARIABLE FRAME RATE ---
-
-    def normalise_variable_frame_rate(
-        self, source_path: Path, output_path: Path, target_rate: Tuple[int, int]
-    ) -> Path:
-        """
-        Rewrites a variable frame rate source to constant frame rate.
-
-        VFR sources have no stable frame-to-time mapping, so every boundary
-        drifts. They are either normalised here first or rejected outright.
-
-        Returns:
-            Path to the normalised file, which becomes the source for the rest
-            of the job.
-        """
-        # PSEUDOCODE
-        # 1. run ffmpeg with -vsync cfr and -r <target_rate> to the mezzanine codec.
-        # 2. Re-probe the result and assert the frame count matches expectation.
-        raise NotImplementedError
-
     # --- DISK ESTIMATION ---
 
-    def estimate_disk_required(self, source: SourceInfo, stills_per_shot: int = 3) -> float:
+    def estimate_disk_required(self, source: SourceInfo) -> float:
         """
-        Estimates gigabytes needed: mezzanine plus splits plus stills.
+        Estimates gigabytes needed: the mezzanine plus the splits.
 
         Reported before the job starts, so the user finds out now rather than
         when the drive fills mid-transcode.
@@ -135,5 +103,4 @@ class SourceProbe:
         # 1. Duration in minutes from frame_count and the exact fps.
         # 2. Scale GB_PER_MINUTE_PRORES_1080P25 by pixel count relative to 1080p.
         # 3. Double it — the splits together are roughly a second copy.
-        # 4. Add a small allowance for stills.
         raise NotImplementedError

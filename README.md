@@ -79,12 +79,12 @@ Run the tests with `pytest` from the repo root.
 
 ### Phase 2: Probe & Preprocess (Current)
 * `ffprobe` metadata, exact rational frame rates, and source start timecode.
-* Variable frame rate detection and normalisation.
+* Variable frame rate detection, reported and refused rather than rewritten.
 * Multi-sample `cropdetect` masking with UI confirmation and override.
 * Disk requirement estimation before a job starts.
 
 ### Phase 3: Cutting & Validation
-* All-intra mezzanine, frame-accurate stream-copy splits, per-shot stills.
+* All-intra mezzanine and frame-accurate stream-copy splits.
 * Integrity and frame-hash round-trip validation.
 * JSON sidecar with the full resolved environment.
 
@@ -148,7 +148,7 @@ The tool follows a **"Deterministic"** and **"Prove It"** philosophy:
 ## 📂 Project Structure
 * `main.py`: Entry point — starts the local server and opens the UI.
 * `src/core/`: Config, data models, timecode maths, ffmpeg toolchain, environment checks.
-* `src/media/`: Source probing, mezzanine creation, splitting and stills.
+* `src/media/`: Source probing, mezzanine creation and shot extraction.
 * `src/detection/`: TransNetV2, PySceneDetect cross-check and boundary reconciliation.
 * `src/validation/`: Integrity and round-trip checks that can block a job.
 * `src/ui/`: FastAPI routes, path picker and the browser front end.

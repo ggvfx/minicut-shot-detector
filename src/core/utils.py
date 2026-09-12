@@ -38,7 +38,7 @@ def ensure_directory(path: Path) -> Path:
     """
     Creates a directory if it does not exist, and returns it.
 
-    Used before writing splits, stills and sidecars, so a missing output folder
+    Used before writing splits and sidecars, so a missing output folder
     is never the reason a job fails halfway through.
     """
     path.mkdir(parents=True, exist_ok=True)

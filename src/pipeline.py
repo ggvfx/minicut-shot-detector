@@ -11,7 +11,7 @@ on its own.
 Stage order:
     1. Probe     What is this file, and will the job fit on disk?
     2. Detect    Where are the cuts?
-    3. Cut       Mezzanine, splits, stills
+    3. Cut       Mezzanine, then one file per shot
     4. Validate  Do the numbers and the pixels agree?
     5. Report    Write the sidecar
 """
@@ -96,7 +96,8 @@ class SplitterPipeline:
         """Stage 1. Inspects the source and confirms the job can run."""
         # PSEUDOCODE
         # 1. SourceProbe(toolchain).probe() -> SourceInfo.
-        # 2. Reject or normalise variable frame rate sources before going on.
+        # 2. Refuse variable frame rate sources with a clear message — their
+        #    frame-to-time mapping is unstable and every boundary would drift.
         # 3. detect_crop() unless config.crop_override is set.
         # 4. estimate_disk_required() and compare against free space.
         raise NotImplementedError
@@ -112,11 +113,10 @@ class SplitterPipeline:
         raise NotImplementedError
 
     def _cut(self, source, shots, crop):
-        """Stage 3. Mezzanine, splits and stills."""
+        """Stage 3. Mezzanine, then one file per shot."""
         # PSEUDOCODE
         # 1. MezzanineBuilder(...).build(), which verifies itself.
         # 2. ShotSplitter(...).extract_all() to write each shot.
-        # 3. StillExtractor(...).extract() per shot.
         raise NotImplementedError
 
     def _validate(self, source, shots, mezzanine_path):

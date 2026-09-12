@@ -58,7 +58,7 @@ Thumbs.db
 *.prores
 *.dnx
 
-# Stills extracted per shot
+# Frame grabs and image exports
 *.jpg
 *.jpeg
 *.png

@@ -1,4 +1,4 @@
 """
 Source inspection and the ffmpeg work that produces files: probing, the
-all-intra mezzanine, frame-accurate splits and per-shot stills.
+all-intra mezzanine, and frame-accurate shot extraction.
 """

@@ -89,7 +89,6 @@ class Shot(BaseModel):
 
     # Populated once the shot has been cut out of the mezzanine.
     file: Optional[str] = None
-    stills: List[str] = Field(default_factory=list)
 
     # Set when this shot absorbed a too-short neighbour. Merges are recorded
     # rather than silently applied.
