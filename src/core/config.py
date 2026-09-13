@@ -303,10 +303,39 @@ def load_settings(path: Optional[Path] = None) -> Settings:
         # the panel insists nothing is configured — which is the worst kind of
         # failure, because they can see the settings they just typed.
         # Harmless when there is no BOM.
-        return Settings.model_validate_json(target.read_text(encoding="utf-8-sig"))
+        settings = Settings.model_validate_json(target.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as error:
         logging.warning(f"Ignoring unreadable settings at {target}: {error}")
         return Settings()
+
+    return Settings(vision=_reconcile(settings.vision), text=_reconcile(settings.text))
+
+
+def _reconcile(config: BackendConfig) -> BackendConfig:
+    """
+    Fills in what a known preset knows and a saved file may not.
+
+    Notes:
+        Settings files outlive the version that wrote them. A file saved before
+        `image_reference` existed still names `claude -p`, and without this the
+        frames are silently unreferenced — which surfaces as every shot in a
+        batch failing with "the command has nowhere to put them", on an
+        upgraded machine, for a setting the user can see is correct.
+
+        Matched on the command for the same reason `_describe_choice` is: the
+        command is the thing that actually runs, and it is what a hand-edited
+        file is most likely to have got right.
+
+        Only fills what is unset, so a deliberate override survives.
+    """
+    if config.image_reference or not config.command:
+        return config
+
+    for preset in CLI_PRESETS.values():
+        if preset["command"] == config.command and preset["image_reference"]:
+            return config.model_copy(update={"image_reference": preset["image_reference"]})
+
+    return config
 
 
 def save_settings(settings: Settings, path: Optional[Path] = None) -> Path:

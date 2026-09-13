@@ -11,10 +11,64 @@ still runs on a machine without it.
 
 import shutil
 import subprocess
+from pathlib import Path
+from typing import List, Optional
 
 import pytest
 
+from src.backends.adapter import BackendConfig, ModelBackend, ModelReply
 from src.core.ffmpeg_tools import MediaToolchain
+
+# --- A BACKEND THAT DOES NOT THINK ---
+
+
+class ScriptedBackend(ModelBackend):
+    """
+    Answers from a script, and keeps what it was asked.
+
+    A real backend cannot be asserted against: the same input can give a
+    different answer twice, which is the whole reason each record remembers
+    what produced it. What can be asserted is what we sent, how many times, and
+    that the frames went with it.
+
+    Shared by the observation, interpretation and pipeline tests — all three
+    need the same stand-in, and three copies would drift.
+    """
+
+    def __init__(self, reply: str = "", replies: Optional[List[str]] = None):
+        """
+        Args:
+            reply: The answer to every call.
+            replies: One answer per call, in order, for a test that needs the
+                third shot in a batch to fail. A `BackendError` instance in the
+                list is raised instead of returned.
+        """
+        super().__init__(BackendConfig(model="scripted-1"))
+        self.reply = reply
+        self.replies = replies
+        self.prompts: List[str] = []
+        self.images: List[List[Path]] = []
+
+    def send(self, prompt: str, images: Optional[List[Path]] = None) -> ModelReply:
+        self.prompts.append(prompt)
+        self.images.append(list(images or []))
+
+        answer = self.replies[len(self.prompts) - 1] if self.replies else self.reply
+        if isinstance(answer, Exception):
+            raise answer
+
+        return ModelReply(text=answer, backend="scripted", model="scripted-1", seconds=0.0)
+
+    @property
+    def calls(self) -> int:
+        """How many times it was asked — what a cache test is really checking."""
+        return len(self.prompts)
+
+    def available(self) -> bool:
+        return True
+
+    def describe(self) -> str:
+        return "scripted"
 
 # --- CLIP DEFINITIONS ---
 

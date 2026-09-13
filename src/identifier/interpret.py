@@ -19,6 +19,7 @@ from typing import Dict, List
 
 from src.backends.adapter import ModelBackend
 from src.core.models import Interpretation, Observation, ProjectKnowledge
+from src.identifier.replies import field_value, strip_bullet, unfence
 
 # --- WHAT IS ASKED FOR ---
 
@@ -182,11 +183,11 @@ def parse_reply(reply: str) -> Interpretation:
     Tolerant in the same way the observation parser is, and for the same
     reason: a batch of forty must not fail because one reply had a preface.
     """
-    text = re.sub(r"^```[a-z]*\n?|```$", "", reply.strip(), flags=re.MULTILINE)
+    text = unfence(reply)
     interpretation = Interpretation()
 
     for name in INTERPRETATION_FIELDS:
-        value = _field(text, name)
+        value = field_value(text, name, _others(name))
         if not value:
             continue
 
@@ -200,16 +201,9 @@ def parse_reply(reply: str) -> Interpretation:
     return interpretation
 
 
-def _field(text: str, name: str) -> str:
-    """One field's answer, bounded by the next field name."""
-    others = "|".join(other for other in INTERPRETATION_FIELDS if other != name)
-    match = re.search(
-        rf"^\W*{name}\W*:\s*(.*?)(?=^\W*(?:{others})\W*:|\Z)",
-        text,
-        re.IGNORECASE | re.DOTALL | re.MULTILINE,
-    )
-
-    return match.group(1).strip() if match else ""
+def _others(name: str) -> List[str]:
+    """Every field but this one — what bounds its answer."""
+    return [other for other in INTERPRETATION_FIELDS if other != name]
 
 
 def _is_answer(value: str) -> bool:
@@ -236,7 +230,7 @@ def _as_map(value: str) -> Dict[str, str]:
     evidence = {}
 
     for line in value.splitlines():
-        line = re.sub(r"^[-*\d.)\s]+", "", line).strip()
+        line = strip_bullet(line)
         if ":" not in line:
             continue
 

@@ -25,6 +25,7 @@ from typing import List, Optional
 
 from src.backends.adapter import BackendError, ModelBackend
 from src.core.models import Observation
+from src.identifier.replies import field_value, strip_bullet, unfence
 
 # --- THE SCHEMA ---
 
@@ -191,7 +192,7 @@ def parse_reply(reply: str, is_still: bool = False) -> Observation:
         and keeps the raw text — an empty field is honest, and the raw reply is
         what makes it debuggable.
     """
-    text = re.sub(r"^```[a-z]*\n?|```$", "", reply.strip(), flags=re.MULTILINE)
+    text = unfence(reply)
 
     # A backend misconfiguration must not look like a description. The first
     # real run of this reached a model with no image attached, and only because
@@ -206,7 +207,7 @@ def parse_reply(reply: str, is_still: bool = False) -> Observation:
     found = 0
 
     for name in OBSERVATION_FIELDS:
-        value = _field(text, name)
+        value = field_value(text, name, _others(name))
         if not value:
             continue
 
@@ -228,24 +229,9 @@ def parse_reply(reply: str, is_still: bool = False) -> Observation:
     return observation
 
 
-def _field(text: str, name: str) -> str:
-    """
-    One field's answer: everything after its label, up to the next label.
-
-    Notes:
-        Bounded by the other field names rather than by the end of the line,
-        because a model will happily answer `appearance` over four lines and
-        then start the next field — and taking only the first line would throw
-        away three quarters of the useful answer.
-    """
-    others = "|".join(other for other in OBSERVATION_FIELDS if other != name)
-    match = re.search(
-        rf"^\W*{name}\W*:\s*(.*?)(?=^\W*(?:{others})\W*:|\Z)",
-        text,
-        re.IGNORECASE | re.DOTALL | re.MULTILINE,
-    )
-
-    return match.group(1).strip() if match else ""
+def _others(name: str) -> List[str]:
+    """Every field but this one — what bounds its answer."""
+    return [other for other in OBSERVATION_FIELDS if other != name]
 
 
 def _as_lines(value: str) -> List[str]:
@@ -263,8 +249,7 @@ def _as_lines(value: str) -> List[str]:
     lines = []
 
     for line in value.splitlines():
-        line = re.sub(r"^[-*\d.)\s]+", "", line).strip()
-        line = re.sub(rf"^\W*(?:{labels})\W*:\s*", "", line, flags=re.IGNORECASE)
+        line = re.sub(rf"^\W*(?:{labels})\W*:\s*", "", strip_bullet(line), flags=re.IGNORECASE)
         if line:
             lines.append(line)
 

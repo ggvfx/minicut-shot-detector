@@ -110,13 +110,14 @@ class CommandBackend(ModelBackend):
 
         if result.returncode != 0:
             raise BackendError(
-                f"{args[0]} exited with code {result.returncode}: {self._tail(result.stderr)}"
+                f"{args[0]} exited with code {result.returncode}: "
+                f"{self._reason(result.stdout, result.stderr)}"
             )
 
         text = (result.stdout or "").strip()
         if not text:
             raise BackendError(
-                f"{args[0]} exited cleanly but printed nothing. {self._tail(result.stderr)}"
+                f"{args[0]} exited cleanly but printed nothing. {self._tail(result.stderr)}".strip()
             )
 
         return ModelReply(
@@ -185,13 +186,27 @@ class CommandBackend(ModelBackend):
 
         return args
 
-    @staticmethod
-    def _tail(stderr: Optional[str]) -> str:
-        """The last few lines of stderr, for an error message."""
-        if not stderr or not stderr.strip():
-            return "It wrote nothing to stderr."
+    @classmethod
+    def _reason(cls, stdout: Optional[str], stderr: Optional[str]) -> str:
+        """
+        Why a command failed, from wherever it happened to say so.
 
-        lines = [line for line in stderr.strip().splitlines() if line.strip()]
+        Notes:
+            stderr first, then stdout. Agentic CLIs routinely print the real
+            reason — out of quota, not logged in — on stdout and exit non-zero
+            with stderr empty, which reached a user as "it wrote nothing to
+            stderr": a failed batch with the one sentence that explains it
+            thrown away. Found on a thirty-seven shot run that stopped mid-way.
+        """
+        return cls._tail(stderr) or cls._tail(stdout) or "It gave no reason."
+
+    @staticmethod
+    def _tail(stream: Optional[str]) -> str:
+        """The last few lines of a stream, or "" if it said nothing."""
+        if not stream or not stream.strip():
+            return ""
+
+        lines = [line for line in stream.strip().splitlines() if line.strip()]
         return " / ".join(lines[-STDERR_LINES:])
 
     # --- AVAILABILITY ---
