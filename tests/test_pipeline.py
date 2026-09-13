@@ -13,7 +13,8 @@ from pathlib import Path
 import pytest
 
 from src.core.config import ProjectConfig
-from src.core.models import Boundary
+from src.core.ffmpeg_tools import MediaToolchain
+from src.core.models import Boundary, SourceInfo
 from src.media.probe import SourceProbe
 from src.pipeline import WORK_DIRECTORY, SplitterPipeline, clear_work, reclaimable_work
 
@@ -253,3 +254,49 @@ def test_round_trip_scratch_belongs_to_nobody_and_always_goes(tmp_path):
     reclaimable = reclaimable_work(tmp_path, keep_source=Path("reel_01.mp4"))
 
     assert len(reclaimable) == 2
+
+
+# --- TIMECODES ON SHOTS ---
+
+
+def test_shots_carry_timecodes_from_the_tested_engine(toolchain, clips, tmp_path):
+    """
+    Every shot reports where it starts and ends in the source's timecode.
+
+    Stamped by the pipeline so the front end never derives it. The table used
+    to compute its own, and a second implementation is a second one to get
+    wrong.
+    """
+    job = run_job(toolchain, clips["pal"], tmp_path, frames=(20,))
+
+    assert [shot.start_timecode for shot in job.shots] == ["10:00:00:00", "10:00:00:20"]
+    assert job.shots[0].end_timecode == "10:00:00:19", "the frame before the next shot starts"
+
+
+def test_drop_frame_timecodes_are_correct_on_shots():
+    """
+    29.97 drop-frame is the case the front end's own maths got wrong.
+
+    It used Math.ceil(29.97) = 30 labels a second and no drop-frame handling,
+    which put frame 17982 at 00:09:59:12 instead of 00:10:00;00 — eighteen
+    frames out at ten minutes, and drifting. Stamping from the engine that
+    knows about drop-frame is the whole point of carrying these on the shot.
+    """
+    source = SourceInfo(
+        path="reel.mov",
+        width=1920,
+        height=1080,
+        fps_numerator=30000,
+        fps_denominator=1001,
+        frame_count=20000,
+        duration_seconds=667.0,
+        codec="h264",
+        start_timecode="00:00:00:00",
+    )
+    # Pure arithmetic, so nothing here needs ffmpeg to be found
+    pipeline = SplitterPipeline(ProjectConfig(), MediaToolchain(discover=False))
+
+    shots = pipeline._shots([Boundary(frame=17982)], source)
+
+    assert shots[1].start_timecode == "00:10:00;00"
+    assert shots[0].end_timecode == "00:09:59;29", "the frame before, in drop-frame"

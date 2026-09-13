@@ -64,6 +64,12 @@ class ProbeReport(BaseModel):
     # Duration as a timecode, which reads better than a frame count in the UI.
     duration_timecode: str
 
+    # Where this source's shots should go unless the user says otherwise: a
+    # folder of its own beside the source. Worked out here rather than in the
+    # browser, because splitting a path correctly on both platforms is exactly
+    # the fiddly kind of thing that belongs where it can be tested.
+    suggested_output_dir: str
+
     estimated_gb: float
     free_gb: Optional[float] = None
 
@@ -137,6 +143,14 @@ class Shot(BaseModel):
 
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     detectors_agreed: bool = True
+
+    # Where the shot starts and ends in the source's own timecode, stamped by
+    # the pipeline from the tested engine. Carried on the shot rather than
+    # derived where it is displayed: the front end would otherwise need its own
+    # timecode maths, and a second implementation of drop-frame is a second
+    # implementation to get wrong.
+    start_timecode: Optional[str] = None
+    end_timecode: Optional[str] = None
 
     # Populated once the shot has been cut out of the mezzanine.
     file: Optional[str] = None

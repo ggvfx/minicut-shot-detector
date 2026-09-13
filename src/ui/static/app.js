@@ -207,12 +207,8 @@ function renderProbe(report) {
 function suggestOutputDirectory() {
     if (state.outputChosenFor === state.sourcePath) return;
 
-    // Split on either separator: a path typed on Windows can arrive with both
-    const separator = state.sourcePath.includes("\\") ? "\\" : "/";
-    const parts = state.sourcePath.split(/[\\/]/);
-    const name = parts.pop().replace(/\.[^.]+$/, "");
-
-    state.outputDir = [...parts, `${name}_shots`].join(separator);
+    // The path itself comes from the server, which builds it with pathlib
+    state.outputDir = state.probe.suggested_output_dir;
     document.getElementById("output-dir").value = state.outputDir;
 }
 
@@ -707,7 +703,7 @@ function renderJob(job) {
             shot.index,
             `${shot.start_frame} – ${shot.end_frame}`,
             `${length} frames`,
-            timecodeFor(shot.start_frame, job.source),
+            shot.start_timecode,
             fileNameOf(shot.file),
         ]) {
             const cell = document.createElement("td");
@@ -720,34 +716,6 @@ function renderJob(job) {
 
     const sidecar = document.getElementById("result-sidecar");
     sidecar.textContent = job.sidecar_path ? `Sidecar: ${fileNameOf(job.sidecar_path)}` : "";
-}
-
-/**
- * Frame number as a timecode, for reading against an editor's timeline.
- *
- * Deliberately simple: the server owns the exact arithmetic, including
- * drop-frame, and this is a display convenience over whole frames.
- */
-function timecodeFor(frame, source) {
-    const labelsPerSecond = Math.ceil(source.fps_numerator / source.fps_denominator);
-    const total = frame + startFrames(source.start_timecode, labelsPerSecond);
-
-    const frames = total % labelsPerSecond;
-    const seconds = Math.floor(total / labelsPerSecond);
-
-    const pad = (value) => String(value).padStart(2, "0");
-    return [
-        pad(Math.floor(seconds / 3600) % 24),
-        pad(Math.floor(seconds / 60) % 60),
-        pad(seconds % 60),
-        pad(frames),
-    ].join(":");
-}
-
-/** The source's start timecode as a frame count. */
-function startFrames(timecode, labelsPerSecond) {
-    const [hours, minutes, seconds, frames] = timecode.split(/[:;]/).map(Number);
-    return ((hours * 60 + minutes) * 60 + seconds) * labelsPerSecond + frames;
 }
 
 /** Last path segment, so a full Windows path does not fill the table. */

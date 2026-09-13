@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 
 from src.core.models import SourceInfo
-from src.media.probe import SourceProbe
+from src.core.ffmpeg_tools import MediaToolchain
+from src.media.probe import SourceProbe, suggested_output_dir
 
 # --- FIXTURES ---
 
@@ -232,3 +233,30 @@ def test_disk_estimate_scales_with_frame_rate(probe):
     at_48 = probe.estimate_disk_required(make_source(fps_numerator=48, frame_count=2880))
 
     assert at_48 == pytest.approx(at_24 * 2)
+
+
+# --- OUTPUT NAMING ---
+
+
+def test_shots_go_in_a_folder_of_their_own_beside_the_source():
+    """Writing them among the masters would scatter a dozen files there."""
+    assert suggested_output_dir(Path("D:/media/reel_02.mp4")) == Path("D:/media/reel_02_shots")
+
+
+def test_only_the_final_extension_is_replaced():
+    """A name with dots in it keeps them: "v01.ShotRef.mp4" is not "v01_shots"."""
+    suggested = suggested_output_dir(Path("D:/media/ARRV_v05.ShotRef_24fps.mp4"))
+
+    assert suggested.name == "ARRV_v05.ShotRef_24fps_shots"
+
+
+def test_the_report_carries_the_suggestion(clips):
+    """
+    The front end reads this rather than deriving it.
+
+    It used to split the path itself with a regex that only matched forward
+    slashes, so a Windows path never split at all.
+    """
+    report = SourceProbe(MediaToolchain(discover=True)).inspect(clips["pal"])
+
+    assert report.suggested_output_dir == str(clips["pal"].parent / f"{clips['pal'].stem}_shots")

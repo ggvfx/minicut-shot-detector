@@ -33,6 +33,7 @@ from src.core.config import ProjectConfig
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport, Shot, SourceInfo
 from src.core.sidecar import capture_environment, sidecar_path_for, write_sidecar
+from src.core.timecode import Timecode
 from src.core.utils import ensure_directory
 from src.detection.reconcile import boundaries_to_shots, merge_detections
 from src.detection.scene_detect import detect_all
@@ -315,6 +316,16 @@ class SplitterPipeline:
         integrity = validate_shot_list(shots, source)
         if not integrity.passed:
             raise RuntimeError("The shot list does not add up: " + "; ".join(integrity.failures))
+
+        # Stamped here, by the engine that knows about exact rational rates and
+        # drop-frame, so that nothing downstream has to work it out again. The
+        # front end used to, with Math.ceil() for the frame rate and no
+        # drop-frame at all, which put the shot table 18 frames out at ten
+        # minutes on a 29.97 DF source.
+        timecode = Timecode.from_source(source)
+        for shot in shots:
+            shot.start_timecode = timecode.frames_to_timecode(shot.start_frame)
+            shot.end_timecode = timecode.frames_to_timecode(shot.end_frame)
 
         logging.info(f"{len(shots)} shots to cut")
         return shots

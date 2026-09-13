@@ -25,6 +25,25 @@ from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import ProbeReport, SourceInfo
 from src.core.timecode import Timecode
 
+# --- OUTPUT NAMING ---
+
+# Shots go in a folder of their own beside the source. Writing them into the
+# folder holding the masters would scatter a dozen files among them.
+SHOTS_DIR_SUFFIX = "_shots"
+
+
+def suggested_output_dir(source_path: Path) -> Path:
+    """
+    Where a source's shots should go unless the user says otherwise.
+
+    Uses pathlib rather than splitting the string, which is the point of doing
+    this here at all: the front end used a regex that only split on forward
+    slashes, so a Windows path never split. It happened to produce the right
+    answer, which is the kind of luck that runs out quietly.
+    """
+    return source_path.parent / f"{source_path.stem}{SHOTS_DIR_SUFFIX}"
+
+
 # --- CROP DETECTION SETTINGS ---
 
 # cropdetect is sampled at several points rather than one. A single sample can
@@ -113,6 +132,7 @@ class SourceProbe:
         return ProbeReport(
             source=source,
             duration_timecode=length.frames_to_timecode(source.frame_count),
+            suggested_output_dir=str(suggested_output_dir(source_path)),
             estimated_gb=estimated_gb,
             free_gb=free_gb,
             can_split=refusal is None,
