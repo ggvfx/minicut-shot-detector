@@ -232,6 +232,18 @@ summary .summary { margin: 0; }
 .action-row { display: flex; align-items: center; gap: 12px; }
 .status { color: var(--text-dim); font-size: 13px; }
 
+/* Reclaimable working files. Sits below the split button, quiet and separated
+   by a rule, because it is housekeeping rather than part of the job. */
+.work-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: var(--gap);
+    padding-top: var(--gap);
+    border-top: 1px solid var(--border);
+}
+
 /* Two columns: fixed label, flexible value */
 .facts {
     display: grid;

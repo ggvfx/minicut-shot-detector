@@ -110,6 +110,13 @@ These are settled decisions. Do not revisit them without asking.
    sitting among the output. A job that passes deletes the folder; a job that
    fails keeps it, which is when the intermediates are worth having.
 
+   *Added after measuring:* an analysis that is never split keeps its mezzanine
+   too, and that is about a gigabyte per few-minute source. The Output panel
+   reports what is reclaimable and clears it on request — **never on its own,
+   and never the source currently open**, whose mezzanine the split still
+   needs. Reported rather than reclaimed because these files are rebuildable
+   only by sitting through the encode again.
+
 5. **Shots tile the source.** There is one kind of marker — the frame a shot
    starts on — and every frame belongs to exactly one shot. Marking frame N
    ends the previous shot at N-1. Frame 0 is always the first shot's first

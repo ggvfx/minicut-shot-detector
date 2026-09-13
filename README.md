@@ -46,6 +46,10 @@ follows them is already built.
   user can act on when they read it.
 * **Local Path Picker:** Server-side directory browsing, so multi-gigabyte media
   is never uploaded through the browser.
+* **Reclaimable Working Files:** A source that is analysed and never split keeps
+  its mezzanine, which is about a gigabyte per few minutes. The output panel
+  reports what that is holding and clears it on request — never automatically,
+  and never the source currently open.
 
 **The splitter is functionally complete.** Point it at a mini cut, let it find
 the shots, correct anything it got wrong, and get back one file per shot.
@@ -164,8 +168,11 @@ here that must never drift.
   neural pass was cut. The phase finished in three tasks instead of eight
   because the cheap approach was built and tested first.
 
-### Phase 5: Progress & Orchestration (Current)
-* SSE progress streaming, shot review table, full pipeline behind one button.
+### Phase 5: Loose Ends (Current)
+* Reclaiming the working files an abandoned analysis leaves behind.
+* Progress streaming was measured and dropped: the worst realistic source
+  analyses in 44 seconds, which does not justify progress plumbing through
+  every stage of the app.
 
 ## 🚀 Overview
 

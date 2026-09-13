@@ -172,6 +172,23 @@ directory rather than remembered between requests, which is what lets
 `prepare()` and `run()` be separate calls without the server holding session
 state.
 
+That leaves one gap, and it is filled by reporting rather than by tidying up
+automatically. A source that is analysed and then abandoned keeps its mezzanine
+— roughly a gigabyte for a few minutes of 1080p — because the whole point of
+preparing first is that the encode survives review. Nothing deletes it, so
+trying four files and splitting one quietly spends four gigabytes.
+
+`reclaimable_work()` and `clear_work()` measure and remove those leftovers, and
+the Output panel shows the total with a Clear button whenever there is
+something to reclaim. **The source currently open is never included** — its
+mezzanine is what the split will cut from. Ownership is worked out by stripping
+the suffix that was added (`reel_02_mezzanine.mp4` → `reel_02`) rather than by
+matching name prefixes, so `reel_02` cannot claim `reel_02_extra`'s files.
+
+Nothing is cleared without being asked. These files are rebuildable, but only
+by sitting through the encode again, which makes silently deleting them a worse
+trade than a line of text.
+
 ---
 
 ## Dependency direction

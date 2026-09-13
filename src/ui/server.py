@@ -23,7 +23,7 @@ from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport
 from src.core.timecode import Timecode
 from src.media.probe import SourceProbe
 from src.media.proxy import PROXY_SUFFIX
-from src.pipeline import SplitterPipeline
+from src.pipeline import SplitterPipeline, clear_work, owning_source, reclaimable_work
 from src.ui import browse
 
 app = FastAPI(title="Minicut Shot Detector")
@@ -57,6 +57,17 @@ class SplitRequest(BaseModel):
     # Rejoin every shot and compare every frame, rather than comparing the
     # frames either side of each cut.
     full_round_trip: bool = False
+
+
+class ClearWorkRequest(BaseModel):
+    """A request to delete the working files an output directory is holding."""
+
+    output_dir: str
+
+    # The source being reviewed, whose mezzanine the split still needs. Left
+    # out when nothing is open, which makes everything reclaimable.
+    source_path: Optional[str] = None
+
 
 # --- PAGE ---
 
@@ -142,7 +153,9 @@ def post_analyse(request: ProbeRequest) -> PreparedJob:
     the slow call — the encode happens here rather than at split time, so
     adjusting boundaries costs nothing and cutting afterwards is quick.
 
-    Blocking, like the split. Streaming progress is Phase 5.
+    Blocking, like the split. Measured at 44 seconds for a 3½ minute source,
+    which is why the front end shows that work is happening rather than how far
+    along it is — see TODO.md, Phase 5.
     """
     if not request.output_dir:
         raise HTTPException(status_code=422, detail="Choose an output directory first")
@@ -188,8 +201,8 @@ def post_split(request: SplitRequest) -> JobResult:
     """
     Splits a source on the given boundaries and returns the finished job.
 
-    Blocking, and on a long source that means minutes. Streaming progress is
-    Phase 5; until then the front end says so rather than pretending otherwise.
+    Blocking, but quick: the mezzanine already exists, so the shots are stream
+    copies out of it and only the verification takes any real time.
 
     Boundaries arrive as typed text and are read against the source's own frame
     rate, so "1247" and "01:00:51:23" both work and cannot be confused.
@@ -222,10 +235,52 @@ def post_split(request: SplitRequest) -> JobResult:
         raise HTTPException(status_code=409, detail=str(error))
 
 
-# --- PROGRESS (NOT BUILT YET) ---
+# --- WORKING FILES ---
 
-# Phase 5 adds SSE progress for a running job, so a long split does not sit
-# behind a blocking request with nothing to show for it.
+
+@app.get("/api/work")
+def get_work(output_dir: str, source_path: Optional[str] = None):
+    """
+    How much disk the leftover mezzanines and proxies are holding.
+
+    Args:
+        output_dir: The directory whose work folder to measure.
+        source_path: The source currently being reviewed, if any. Its mezzanine
+            is what the split will cut from, so it is never counted as
+            reclaimable — offering to delete it would break the next step.
+
+    Returns:
+        The byte total, the same figure in GB for display, and how many source
+        files it covers.
+    """
+    files = reclaimable_work(
+        Path(output_dir),
+        Path(source_path) if source_path else None,
+    )
+    total = sum(path.stat().st_size for path in files)
+
+    return {
+        "bytes": total,
+        "gb": round(total / (1024 ** 3), 2),
+        "files": len(files),
+        "sources": sorted({owning_source(path) for path in files}),
+    }
+
+
+@app.post("/api/work/clear")
+def post_clear_work(request: ClearWorkRequest):
+    """
+    Deletes the reclaimable working files.
+
+    Only ever called because the user pressed the button: these are rebuildable
+    but expensive, so nothing here runs on its own.
+    """
+    freed = clear_work(
+        Path(request.output_dir),
+        Path(request.source_path) if request.source_path else None,
+    )
+
+    return {"bytes": freed, "gb": round(freed / (1024 ** 3), 2)}
 
 
 # --- STATIC FILES ---

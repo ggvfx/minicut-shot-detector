@@ -260,16 +260,41 @@ on work that never needed doing.
 correct the occasional one. ✅ True as of 4.3 — finishing early here is the
 good outcome, not a shortfall.
 
-## Phase 5 — Progress & Orchestration ⬅ Current
-
-SSE progress streaming, the shot review table, and the whole pipeline behind
-one button. Not broken into tasks yet — that happens when we start it.
+## Phase 5 — Loose Ends ⬅ Current
 
 The splitter is functionally complete as of 4.3: point it at a mini cut, let it
 find the shots, correct anything it got wrong, and get back one file per shot.
-What is left in this phase is about knowing what the app is doing while it does
-it — the analyse and split steps currently run with no feedback beyond a
-disabled button, which is the roughest remaining edge.
+
+**The original Phase 5 was audited against the code and mostly did not
+survive**, which is worth recording so it is not resurrected by habit:
+
+- *Shot review table* — **already built**, in 3.8. Every shot with its frame
+  range, timecodes, file name and the validation verdict.
+- *Full pipeline behind one button* — **not wanted.** The gap between Analyse
+  and Split is the tool. Collapsing it means committing to the detector's
+  boundaries before anyone looks at them.
+- *SSE progress streaming* — **not worth it, measured.** The worst realistic
+  case (PixieParadise, 4889 frames) analyses in **44 seconds**, and there is
+  already a moving bar and a message saying what is happening. A percentage
+  would cost a job registry, progress callbacks through every stage, ffmpeg
+  `-progress` parsing and an event stream — machinery in every layer of the app
+  for a 44-second wait. Revisit only if sources get much longer.
+
+- [x] **5.1 Reclaiming working files** *(11 tests)*
+  An analysed-then-abandoned source keeps its mezzanine, and nothing ever
+  removed it: four files tried and one split quietly cost four gigabytes.
+
+  The Output panel now reports the total with a Clear button, shown only when
+  there is something to reclaim. Never cleared automatically, and never the
+  source currently open — its mezzanine is what the split cuts from. Ownership
+  is decided by stripping the suffix rather than matching a prefix, so
+  `reel_02` cannot claim `reel_02_extra`'s files.
+
+  Driven in the browser: analyse A, analyse B, row offers A's 0.07 GB, Clear
+  frees exactly that and leaves B's mezzanine untouched.
+
+**Phase done when:** nothing about running the app is annoying enough to
+mention. Then the splitter is finished and the identifier tab starts.
 
 ---
 

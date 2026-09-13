@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from src.pipeline import WORK_DIRECTORY
 from src.ui.server import app
 
 client = TestClient(app)
@@ -213,3 +214,57 @@ def test_split_missing_source_is_404(tmp_path):
     )
 
     assert response.status_code == 404
+
+
+# --- WORKING FILES ---
+
+
+def test_work_reports_nothing_for_a_clean_directory(tmp_path):
+    response = client.get("/api/work", params={"output_dir": str(tmp_path)})
+
+    assert response.status_code == 200
+    assert response.json()["bytes"] == 0
+
+
+def test_work_reports_what_is_reclaimable_and_clearing_frees_it(tmp_path):
+    """
+    The figure shown in the UI and the one clearing returns must agree.
+
+    They come from the same measurement, and a "Clear" that frees less than it
+    offered would be worse than not offering.
+    """
+    work_dir = tmp_path / WORK_DIRECTORY
+    work_dir.mkdir()
+    (work_dir / "reel_01_mezzanine.mp4").write_bytes(b"\0" * 5000)
+
+    reported = client.get("/api/work", params={"output_dir": str(tmp_path)}).json()
+    assert reported["bytes"] == 5000
+    assert reported["sources"] == ["reel_01"]
+
+    cleared = client.post("/api/work/clear", json={"output_dir": str(tmp_path)})
+    assert cleared.status_code == 200
+    assert cleared.json()["bytes"] == 5000
+
+    assert client.get("/api/work", params={"output_dir": str(tmp_path)}).json()["bytes"] == 0
+
+
+def test_work_leaves_the_open_source_alone(tmp_path):
+    """
+    Clearing while a source is open must not delete the mezzanine it will
+    be split from.
+    """
+    work_dir = tmp_path / WORK_DIRECTORY
+    work_dir.mkdir()
+    (work_dir / "reel_01_mezzanine.mp4").write_bytes(b"\0" * 5000)
+    (work_dir / "reel_02_mezzanine.mp4").write_bytes(b"\0" * 3000)
+
+    params = {"output_dir": str(tmp_path), "source_path": "D:/media/reel_01.mp4"}
+    assert client.get("/api/work", params=params).json()["bytes"] == 3000
+
+    client.post(
+        "/api/work/clear",
+        json={"output_dir": str(tmp_path), "source_path": "D:/media/reel_01.mp4"},
+    )
+
+    assert (work_dir / "reel_01_mezzanine.mp4").is_file()
+    assert not (work_dir / "reel_02_mezzanine.mp4").exists()

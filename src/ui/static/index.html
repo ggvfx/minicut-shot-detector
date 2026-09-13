@@ -161,6 +161,16 @@
                  how far along it is: per-frame progress needs streaming, which
                  is its own task, and a made-up percentage would be a lie. -->
             <div id="progress" class="progress" hidden><div class="progress-bar"></div></div>
+
+            <!-- Analysing a source and then walking away leaves its mezzanine
+                 behind — they are only cleaned up when a split passes. Shown
+                 only when there is something to reclaim, and never cleared
+                 without being asked: rebuilding one means sitting through the
+                 encode again. -->
+            <div id="work-row" class="work-row" hidden>
+                <span id="work-detail" class="status"></span>
+                <button id="work-clear" class="secondary">Clear</button>
+            </div>
         </section>
 
         <!-- What the job produced -->
