@@ -649,20 +649,39 @@ orange Tess, yellow Amaya), one prop, two environments. It lives in
 
   Measured on a real 28-second h265 mini cut: **66 KB for six frames.**
 
-- [ ] **7.2 The observation pass — and the decision point**
-  `Observer`, the schema, and the prompt. **Then run it on the real blockout**,
-  through a CLI backend, twice per shot.
+- [x] **7.2 The observation pass — the decision point** *(5 tests)*
+  **PASSED, on the hard case.** Run against the real Unreal blocking frame
+  through the `claude` CLI, at 512px:
 
-  **This decides the rest of the phase**, the way 4.3 did:
-  - Does it report the mannequin colour reliably? That is the whole
-    identification in a blockout, so nothing else matters if this fails.
-  - Does it separate a static mannequin from an empty set, and count figures?
-  - Is it *consistent* between two runs of the same shot? Confidence has to
-    survive that wobble.
-  - Does the plain-observation schema beat simply asking for film terms?
+  | | |
+  |---|---|
+  | figures | **6** — correct |
+  | appearance | **red, blue, purple, green, orange, yellow** — all six correct, in left-to-right order |
+  | framing | "whole body with space above and below, all six figures complete from head to feet" |
+  | foreground | the raised platform and statues at lower left, and the overhanging tree |
+  | setting | "outdoor paved area at dusk in front of a lit building with an arched entrance" |
+  | action | "Six figures stand still in a loose line, all turned the same way" |
 
-  *This one needs you — judging whether a description is useful is not
-  something the tests can do.*
+  It read the mannequin colours — which is the entire identification in a
+  blockout — used no film terminology, and did not invent anything. The
+  schema holds and the design stands: **observe plainly, name later.**
+
+  Three real fixes came out of running it rather than testing it:
+
+  - **The command backend silently dropped the frames** when the configured
+    command had nowhere to put them. Worst failure available: the model answers
+    from the prompt alone and every field reads like a description. It now
+    refuses and names the missing placeholder.
+  - **The prompt had no way to say "no image arrived".** Caught only because
+    the model pushed back rather than fabricating seven fields. It now asks for
+    `NO IMAGE` and the parser raises on it.
+  - **A model restates the field label on every line** of a list answer. Left
+    alone, every entry after the first would begin with a word describing
+    nothing — in the text the matcher later compares.
+
+  `BackendConfig.image_reference` was added for tools that read image paths
+  from inside the prompt (Claude Code uses `@path`) rather than as arguments.
+  Both shapes are common, so both are configurable.
 
 - [ ] **7.3 The interpretation pass**
   `Interpreter` — observations into the project's vocabulary and character

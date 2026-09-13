@@ -249,9 +249,26 @@ def _field(text: str, name: str) -> str:
 
 
 def _as_lines(value: str) -> List[str]:
-    """One entry per line, with list bullets and numbering stripped."""
-    lines = [re.sub(r"^[-*\d.)\s]+", "", line).strip() for line in value.splitlines()]
-    return [line for line in lines if line]
+    """
+    One entry per line, with bullets, numbering and repeated labels stripped.
+
+    Notes:
+        The repeated label matters. Asked for one figure per line, a model
+        will often restate the field name on every line after the first —
+        "appearance: plain red figure" — and carrying that into the text the
+        matcher compares would have every entry after the first start with a
+        word that describes nothing.
+    """
+    labels = "|".join(OBSERVATION_FIELDS)
+    lines = []
+
+    for line in value.splitlines():
+        line = re.sub(r"^[-*\d.)\s]+", "", line).strip()
+        line = re.sub(rf"^\W*(?:{labels})\W*:\s*", "", line, flags=re.IGNORECASE)
+        if line:
+            lines.append(line)
+
+    return lines
 
 
 def _as_count(value: str) -> Optional[int]:

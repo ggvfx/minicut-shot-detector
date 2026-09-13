@@ -172,11 +172,15 @@ CLI_PRESETS = {
     "claude": {
         "label": "Claude Code",
         "command": ["claude", "-p"],
+        # Claude Code reads a file referenced as @path inside the prompt rather
+        # than taking image arguments
+        "image_reference": "@{path}",
         "note": "Uses your existing Claude Code login. No API key needed.",
     },
     "custom": {
         "label": "Custom command…",
         "command": [],
+        "image_reference": None,
         "note": "Any tool that takes a prompt on stdin and prints the reply.",
     },
 }
@@ -202,6 +206,13 @@ class BackendConfig(BaseModel):
     endpoint: Optional[str] = None         # For "api" and "local": the URL
     api_style: str = STYLE_ANTHROPIC       # Which dialect the endpoint speaks
     api_key_env: Optional[str] = None      # For "api": the variable holding the key, never the key
+
+    # For "command": how this tool wants an image referenced inside the prompt,
+    # as a template containing {path} — Claude Code uses "@{path}". Left unset
+    # for tools that take image paths as arguments instead, which is what the
+    # {image} and {images} argument placeholders are for. One or the other:
+    # a tool that needs neither cannot be sent frames at all.
+    image_reference: Optional[str] = None
 
     timeout_seconds: int = BACKEND_TIMEOUT_SECONDS
     max_tokens: int = MAX_REPLY_TOKENS

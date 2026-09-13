@@ -186,11 +186,14 @@ def _build_config(choice: BackendChoice) -> BackendConfig:
     if choice.preset not in CLI_PRESETS:
         raise HTTPException(status_code=422, detail=f"Unknown preset {choice.preset!r}")
 
-    command = (
-        choice.command if choice.preset == "custom" else CLI_PRESETS[choice.preset]["command"]
-    )
+    preset = CLI_PRESETS[choice.preset]
+    command = choice.command if choice.preset == "custom" else preset["command"]
 
-    return BackendConfig(kind=BACKEND_COMMAND, command=[part for part in (command or []) if part])
+    return BackendConfig(
+        kind=BACKEND_COMMAND,
+        command=[part for part in (command or []) if part],
+        image_reference=preset.get("image_reference"),
+    )
 
 
 @router.post("/api/backends/test")

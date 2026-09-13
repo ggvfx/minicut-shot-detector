@@ -73,9 +73,11 @@ class CommandBackend(ModelBackend):
             raise BackendError(
                 f"{self.config.command[0]} was given {len(images)} frames but the "
                 f"command has nowhere to put them. Add {IMAGES_PLACEHOLDER} or "
-                f"{IMAGE_PLACEHOLDER} to its arguments in the Models panel."
+                f"{IMAGE_PLACEHOLDER} to its arguments, or set an image "
+                f"reference for tools that read paths from the prompt."
             )
 
+        prompt = self._with_references(prompt, images or [])
         args = self._build_args(prompt, images or [])
         on_stdin = PROMPT_PLACEHOLDER not in self.config.command
 
@@ -124,6 +126,23 @@ class CommandBackend(ModelBackend):
             seconds=round(time.monotonic() - started, 2),
         )
 
+    def _with_references(self, prompt: str, images: List[Path]) -> str:
+        """
+        Adds image references to the prompt, for tools that want them there.
+
+        Claude Code reads `@path`; others take arguments instead. Appended
+        after the instruction rather than before, so the reference sits next to
+        the question it answers and the prompt still reads as a prompt.
+        """
+        if not images or not self.config.image_reference:
+            return prompt
+
+        references = "\n".join(
+            self.config.image_reference.format(path=path) for path in images
+        )
+
+        return f"{prompt}\n\n{references}"
+
     def _takes_images(self) -> bool:
         """
         Whether the configured command has anywhere to put a frame.
@@ -134,6 +153,9 @@ class CommandBackend(ModelBackend):
         field in it is invented. Better to refuse and say which placeholder is
         missing.
         """
+        if self.config.image_reference:
+            return True
+
         return any(
             item == IMAGES_PLACEHOLDER or IMAGE_PLACEHOLDER in item
             for item in self.config.command or []

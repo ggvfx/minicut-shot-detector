@@ -152,3 +152,26 @@ def test_the_prompt_refuses_film_terminology_and_invention():
 def test_a_still_is_never_asked_about_motion():
     """There is none to report, and asking for it invites invention."""
     assert "motion" not in build_prompt(1, is_still=True)
+
+
+def test_a_repeated_field_label_is_stripped_from_list_lines():
+    """
+    Asked for one figure per line, a model often restates the field name on
+    every line after the first.
+
+    Carrying that through would have every entry after the first begin with a
+    word that describes nothing — and it is the text the matcher later
+    compares. Seen on the first real run against a CG blockout.
+    """
+    observation = parse_reply(
+        "appearance:\n"
+        "- plain untextured red figure\n"
+        "- appearance: plain untextured blue figure\n"
+        "- appearance: plain untextured green figure\n"
+    )
+
+    assert observation.appearance == [
+        "plain untextured red figure",
+        "plain untextured blue figure",
+        "plain untextured green figure",
+    ]
