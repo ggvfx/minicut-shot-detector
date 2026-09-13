@@ -149,6 +149,7 @@ the identifier tab and is not built here.
 | `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra re-encode in the source's codec |
 | `src/media/proxy.py` | `ProxyBuilder` — the small numbered proxy the player scrubs |
 | `src/media/splitter.py` | `ShotSplitter` — per-shot extraction |
+| `src/media/workspace.py` | `.minicut-work/` — its naming, and what may be deleted |
 | `src/detection/scene_detect.py` | `SceneDetectPass` — the two PySceneDetect passes |
 | `src/detection/reconcile.py` | Merge, filter, convert to shots |
 | `src/validation/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
@@ -186,7 +187,8 @@ automatically. A source that is analysed and then abandoned keeps its mezzanine
 preparing first is that the encode survives review. Nothing deletes it, so
 trying four files and splitting one quietly spends four gigabytes.
 
-`reclaimable_work()` and `clear_work()` measure and remove those leftovers, and
+`src/media/workspace.py` owns this. `reclaimable_work()` and `clear_work()`
+measure and remove those leftovers, and
 the Output panel shows the total with a Clear button whenever there is
 something to reclaim. **The source currently open is never included** — its
 mezzanine is what the split will cut from. Ownership is worked out by stripping

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from src.pipeline import WORK_DIRECTORY
+from src.media.workspace import WORK_DIRECTORY
 from src.ui.server import app
 
 client = TestClient(app)
