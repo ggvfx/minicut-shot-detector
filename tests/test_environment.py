@@ -9,6 +9,8 @@ from src.core.environment import (
     BLOCKED,
     DEGRADED,
     OK,
+    IDENTIFIER,
+    SPLITTER,
     EnvironmentChecker,
     platform_name,
     windows_release,
@@ -112,11 +114,11 @@ def test_report_is_cached_until_refreshed(tmp_path):
     """
     checker = EnvironmentChecker(MediaToolchain(discover=False))
 
-    first = checker.report(tmp_path)
-    second = checker.report(tmp_path)
+    first = checker.report(SPLITTER, tmp_path)
+    second = checker.report(SPLITTER, tmp_path)
     assert first is second, "an unchanged request should return the cached report"
 
-    third = checker.report(tmp_path, refresh=True)
+    third = checker.report(SPLITTER, tmp_path, refresh=True)
     assert third is not first, "refresh=True must re-run the checks"
 
 
@@ -128,7 +130,7 @@ def test_a_fresh_launch_reports_nothing_about_the_output_directory():
     on it at launch tells the user something is wrong before they have had the
     chance to do anything — and they cannot clear it until they are finished.
     """
-    report = EnvironmentChecker(MediaToolchain(discover=False)).report(None)
+    report = EnvironmentChecker(MediaToolchain(discover=False)).report(SPLITTER, None)
 
     assert not any(check.key == "output_dir" for check in report.checks)
     assert any(check.key == "disk" for check in report.checks), (
@@ -142,8 +144,8 @@ def test_report_rechecks_when_the_output_directory_changes(tmp_path):
     other_dir = tmp_path / "elsewhere"
     other_dir.mkdir()
 
-    first = checker.report(tmp_path)
-    second = checker.report(other_dir)
+    first = checker.report(SPLITTER, tmp_path)
+    second = checker.report(SPLITTER, other_dir)
 
     assert first is not second
 
@@ -157,7 +159,7 @@ def test_report_contains_every_check(tmp_path):
     fault the user could not clear until they had finished. The check itself is
     still here and still tested, just not in the panel.
     """
-    report = EnvironmentChecker(MediaToolchain(discover=False)).report(tmp_path)
+    report = EnvironmentChecker(MediaToolchain(discover=False)).report(SPLITTER, tmp_path)
 
     keys = {check.key for check in report.checks}
     assert keys == {
@@ -172,3 +174,43 @@ def test_report_contains_every_check(tmp_path):
     for check in report.checks:
         assert check.status in (OK, DEGRADED, BLOCKED)
         assert check.detail, f"{check.key} must say what was found"
+
+
+def test_each_tab_is_told_what_it_needs_and_nothing_else(tmp_path):
+    """
+    The two tabs have genuinely different requirements.
+
+    The splitter re-encodes and detects cuts, so it needs the encoders and
+    PySceneDetect. The identifier does neither — it samples frames and sends
+    them to a model. Showing each the other's requirements would put rows in
+    front of people who cannot act on them.
+    """
+    checker = EnvironmentChecker(MediaToolchain(discover=False))
+
+    splitter = {check.key for check in checker.report(SPLITTER, tmp_path).checks}
+    identifier = {check.key for check in checker.report(IDENTIFIER, tmp_path).checks}
+
+    assert {"encoders", "scenedetect"} <= splitter
+    assert not {"encoders", "scenedetect"} & identifier
+
+    assert {"python", "ffmpeg", "ffprobe", "disk"} <= splitter & identifier, (
+        "both read media, so both report the toolchain"
+    )
+
+
+def test_one_tab_is_never_served_the_other_s_cached_report(tmp_path):
+    """The cache is keyed by tab as well as directory, or they would collide."""
+    checker = EnvironmentChecker(MediaToolchain(discover=False))
+
+    splitter = checker.report(SPLITTER, tmp_path)
+    identifier = checker.report(IDENTIFIER, tmp_path)
+
+    assert splitter is not identifier
+    assert splitter is checker.report(SPLITTER, tmp_path), "still cached per tab"
+
+
+def test_an_unknown_tab_is_refused(tmp_path):
+    import pytest
+
+    with pytest.raises(ValueError, match="Unknown tab"):
+        EnvironmentChecker(MediaToolchain(discover=False)).run_all("sideways", tmp_path)

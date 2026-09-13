@@ -91,3 +91,8 @@ logs/
 # Local backend settings. settings.example.json is the tracked template; the
 # real one names a machine's own CLI paths and endpoints, so it is per-install.
 settings.json
+
+# A show's own character sheets and terminology. The folder and its README are
+# tracked so it exists on a fresh clone; what a production puts in it is theirs.
+production/*
+!production/README.md

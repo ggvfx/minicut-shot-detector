@@ -42,28 +42,37 @@ PASS_LABELS = {
 CONFIGURE_FIX = "Set it in settings.json — copy settings.example.json to start"
 
 
-def backend_checks(settings: Settings) -> List[Check]:
+def backend_checks(settings: Settings, advisory: bool = False) -> List[Check]:
     """
     One row per model pass, reporting whether it can be used.
 
     Args:
         settings: The saved backend configuration.
+        advisory: Report the rows without letting them set the panel's headline
+            status. True where a missing model does not stop the user doing
+            what they came to do.
 
     Returns:
         A check for the vision pass and one for the text pass, in that order.
 
     Notes:
         Never worse than degraded, and never green when nothing is configured —
-        both halves of that matter. A user with no model set up has a working
-        splitter and no identifier, and the panel should say exactly that.
+        both halves of that matter.
+
+        Whether these gate depends on who is asking, which is why it is an
+        argument rather than a property of the row. In the Identifier tab a
+        missing model means the tab cannot work, so it gates. Anywhere else it
+        is a limitation of a feature the user may never open, and gating would
+        paint a working app amber — the mistake that took the output directory
+        off the panel.
     """
     checks = [_check_pass(name, settings) for name in ("vision", "text")]
 
     # Set here rather than on each branch of _check_pass: four places to
-    # remember a flag is three places to forget it, and forgetting it means a
-    # working Splitter reading amber over a tab that is not built yet.
+    # remember a flag is three places to forget it, and forgetting it once
+    # already put a false warning in front of the user.
     for check in checks:
-        check.advisory = True
+        check.advisory = advisory
 
     return checks
 

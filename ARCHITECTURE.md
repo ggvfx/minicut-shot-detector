@@ -311,7 +311,7 @@ there was one tab and becomes misleading with two. Moving them under
 | `src/core/utils.py` | **Shared.** Helpers needed in more than one module |
 | `src/core/ffmpeg_tools.py` | `MediaToolchain` — the only place a subprocess is run |
 | `src/core/timecode.py` | `Timecode` — the only place frames become time |
-| `src/core/environment.py` | `EnvironmentChecker` — the dependency panel |
+| `src/core/environment.py` | `EnvironmentChecker` — a dependency panel per tab |
 | `src/core/sidecar.py` | Sidecar read and write |
 | `src/media/probe.py` | `SourceProbe` — source inspection and crop detection |
 | `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra re-encode in the source's codec |
@@ -356,12 +356,21 @@ Not built, and listed so the shape is agreed before anything is written:
 | `src/ui/static/picker.js` | Path picker |
 | `src/ui/static/environment.js` | Dependency panel |
 | `src/ui/static/ui.js` | Display helpers used by more than one module |
+| `src/ui/static/tabs.js` | Switching, and telling a tab it became visible |
+| `src/ui/static/identify.js` | The identifier tab |
 
-The front end gains a second set of modules for the identifier tab —
-`identify.js` for the table and its review, `knowledge.js` for the project
-files — sharing `environment.js`, `picker.js` and `ui.js` unchanged. Each tab
-keeps its own state rather than sharing one object: they are separate jobs and
-one is often idle.
+Each tab has **its own environment panel**, and they are told different things:
+the splitter needs encoders and PySceneDetect and no model, the identifier
+needs a model and neither of those. Showing each the other's requirements would
+put rows in front of people who cannot act on them. `/api/environment` takes a
+`tab`, and the report is cached per tab.
+
+The identifier's rows for the model backends **gate that tab** — a user
+standing in it with no model can do nothing — which is why `advisory` is
+decided by the caller rather than being a property of the row.
+
+`state.js` stays one object, banded per tab. The tabs share `environment.js`,
+`picker.js` and `ui.js` unchanged.
 
 ---
 

@@ -35,6 +35,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 STATIC_DIR = REPO_ROOT / "src" / "ui" / "static"
 
+# Where a production's own markdown goes — characters, terminology, and later
+# props and environments. Beside the app rather than uploaded per session: a
+# character sheet is written once and read on every run, and asking for it
+# every time would guarantee it gets skipped. Contents are gitignored; the
+# folder and its README are tracked so it exists on a fresh clone.
+PRODUCTION_DIR = REPO_ROOT / "production"
+
 # --- FIXED REQUIREMENTS ---
 
 MIN_PYTHON = (3, 11)

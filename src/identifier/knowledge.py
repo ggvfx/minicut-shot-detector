@@ -21,9 +21,12 @@ character as a woman with blue hair.
 Props and environments are expected to follow the same pattern later, and are
 deliberately not built now.
 
-SKELETON. Signatures and docstrings only.
+The files live in a directory beside the app rather than being uploaded each
+session: a show's character sheet is written once and then read on every run,
+and making someone attach it every time would guarantee it gets skipped.
 """
 
+import logging
 from pathlib import Path
 
 from src.core.models import ProjectKnowledge
@@ -49,12 +52,47 @@ def load_knowledge(directory: Path) -> ProjectKnowledge:
         be used on a show that has no character sheet yet.
 
     Raises:
-        NotADirectoryError: If the path is not a directory. A path typed wrong
-            should say so rather than silently behave as though the project had
-            no knowledge at all.
+        NotADirectoryError: If the path exists but is not a directory. A path
+            typed wrong should say so rather than silently behave as though the
+            project had no knowledge at all.
+
+    Notes:
+        A directory that does not exist yet is not an error — it is the state
+        on a fresh install, before anyone has put a character sheet in it.
+        Empty knowledge comes back and the tab says so.
     """
-    # PSEUDOCODE
-    # 1. Refuse anything that is not a directory.
-    # 2. Read each known file if present, ignoring case in the name.
-    # 3. Return ProjectKnowledge with whatever was found.
-    raise NotImplementedError
+    if not directory.exists():
+        return ProjectKnowledge(directory=str(directory))
+
+    if not directory.is_dir():
+        raise NotADirectoryError(f"Not a directory: {directory}")
+
+    return ProjectKnowledge(
+        directory=str(directory),
+        terminology=_read(directory, TERMINOLOGY_FILE),
+        characters=_read(directory, CHARACTERS_FILE),
+    )
+
+
+def _read(directory: Path, name: str) -> str:
+    """
+    Reads one knowledge file, matching its name case-insensitively.
+
+    Notes:
+        Windows is case-insensitive and macOS usually is, so a file saved as
+        `Characters.md` works on the machine it was written on and quietly
+        stops working when the project moves to Linux. Matching on the lowered
+        name means it behaves the same everywhere.
+
+        Read as utf-8-sig: these are hand-written files, and a Windows editor
+        will have left a byte order mark on the front of at least one of them.
+    """
+    for path in directory.iterdir():
+        if path.is_file() and path.name.lower() == name:
+            try:
+                return path.read_text(encoding="utf-8-sig")
+            except OSError as error:
+                logging.warning(f"Could not read {path}: {error}")
+                return ""
+
+    return ""

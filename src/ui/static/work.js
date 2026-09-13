@@ -94,6 +94,6 @@ export async function clearWorkFiles() {
     } finally {
         button.disabled = false;
         // Free space is on the environment panel, and it just changed
-        loadEnvironment(true);
+        loadEnvironment("splitter", true);
     }
 }

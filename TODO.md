@@ -495,6 +495,48 @@ that might not work first.** Everything here rests on one untested assumption �
 that a model can describe real footage usefully enough to match on. 7.2 finds
 that out before anything is built on top of it.
 
+- [x] **7.0 The tab, blocked in** *(7 tests)* — *brought forward from 7.8*
+  Moved ahead of everything else on purpose. Layout feedback has been the most
+  valuable input on this project and the cheapest to act on early — the
+  splitter's whole interface pass came from looking at a real screen. Building
+  the shell first means every task below has somewhere visible to land, and
+  7.2's decision becomes something to look at rather than something I report.
+
+  Same shape as the splitter, in the same order: what it does, what it cannot
+  do, environment, then the workflow top to bottom.
+
+  **Each tab has its own environment panel**, and they are told different
+  things. The splitter needs encoders and PySceneDetect and no model; the
+  identifier needs a model and neither of those. Showing each the other's
+  requirements would put rows in front of people who cannot act on them —
+  the same rule that took the output directory off the panel. Cached per tab,
+  and `/api/environment` takes a `tab`.
+
+  **The model rows gate the identifier and do not exist on the splitter**, so
+  `advisory` became a caller's choice rather than a property of the row. A user
+  standing in the identifier with no model genuinely cannot proceed; a splitter
+  user should never see the row at all.
+
+  **Production knowledge is a folder, not an upload.** `production/` beside the
+  app, read on every run, gitignored with a worked README and examples. A show
+  writes its character sheet once; asking for it every session would guarantee
+  it gets skipped. `load_knowledge` implemented to go with it *(was 7.3)*.
+
+  Live: tab switching, both environment panels, the knowledge section, all four
+  path pickers. Laid out and disabled: describe, match, rename, export — the
+  pipeline behind them is still a skeleton, and a button that looks ready and
+  does nothing is worse than one that admits it.
+
+  **Two bugs found by looking at it, not by the suite:**
+  - **Static files had no `Cache-Control`,** so the browser served an already
+    evaluated ES module across reloads. An hour went into "the tab does not
+    switch" before the penny dropped, and the same thing would hit any user who
+    updated the app. Now `no-cache` — revalidate, not "do not store", which
+    with the existing ETag costs one 304.
+  - **`[hidden]` did nothing** on the action rows, because `display: flex`
+    silently overrides the browser's `[hidden] { display: none }`. Disabled
+    controls for later steps were showing from the start.
+
 - [ ] **7.1 Frame sampling**
   `FrameSampler` — a handful of small frames per shot, and one thumbnail.
   Nothing about judging framing needs 1920 pixels, and small frames keep API
@@ -517,11 +559,13 @@ that out before anything is built on top of it.
   *This one needs you — judging whether a description is useful is not
   something the tests can do.*
 
-- [ ] **7.3 Project knowledge**
-  `load_knowledge`, and worked examples of `terminology.md` and
-  `characters.md` to write against.
-  **Done when:** both files load, and their absence degrades the result to
-  plain descriptions rather than failing.
+- [x] **7.3 Project knowledge** *(7 tests)* — *done as part of 7.0*
+  `load_knowledge`, the `production/` folder, and worked examples of
+  `terminology.md` and `characters.md` to write against. Names are matched
+  case-insensitively and read as utf-8-sig, because these are hand-written
+  files: one saved as `Characters.md` on Windows would otherwise stop working
+  the day the show moves to Linux, and at least one will arrive with a byte
+  order mark on it.
 
 - [ ] **7.4 The interpretation pass**
   `Interpreter` — observations into the project's vocabulary, characters named
@@ -547,11 +591,10 @@ that out before anything is built on top of it.
   **Done when:** re-running after editing the terminology file re-matches a
   batch without a single vision call.
 
-- [ ] **7.8 The tab**
-  Summary, limitations and environment as on the splitter, then: load project
-  knowledge, load a shot list, load a folder of shots, and a table that fills
-  in row by row. Progress *is* built here — a batch is 1–40 shots at model
-  speed, which is a different measurement from the splitter's 44 seconds.
+- [ ] **7.8 The tab, filled in** — *the shell was built at 7.0*
+  Wire the controls the shell laid out: describe, match, the results table, and
+  the editable shot number. Progress *is* built here — a batch is 1–40 shots at
+  model speed, which is a different measurement from the splitter's 44 seconds.
   **Done when:** a batch can be watched, reviewed and approved without
   reloading the page.
 

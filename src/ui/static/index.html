@@ -13,9 +13,7 @@
     <h1>Minicut Shot Detector</h1>
     <nav class="tabs">
         <button class="tab active" data-tab="splitter">Splitter</button>
-        <!-- The identifier is deliberately not built. It is shown disabled so
-             the two-tab shape is visible, not so it can be clicked. -->
-        <button class="tab" data-tab="identifier" disabled title="Not built yet">Identifier</button>
+        <button class="tab" data-tab="identifier">Identifier</button>
     </nav>
 </header>
 
@@ -196,6 +194,147 @@
             </table>
 
             <p id="result-sidecar" class="hint"></p>
+        </section>
+
+    </section>
+
+    <!-- ===== IDENTIFIER TAB ===== -->
+    <!-- Same shape as the splitter, in the same order, because it is the same
+         application: what it does, what it cannot do, what it needs, then the
+         workflow top to bottom. -->
+    <section id="identifier" class="tab-panel">
+
+        <section class="intro">
+            <p>
+                <strong>Names shots against your shot list</strong> — describes each shot in a
+                folder, matches it to a shot number, and renames the files once you approve.
+            </p>
+            <p class="hint">
+                Works on any folder of single-shot files, whether or not the Splitter made them.
+                Load your production knowledge and a shot list, point it at the folder, and review
+                what it proposes.
+            </p>
+        </section>
+
+        <!-- Stated before anyone feeds it a batch, not discovered in the output -->
+        <section class="limitations">
+            <h2>What this version handles</h2>
+            <ul>
+                <li><strong>A model does the describing.</strong> Unlike the Splitter, this cannot be deterministic — the same shot can be described differently twice, which is why you review every row before anything is renamed.</li>
+                <li><strong>It proposes, you decide.</strong> A shot it cannot place is left unnamed rather than guessed at, and nothing is renamed until you approve it.</li>
+                <li><strong>One folder at a time.</strong> Shots are read from a single directory, not gathered from several.</li>
+                <li><strong>Renaming appends.</strong> The original filename is kept and the shot number added to it, so a file can always be traced back to the mini cut it came from.</li>
+            </ul>
+        </section>
+
+        <!-- Its own panel, not the splitter's. The two tabs need genuinely
+             different things: this one needs models and no encoders. -->
+        <details class="card" id="identifier-environment-card">
+            <summary>
+                <span class="card-title">Environment</span>
+                <span id="identifier-environment-summary" class="summary">Checking…</span>
+                <span id="identifier-recheck-button" class="inline-button" role="button" tabindex="0">Re-check</span>
+            </summary>
+
+            <div class="card-body">
+                <ul id="identifier-environment-checks" class="checks"></ul>
+            </div>
+        </details>
+
+        <!-- Step one: what does this show look like, and what are we matching against -->
+        <section class="card">
+            <div class="card-header">
+                <h2>1 · Production knowledge</h2>
+                <span id="knowledge-summary" class="summary"></span>
+            </div>
+
+            <p class="hint">
+                Put your show's markdown in the folder below and it is read on every run — no
+                attaching it each session. Both files are optional: without them every shot is
+                still described, just in plain words with nobody named.
+            </p>
+
+            <dl id="knowledge-facts" class="facts"></dl>
+
+            <div class="action-row">
+                <span id="knowledge-status" class="status"></span>
+            </div>
+
+            <h3 class="subsection">Shot list</h3>
+            <p class="hint">
+                What the shots are matched against. A CSV or text document, or a folder of
+                thumbnails named by shot number — each is read into the same list of numbers and
+                descriptions.
+            </p>
+
+            <div class="path-row">
+                <input type="text" id="shotlist-path" placeholder="Shot list file, or a folder of named thumbnails">
+                <button class="secondary" data-picker="shotlist">Browse…</button>
+                <button id="shotlist-load" disabled title="Not built yet">Load</button>
+            </div>
+
+            <p id="shotlist-status" class="status"></p>
+        </section>
+
+        <!-- Step two: what are we identifying -->
+        <section class="card">
+            <div class="card-header">
+                <h2>2 · Shots</h2>
+                <span id="shots-count" class="summary"></span>
+            </div>
+
+            <div class="path-row">
+                <input type="text" id="shots-dir" placeholder="Folder of single-shot video files">
+                <button class="secondary" data-picker="shots">Browse…</button>
+                <button id="shots-inspect" disabled title="Not built yet">Inspect</button>
+            </div>
+
+            <p id="shots-status" class="status"></p>
+
+            <!-- Three steps, mirroring the splitter's Inspect / Analyse / Split.
+                 Separate because they cost wildly different amounts: inspecting
+                 is free, describing is the slow one that spends model calls,
+                 and matching is text-only and re-runnable for nothing. -->
+            <div class="action-row" id="identify-actions" hidden>
+                <button id="shots-describe" disabled title="Not built yet">Describe shots</button>
+                <button id="shots-match" class="secondary" disabled title="Not built yet">Match to shot list</button>
+                <span id="identify-status" class="status"></span>
+            </div>
+
+            <div id="identify-progress" class="progress" hidden><div class="progress-bar"></div></div>
+        </section>
+
+        <!-- What it found, and where the human corrects it -->
+        <section class="card" id="identify-results-card" hidden>
+            <div class="card-header">
+                <h2>3 · Review</h2>
+                <span id="identify-verdict" class="summary"></span>
+            </div>
+
+            <p class="hint">
+                Check what it proposed before anything is written. The shot number is editable —
+                a blank one means it could not tell, which is a better answer than a wrong guess.
+            </p>
+
+            <table id="identify-table" class="shots">
+                <thead>
+                    <tr>
+                        <th>Shot</th>
+                        <th>Description</th>
+                        <th>Shot number</th>
+                        <th>Confidence</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <!-- The two things a reviewed table can become -->
+            <div class="action-row">
+                <button id="identify-rename" disabled title="Not built yet">Rename shots</button>
+                <button id="identify-export" class="secondary" disabled title="Not built yet">Export DB report</button>
+                <span id="identify-action-status" class="status"></span>
+            </div>
         </section>
 
     </section>

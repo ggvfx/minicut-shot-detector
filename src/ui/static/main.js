@@ -8,6 +8,7 @@
 
 import { state } from "./state.js";
 import { loadEnvironment } from "./environment.js";
+import { openIdentifier, wireIdentifier } from "./identify.js";
 import { analyseSource, inspectSource } from "./source.js";
 import {
     beginScrub,
@@ -22,21 +23,29 @@ import {
 import { splitSource } from "./splitting.js";
 import { clearWorkFiles, refreshWorkFiles } from "./work.js";
 import { choosePath, openPicker } from "./picker.js";
+import { whenShown, wireTabs } from "./tabs.js";
 
 document.addEventListener("DOMContentLoaded", () => {
-    loadEnvironment();
+    loadEnvironment("splitter");
+
+    // The Identifier loads what it shows when it is opened, not on page load:
+    // someone who only uses the Splitter should never pay for a model
+    // availability check they will not read.
+    wireTabs();
+    wireIdentifier();
+    whenShown("identifier", openIdentifier);
 
     // Inside the <summary>, so its click must not also open or close the panel
     const recheck = document.getElementById("recheck-button");
     recheck.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        loadEnvironment(true);
+        loadEnvironment("splitter", true);
     });
     recheck.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            loadEnvironment(true);
+            loadEnvironment("splitter", true);
         }
     });
 
@@ -82,7 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // Typed by hand, so it is as deliberate as one picked from the
             // dialog, and belongs to the source currently loaded
             state.outputChosenFor = state.sourcePath;
-            loadEnvironment(true);
+            loadEnvironment("splitter", true);
             refreshWorkFiles();
         });
 

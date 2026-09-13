@@ -28,12 +28,10 @@ def test_index_is_served():
 # --- ENVIRONMENT ---
 
 
-def test_environment_reports_every_check():
+def test_the_splitter_panel_reports_what_a_split_needs():
     """
-    What a job needs, reported before the user has chosen anything.
-
     Asserted by key rather than by count: a count says nothing about which row
-    went missing, and this list has already changed twice.
+    went missing, and this list has already changed three times.
     """
     response = client.get("/api/environment")
 
@@ -48,24 +46,26 @@ def test_environment_reports_every_check():
         "encoders",
         "scenedetect",
         "disk",
-        "backend_vision",
-        "backend_text",
-    ]
+    ], "the splitter is never shown a model it does not use"
 
 
-def test_the_backend_rows_are_assembled_by_the_route():
+def test_the_identifier_panel_reports_its_models_instead():
     """
-    They come from src/backends/, which core may not import — so the route is
-    where the checker's own rows and those meet. If this passes, that wiring
-    is intact.
+    The backend rows come from src/backends/, which core may not import — so
+    the route is where the checker's own rows and those meet. They appear only
+    here, and they gate: a user in this tab with no model can do nothing.
     """
-    report = client.get("/api/environment").json()
-    backends = [check for check in report["checks"] if check["key"].startswith("backend_")]
+    report = client.get("/api/environment", params={"tab": "identifier"}).json()
+    keys = [check["key"] for check in report["checks"]]
 
-    assert len(backends) == 2
-    assert all(check["status"] in ("ok", "degraded") for check in backends), (
-        "a missing model never blocks the app — the splitter does not need one"
+    assert keys == ["python", "ffmpeg", "ffprobe", "disk", "backend_vision", "backend_text"]
+    assert not any(check["advisory"] for check in report["checks"]), (
+        "in this tab a missing model is a real block, not an aside"
     )
+
+
+def test_an_unknown_tab_is_refused():
+    assert client.get("/api/environment", params={"tab": "sideways"}).status_code == 422
 
 
 # --- BROWSE ---
@@ -298,3 +298,22 @@ def test_work_leaves_the_open_source_alone(tmp_path):
 
     assert (work_dir / "reel_01_mezzanine.mp4").is_file()
     assert not (work_dir / "reel_02_mezzanine.mp4").exists()
+
+
+# --- IDENTIFIER: PRODUCTION KNOWLEDGE ---
+
+
+def test_knowledge_reports_what_the_production_folder_holds():
+    """
+    The panel says what was found; the text itself is for the model.
+
+    Sizes rather than contents, because a character bible would make this
+    response enormous for no reason anybody can read.
+    """
+    report = client.get("/api/knowledge").json()
+
+    assert "directory" in report
+    for name in ("characters", "terminology"):
+        assert isinstance(report[name]["found"], bool)
+        assert isinstance(report[name]["characters"], int)
+        assert "text" not in report[name], "contents never cross the wire"

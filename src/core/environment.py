@@ -18,7 +18,7 @@ import platform
 import shutil
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -30,6 +30,14 @@ from src.core.ffmpeg_tools import MediaToolchain
 OK = "ok"
 DEGRADED = "degraded"
 BLOCKED = "blocked"
+
+# The two tabs. Each is told what it needs and nothing else: the splitter
+# needs encoders and PySceneDetect, the identifier needs a model, and neither
+# can act on the other's requirements.
+SPLITTER = "splitter"
+IDENTIFIER = "identifier"
+
+TABS = (SPLITTER, IDENTIFIER)
 
 # Worst wins when rolling individual checks up into one overall status.
 STATUS_SEVERITY = {OK: 0, DEGRADED: 1, BLOCKED: 2}
@@ -149,78 +157,102 @@ class EnvironmentChecker:
         """
         self.toolchain = toolchain or MediaToolchain()
 
-        self._report: Optional[EnvironmentReport] = None
-        self._reported_for: Optional[str] = None
+        # Keyed by tab and output directory together: the tabs produce
+        # different lists, and one must never be served the other's.
+        self._reports: Dict[str, EnvironmentReport] = {}
 
     # --- PUBLIC API ---
 
     def report(
         self,
+        tab: str = SPLITTER,
         output_dir: Optional[Path] = None,
         refresh: bool = False,
         extra: Optional[List[Check]] = None,
     ) -> EnvironmentReport:
         """
-        The dependency report, cached between calls.
+        The dependency report for one tab, cached between calls.
 
         Args:
+            tab: Which tab is asking. They need different things, so they are
+                told different things — see `run_all`.
             output_dir: The user's chosen output directory, so free space is
                 measured against the volume actually being used. None until
                 they pick one, which is the normal state on launch.
             refresh: Re-run the checks instead of returning the cached report.
             extra: Rows produced elsewhere, appended after this module's own.
-                See `run_all`.
 
         Notes:
+            Cached per tab as well as per directory, since the two tabs produce
+            different lists and one must not be served the other's.
+
             Extra rows are not cached against, because they are cheap to
             produce and can change without anything here noticing — a key
             appearing in the environment, a local runtime being started. They
             are re-appended to the cached report each time it is asked for.
         """
-        key = str(output_dir)
+        key = f"{tab}:{output_dir}"
 
-        if refresh or self._report is None or self._reported_for != key:
+        if refresh or key not in self._reports:
             if refresh:
                 # The user may have installed something since the last run
                 self.toolchain.discover()
-            self._report = self.run_all(output_dir)
-            self._reported_for = key
+                self._reports.clear()
+            self._reports[key] = self.run_all(tab, output_dir)
+
+        report = self._reports[key]
 
         if not extra:
-            return self._report
+            return report
 
-        checks = [*self._report.checks, *extra]
+        checks = [*report.checks, *extra]
         return EnvironmentReport(
             overall=gating_status(checks),
-            platform=self._report.platform,
+            platform=report.platform,
             checks=checks,
         )
 
     def run_all(
-        self, output_dir: Optional[Path] = None, extra: Optional[List[Check]] = None
+        self,
+        tab: str = SPLITTER,
+        output_dir: Optional[Path] = None,
+        extra: Optional[List[Check]] = None,
     ) -> EnvironmentReport:
         """
-        Runs every check and rolls them up. Ignores the cache.
+        Runs the checks one tab needs and rolls them up. Ignores the cache.
 
         Args:
+            tab: SPLITTER or IDENTIFIER. **They are told different things on
+                purpose.** The splitter needs encoders and PySceneDetect and no
+                model at all; the identifier needs a model and neither of those.
+                Showing each tab the other's requirements would put rows in
+                front of people who cannot act on them, which is the rule the
+                panel already follows.
             output_dir: The volume free space is measured against.
             extra: Rows produced by modules this one may not import. The model
                 backends are the case: they live in `src/backends/`, and core
                 importing a domain package would point the dependency arrow the
                 wrong way. The caller assembles them and passes them in.
+
+        Raises:
+            ValueError: If the tab is not one this app has.
         """
-        checks = [
-            self.check_python(),
-            self.check_ffmpeg(),
-            self.check_ffprobe(),
-            self.check_encoders(),
-            self.check_scenedetect(),
-            self.check_disk(output_dir),
-            *(extra or []),
-        ]
+        if tab not in TABS:
+            raise ValueError(f"Unknown tab {tab!r}; expected one of {TABS}")
+
+        # Both tabs read media, so both need the toolchain and somewhere to
+        # write. What differs is what they do with it.
+        checks = [self.check_python(), self.check_ffmpeg(), self.check_ffprobe()]
+
+        if tab == SPLITTER:
+            checks.append(self.check_encoders())
+            checks.append(self.check_scenedetect())
+
+        checks.append(self.check_disk(output_dir))
+        checks.extend(extra or [])
 
         overall = gating_status(checks)
-        logging.info(f"Environment check: {overall}")
+        logging.info(f"Environment check ({tab}): {overall}")
 
         return EnvironmentReport(
             overall=overall,

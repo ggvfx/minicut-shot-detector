@@ -59,6 +59,7 @@ header {
 
 .tab.active { color: var(--text); border-bottom-color: var(--ok); }
 .tab:disabled { opacity: 0.4; cursor: not-allowed; }
+.tab:hover:not(.active):not(:disabled) { color: var(--text); }
 
 /* ===== LAYOUT ===== */
 
@@ -75,6 +76,12 @@ main {
 
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
+
+/* The browser's own [hidden] is only `display: none`, which any later
+   `display: flex` or `display: grid` quietly overrides — so an element marked
+   hidden in the HTML shows anyway. Every row here is a flex or grid container,
+   so without this the attribute means nothing. */
+[hidden] { display: none !important; }
 
 .card {
     background: var(--panel);
@@ -109,6 +116,10 @@ button.secondary {
     border: 1px solid var(--border);
 }
 
+/* Also how a control that is laid out but not built yet appears: dimmed
+   rather than hidden, so the shape of the workflow is visible while it fills
+   in, and plainly not clickable — a button that looks ready and does nothing
+   is worse than one that admits it. */
 button:disabled {
     opacity: 0.4;
     cursor: not-allowed;
@@ -222,7 +233,6 @@ summary .summary { margin: 0; }
 }
 
 .limitations h2 { margin-bottom: 6px; }
-.limitations ul { margin: 0; padding-left: 18px; }
 .limitations ul { margin: 0; padding-left: 18px; color: var(--text-dim); }
 .limitations li { margin-bottom: 2px; }
 .limitations strong { color: var(--text); font-weight: 600; }
@@ -483,3 +493,15 @@ summary .summary { margin: 0; }
 .entry.file { color: var(--text-dim); }
 
 .picker-footer { display: flex; justify-content: flex-end; }
+
+/* A heading inside a card, where one section holds two related things — the
+   production knowledge folder and the shot list are both "what we match
+   against", but they are loaded differently. */
+.subsection {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin: var(--gap) 0 6px;
+    padding-top: var(--gap);
+    border-top: 1px solid var(--border);
+}

@@ -83,18 +83,32 @@ function renderEntries(listing) {
 
 /** Accepts a path from the picker and closes it. */
 export function choosePath(path) {
-    if (state.pickerMode === "source") {
-        state.sourcePath = path;
-        document.getElementById("source-path").value = path;
-    } else {
-        state.outputDir = path;
-        state.outputChosenFor = state.sourcePath;
-        document.getElementById("output-dir").value = path;
-        // Free space is checked against the chosen volume, and this is the
-        // first moment we can say whether anything is reclaimable on it
-        loadEnvironment(true);
-        refreshWorkFiles();
-    }
+    // One entry per picker button, so adding a fourth is a line here rather
+    // than another branch in a chain of ifs
+    const accept = {
+        source: () => {
+            state.sourcePath = path;
+            document.getElementById("source-path").value = path;
+        },
+        output: () => {
+            state.outputDir = path;
+            state.outputChosenFor = state.sourcePath;
+            document.getElementById("output-dir").value = path;
+            // Free space is checked against the chosen volume, and this is the
+            // first moment we can say whether anything is reclaimable on it
+            loadEnvironment("splitter", true);
+            refreshWorkFiles();
+        },
+        shots: () => {
+            state.shotsDir = path;
+            document.getElementById("shots-dir").value = path;
+        },
+        shotlist: () => {
+            state.shotListPath = path;
+            document.getElementById("shotlist-path").value = path;
+        },
+    };
 
+    accept[state.pickerMode]?.();
     document.getElementById("picker").close();
 }

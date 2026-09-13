@@ -619,11 +619,12 @@ def test_the_two_passes_are_reported_separately():
 
 def test_backend_rows_never_gate_the_app():
     """
-    A working Splitter must not read amber because the Identifier tab has no
-    model configured. This is the rule that took the output directory off the
-    panel, applied to a tab that does not exist yet.
+    Where a missing model does not stop the user doing what they came to do,
+    the row is reported without setting the headline. In the Identifier tab it
+    does gate, which is why this is the caller's choice rather than a property
+    of the row.
     """
-    checks = backend_checks(Settings())
+    checks = backend_checks(Settings(), advisory=True)
 
     assert all(check.advisory for check in checks)
     assert gating_status(checks) == OK, "advisory rows are reported, not counted"
@@ -633,7 +634,7 @@ def test_a_real_fault_still_gates_alongside_them():
     """Advisory rows must not mask a genuine problem sitting next to them."""
     broken = Check(key="ffmpeg", label="ffmpeg", status=BLOCKED, detail="Not found")
 
-    assert gating_status([broken, *backend_checks(Settings())]) == BLOCKED
+    assert gating_status([broken, *backend_checks(Settings(), advisory=True)]) == BLOCKED
 
 
 def test_settings_written_by_a_windows_editor_still_load(tmp_path):

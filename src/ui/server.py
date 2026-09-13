@@ -17,11 +17,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.backends.availability import backend_checks
-from src.core.config import STATIC_DIR, ProjectConfig, load_settings
-from src.core.environment import EnvironmentChecker
+from src.core.config import PRODUCTION_DIR, STATIC_DIR, ProjectConfig, load_settings
+from src.core.environment import IDENTIFIER, SPLITTER, TABS, EnvironmentChecker
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport
 from src.core.timecode import Timecode
+from src.identifier.knowledge import load_knowledge
 from src.media.probe import SourceProbe
 from src.media.proxy import PROXY_SUFFIX
 from src.media.workspace import clear_work, owning_source, reclaimable_work
@@ -84,11 +85,17 @@ def index():
 
 
 @app.get("/api/environment")
-def get_environment(output_dir: Optional[str] = None, refresh: bool = False):
+def get_environment(
+    tab: str = SPLITTER, output_dir: Optional[str] = None, refresh: bool = False
+):
     """
-    The dependency panel.
+    The dependency panel for one tab.
 
     Args:
+        tab: "splitter" or "identifier". Each is told what it needs and nothing
+            else — the splitter needs encoders and PySceneDetect, the
+            identifier needs a model, and neither can act on the other's
+            requirements.
         output_dir: Chosen output directory, so free space is checked against
             the volume that will actually be written to.
         refresh: True when the user presses Re-check. Otherwise the cached
@@ -98,9 +105,50 @@ def get_environment(output_dir: Optional[str] = None, refresh: bool = False):
         The backend rows are assembled here rather than inside the checker,
         because they come from `src/backends/` and core may not import a domain
         package. This route may import both, so this is where they meet.
+
+        They appear only in the identifier panel, and they gate it: a user
+        standing in that tab with no model cannot do anything, and should be
+        told so plainly. The splitter never sees them.
     """
+    if tab not in TABS:
+        raise HTTPException(status_code=422, detail=f"Unknown tab {tab!r}")
+
     target = Path(output_dir) if output_dir else None
-    return checker.report(target, refresh=refresh, extra=backend_checks(load_settings()))
+    extra = backend_checks(load_settings()) if tab == IDENTIFIER else None
+
+    return checker.report(tab, target, refresh=refresh, extra=extra)
+
+
+# --- IDENTIFIER: PRODUCTION KNOWLEDGE ---
+
+
+@app.get("/api/knowledge")
+def get_knowledge():
+    """
+    What the production folder currently holds.
+
+    Read fresh every time rather than cached: someone edits a character sheet
+    in another window and presses Re-check expecting it to be picked up, and a
+    cache would quietly serve them the old one.
+
+    Returns the size of each file rather than its contents. The panel says what
+    was found; the text itself is for the model, and a character bible would
+    make the response enormous for no reason.
+    """
+    knowledge = load_knowledge(PRODUCTION_DIR)
+
+    return {
+        "directory": str(PRODUCTION_DIR),
+        "exists": PRODUCTION_DIR.is_dir(),
+        "characters": {
+            "found": knowledge.has_characters,
+            "characters": len(knowledge.characters),
+        },
+        "terminology": {
+            "found": knowledge.has_terminology,
+            "characters": len(knowledge.terminology),
+        },
+    }
 
 
 # --- FILE BROWSING ---
@@ -292,5 +340,28 @@ def post_clear_work(request: ClearWorkRequest):
 
 # --- STATIC FILES ---
 
+
+class RevalidatedStatics(StaticFiles):
+    """
+    Static files the browser must re-check before reusing.
+
+    Without a Cache-Control header a browser caches by its own heuristic, and an
+    ES module it has already evaluated stays in the module map even across a
+    reload. The result is that someone updates the app, opens it, and gets
+    yesterday's JavaScript — which looks like the new feature simply not
+    working, with nothing on screen to say why. It cost an hour of this build
+    before it was spotted.
+
+    `no-cache` does not mean "do not store": it means "ask before reusing".
+    With the ETag the server already sends, an unchanged file costs one 304 and
+    no body, which on localhost is free.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Mounted last so it cannot shadow the API routes above.
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", RevalidatedStatics(directory=STATIC_DIR), name="static")
