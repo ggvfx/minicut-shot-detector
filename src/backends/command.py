@@ -69,6 +69,13 @@ class CommandBackend(ModelBackend):
         if not self.config.command:
             raise BackendError("No command is configured for this backend")
 
+        if images and not self._takes_images():
+            raise BackendError(
+                f"{self.config.command[0]} was given {len(images)} frames but the "
+                f"command has nowhere to put them. Add {IMAGES_PLACEHOLDER} or "
+                f"{IMAGE_PLACEHOLDER} to its arguments in the Models panel."
+            )
+
         args = self._build_args(prompt, images or [])
         on_stdin = PROMPT_PLACEHOLDER not in self.config.command
 
@@ -115,6 +122,21 @@ class CommandBackend(ModelBackend):
             backend=f"command:{Path(args[0]).name}",
             model=self.config.model,
             seconds=round(time.monotonic() - started, 2),
+        )
+
+    def _takes_images(self) -> bool:
+        """
+        Whether the configured command has anywhere to put a frame.
+
+        Checked before sending rather than after, because silently dropping the
+        images is the worst failure available here: the model answers from the
+        prompt alone, the reply looks exactly like an observation, and every
+        field in it is invented. Better to refuse and say which placeholder is
+        missing.
+        """
+        return any(
+            item == IMAGES_PLACEHOLDER or IMAGE_PLACEHOLDER in item
+            for item in self.config.command or []
         )
 
     def _build_args(self, prompt: str, images: List[Path]) -> List[str]:
