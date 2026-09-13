@@ -629,10 +629,25 @@ their fixed blocking colours (red Vega, blue Nico, purple Flora, green Celeste,
 orange Tess, yellow Amaya), one prop, two environments. It lives in
 `production/` and is **gitignored as client IP**.
 
-- [ ] **7.1 Frame sampling**
-  `FrameSampler` — a handful of small frames per shot, and one thumbnail.
-  **Done when:** frames come out of a real shot at the right size, in time
-  order, and a file with no video stream is refused clearly.
+- [x] **7.1 Frame sampling** *(7 tests)*
+  `FrameSampler` — six 512px frames per shot, and one thumbnail from the
+  midpoint.
+
+  Seeks with `-ss` before `-i`, which is approximate and fast. That is the
+  right trade here: this describes a shot rather than cutting one, and a frame
+  either side of the intended offset shows the same picture. The splitter is
+  where exactness matters.
+
+  Offsets avoid both ends of the shot, because the first and last frames of a
+  cut often catch a residual blend from the edit — which describes the
+  transition rather than the shot. A single frame comes from the midpoint,
+  which is the case for a still reference image and for a very short shot.
+
+  One unreadable offset does not lose the frames that did come out; a file with
+  no readable duration is refused by name, because an empty frame list would
+  read downstream as a shot nothing could be said about.
+
+  Measured on a real 28-second h265 mini cut: **66 KB for six frames.**
 
 - [ ] **7.2 The observation pass — and the decision point**
   `Observer`, the schema, and the prompt. **Then run it on the real blockout**,

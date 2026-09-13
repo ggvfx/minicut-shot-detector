@@ -12,14 +12,14 @@ Small on purpose. Nothing about judging framing needs 1920 pixels, and a few
 hundred keeps API calls cheap, local inference quick, and fits CLI tools that
 only accept preview-sized images. The splitter already proved this machinery on
 the 640px review proxy.
-
-SKELETON. Signatures and docstrings only.
 """
 
+import logging
 from pathlib import Path
 from typing import List
 
 from src.core.ffmpeg_tools import MediaToolchain
+from src.core.utils import ensure_directory
 
 # --- SAMPLING ---
 
@@ -63,26 +63,125 @@ class FrameSampler:
             motion information the model gets, so it must never be shuffled.
 
         Raises:
-            RuntimeError: If the file cannot be read or no frame could be
-                extracted.
+            RuntimeError: If the file cannot be read, or no frame could be
+                extracted from it.
         """
-        # PSEUDOCODE
-        # 1. Probe for duration; refuse a file with no video stream.
-        # 2. Spread `count` offsets across the middle of the shot, trimmed at
-        #    both ends by EDGE_TRIM_FRACTION.
-        # 3. Write one scaled JPEG per offset, numbered in time order.
-        # 4. Return the paths, raising if none were produced.
-        raise NotImplementedError
+        duration = self.duration_seconds(source_path)
+        ensure_directory(output_dir)
+
+        stem = source_path.stem
+        written: List[Path] = []
+
+        for index, offset in enumerate(self._offsets(duration, count)):
+            target = output_dir / f"{stem}_f{index:02d}.jpg"
+
+            if self._write_frame(source_path, offset, target):
+                written.append(target)
+
+        if not written:
+            raise RuntimeError(f"No frames could be read from {source_path}")
+
+        logging.info(f"Sampled {len(written)} frames from {source_path.name}")
+        return written
 
     def thumbnail(self, source_path: Path, output_path: Path) -> Path:
         """
         One representative frame, for the breakdown export.
 
-        Taken from the middle of the shot. A first frame is often a part-made
-        camera move or a character entering, and reads as a worse summary of a
-        shot than anything from its middle.
+        Taken from the middle of the shot. A first frame is often a
+        part-completed camera move or a character entering, and reads as a
+        worse summary of a shot than anything from its middle.
+
+        Raises:
+            RuntimeError: If no frame could be written.
         """
-        # PSEUDOCODE
-        # 1. Seek to the midpoint and write one scaled image.
-        # 2. Return the path.
-        raise NotImplementedError
+        ensure_directory(output_path.parent)
+        midpoint = self.duration_seconds(source_path) / 2
+
+        if not self._write_frame(source_path, midpoint, output_path):
+            raise RuntimeError(f"No thumbnail could be read from {source_path}")
+
+        return output_path
+
+    # --- TIMING ---
+
+    def duration_seconds(self, source_path: Path) -> float:
+        """
+        How long the shot runs.
+
+        Raises:
+            RuntimeError: If the file has no readable duration — a still image,
+                an audio-only file, or something that is not media at all.
+                Saying so here names the file, rather than producing an empty
+                frame list that reads downstream as an undescribable shot.
+        """
+        result = self.toolchain.run_ffprobe([
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(source_path),
+        ])
+
+        try:
+            duration = float((result.stdout or "").strip())
+        except ValueError:
+            raise RuntimeError(f"Could not read a duration from {source_path}") from None
+
+        if duration <= 0:
+            raise RuntimeError(f"{source_path} has no duration")
+
+        return duration
+
+    @staticmethod
+    def _offsets(duration: float, count: int) -> List[float]:
+        """
+        Where in the shot to take each frame.
+
+        Notes:
+            Spread across the middle of the shot, trimmed at both ends: the
+            first and last frames of a cut often catch a part-completed motion
+            or a residual blend from the edit, which describes the transition
+            rather than the shot.
+
+            One frame is taken from the midpoint rather than the start, which
+            is the case for a still reference image and for a very short shot.
+        """
+        if count <= 1:
+            return [duration / 2]
+
+        trim = duration * EDGE_TRIM_FRACTION
+        first, last = trim, duration - trim
+        step = (last - first) / (count - 1)
+
+        return [first + step * index for index in range(count)]
+
+    # --- WRITING ---
+
+    def _write_frame(self, source_path: Path, offset: float, target: Path) -> bool:
+        """
+        Writes one scaled frame, and says whether it arrived.
+
+        Notes:
+            `-ss` before `-i` seeks by keyframe, which is approximate and
+            fast. That is the right trade here: this describes a shot rather
+            than cutting one, and a frame either side of the intended offset
+            shows the same picture. The splitter is where exactness matters.
+
+            A failure returns False rather than raising, so one unreadable
+            offset near the end of a file does not lose the frames that did
+            come out.
+        """
+        result = self.toolchain.run_ffmpeg([
+            "-ss", f"{offset:.3f}",
+            "-i", str(source_path),
+            "-frames:v", "1",
+            "-vf", f"scale={SAMPLE_WIDTH}:-2",
+            "-q:v", "4",
+            "-y", str(target),
+        ])
+
+        if result.returncode != 0 or not target.is_file():
+            logging.debug(f"No frame at {offset:.3f}s in {source_path.name}")
+            return False
+
+        return True
