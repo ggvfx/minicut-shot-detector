@@ -24,7 +24,7 @@ from typing import List
 
 from src.backends.adapter import BackendError, create_backend
 from src.core.config import BACKEND_API, BACKEND_LOCAL, Settings
-from src.core.environment import DEGRADED, OK, Check
+from src.core.environment import DEGRADED, OK, Check, FixStep
 
 # --- LABELS ---
 
@@ -39,7 +39,7 @@ PASS_LABELS = {
 # What to do about an unconfigured pass. Points at the file rather than naming
 # a command, because there is no one command — it depends entirely on which of
 # the three kinds of backend the user has available.
-CONFIGURE_FIX = "Set it in settings.json — copy settings.example.json to start"
+CONFIGURE_FIX = FixStep(label="Choose one in the Models panel below, then press Test")
 
 
 def backend_checks(settings: Settings, advisory: bool = False) -> List[Check]:
@@ -95,7 +95,7 @@ def _check_pass(name: str, settings: Settings) -> Check:
             label=label,
             status=DEGRADED,
             detail="Not configured — needed for the Identifier tab, not the Splitter",
-            fix=CONFIGURE_FIX,
+            fixes=[CONFIGURE_FIX],
         )
 
     try:
@@ -103,7 +103,7 @@ def _check_pass(name: str, settings: Settings) -> Check:
     except BackendError as error:
         return Check(
             key=f"backend_{name}", label=label, status=DEGRADED,
-            detail=str(error), fix=CONFIGURE_FIX,
+            detail=str(error), fixes=[CONFIGURE_FIX],
         )
 
     if backend.available():
@@ -119,7 +119,7 @@ def _check_pass(name: str, settings: Settings) -> Check:
         label=label,
         status=DEGRADED,
         detail=f"{backend.describe()} — configured, but not answering",
-        fix=_unavailable_fix(config),
+        fixes=_unavailable_fix(config),
     )
 
 
@@ -146,7 +146,7 @@ def _is_configured(config) -> bool:
     return bool(config.command)
 
 
-def _unavailable_fix(config) -> str:
+def _unavailable_fix(config) -> list:
     """
     What to do about a backend that is configured but not answering.
 
@@ -155,9 +155,17 @@ def _unavailable_fix(config) -> str:
     usually not on PATH; an API is usually missing its key.
     """
     if config.kind == BACKEND_LOCAL:
-        return f"Start the local runtime, or pull the model: ollama pull {config.model or '<model>'}"
+        return [
+            FixStep(label="Start the local runtime", command="ollama serve"),
+            FixStep(
+                label="Or install the model",
+                command=f"ollama pull {config.model or '<model>'}",
+            ),
+        ]
 
     if config.api_key_env:
-        return f"Set the {config.api_key_env} environment variable to your API key"
+        return [
+            FixStep(label=f"Set {config.api_key_env} to your API key in the environment")
+        ]
 
-    return CONFIGURE_FIX
+    return [FixStep(label="Check the command in the Models panel below, then press Test")]

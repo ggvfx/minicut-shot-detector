@@ -1,39 +1,44 @@
 """
 Project Knowledge.
 
-The markdown files a production supplies, and the reason the vocabulary in this
-tab belongs to the project rather than to whichever model answered.
+What the interpretation pass reads, and the reason the vocabulary in this tab
+belongs to the project rather than to whichever model answered.
 
-Two files to begin with, both plain markdown so they can live in a show's repo,
-be reviewed, and be edited by someone who does not write code:
+Two kinds of knowledge, deliberately kept apart because they change at
+completely different rates:
 
-**terminology.md** — how this facility names things. "Top of head to shoulders"
-is a CS here and a BCU somewhere else, and both are correct. Holding it in a
-file the user owns is what makes the same observation produce the same term on
-every shot of a batch.
+**The production's own** — `characters.md` in the production folder beside the
+app. Who is in the show, and *how each one appears in different
+representations*: what they look like in a final render, and that in a CG
+blockout they are a particular mannequin. That cross-representation note is
+what lets a red mannequin on rollerskates be recognised as the same character
+as a woman with blue hair. This changes every job, so it is the user's file, in
+a folder they own, read on every run.
 
-**characters.md** — who is in the show, in detail, and *how each one appears in
-different representations*: what they look like in a final render, and that in
-a CG blockout they are a particular mannequin. That cross-representation note
-is what lets a red mannequin on rollerskates be recognised as the same
-character as a woman with blue hair.
+**Film terminology** — `templates.FILM_TERMINOLOGY`, shipped with the app. What
+CS and OTS and "dolly in" mean. This changes almost never, so it is deliberately
+not sitting next to the character sheet: exposing it there invites editing the
+one thing that does not need editing, and a terminology file quietly broken is
+a whole batch described in words that match no shot list.
 
-Props and environments are expected to follow the same pattern later, and are
+Props and environments will follow the production pattern later, and are
 deliberately not built now.
 
-The files live in a directory beside the app rather than being uploaded each
-session: a show's character sheet is written once and then read on every run,
-and making someone attach it every time would guarantee it gets skipped.
+The character sheet lives in a directory rather than being uploaded each
+session: it is written once and then read on every run, and making someone
+attach it every time would guarantee it gets skipped.
 """
 
 import logging
 from pathlib import Path
 
 from src.core.models import ProjectKnowledge
+from src.identifier.templates import FILM_TERMINOLOGY
 
 # --- FILE NAMES ---
 
-TERMINOLOGY_FILE = "terminology.md"
+# Only the production's own files are named here. Terminology ships with the
+# app and has no path.
 CHARACTERS_FILE = "characters.md"
 
 
@@ -41,15 +46,18 @@ def load_knowledge(directory: Path) -> ProjectKnowledge:
     """
     Reads whichever knowledge files are present in a directory.
 
+    Terminology always comes back, because it ships with the app. Only the
+    production's own files are looked for on disk.
+
     Args:
-        directory: A project folder holding the markdown files.
+        directory: The production folder holding the character sheet.
 
     Returns:
-        ProjectKnowledge: with whatever was found. Both files are optional —
-        without them the tab still describes every shot, it just describes them
-        in plain words and does not name anyone. That is a reduced result
-        rather than a failure, and is how the breakdown export is expected to
-        be used on a show that has no character sheet yet.
+        ProjectKnowledge: terminology always, and the character sheet if it is
+        there. A missing character sheet is not a failure — the tab still
+        describes every shot, it just describes them without naming anyone,
+        which is how the breakdown export is meant to be used on a show that
+        has no character list yet.
 
     Raises:
         NotADirectoryError: If the path exists but is not a directory. A path
@@ -62,14 +70,14 @@ def load_knowledge(directory: Path) -> ProjectKnowledge:
         Empty knowledge comes back and the tab says so.
     """
     if not directory.exists():
-        return ProjectKnowledge(directory=str(directory))
+        return ProjectKnowledge(directory=str(directory), terminology=FILM_TERMINOLOGY)
 
     if not directory.is_dir():
         raise NotADirectoryError(f"Not a directory: {directory}")
 
     return ProjectKnowledge(
         directory=str(directory),
-        terminology=_read(directory, TERMINOLOGY_FILE),
+        terminology=FILM_TERMINOLOGY,
         characters=_read(directory, CHARACTERS_FILE),
     )
 

@@ -557,7 +557,7 @@ def test_nothing_configured_is_degraded_not_blocked():
     assert [check.key for check in checks] == ["backend_vision", "backend_text"]
     assert all(check.status == DEGRADED for check in checks)
     assert all("Splitter" in check.detail for check in checks), "says what still works"
-    assert all(check.fix for check in checks), "and how to fix it"
+    assert all(check.fixes for check in checks), "and how to fix it"
 
 
 def test_a_configured_command_reads_green():
@@ -584,7 +584,7 @@ def test_an_absent_local_runtime_is_degraded_with_its_own_advice():
     vision = backend_checks(settings)[0]
 
     assert vision.status == DEGRADED
-    assert "ollama pull absent-vlm" in vision.fix
+    assert any("ollama pull absent-vlm" in (f.command or "") for f in vision.fixes)
 
 
 def test_a_keyless_api_backend_says_which_variable_to_set(monkeypatch):
@@ -598,7 +598,7 @@ def test_a_keyless_api_backend_says_which_variable_to_set(monkeypatch):
     text = backend_checks(settings)[1]
 
     assert text.status == DEGRADED
-    assert "TEST_MODEL_KEY" in text.fix
+    assert any("TEST_MODEL_KEY" in f.label for f in text.fixes)
 
 
 def test_the_two_passes_are_reported_separately():
@@ -665,4 +665,27 @@ def test_each_backend_kind_is_configured_by_its_own_field():
     )[0]
 
     assert "Not configured" not in local.detail
-    assert "ollama pull some-vlm" in local.fix, "it is configured, just not answering"
+    assert any("ollama pull some-vlm" in (f.command or "") for f in local.fixes), (
+        "it is configured, just not answering"
+    )
+
+
+def test_a_fix_always_offers_a_way_that_needs_no_package_manager():
+    """
+    One command assumes a tool the user may not have.
+
+    `brew install ffmpeg` on a Mac without Homebrew fails with "command not
+    found", which reads as the app being broken rather than as a missing
+    prerequisite. Every platform's guide therefore ends with a download.
+    """
+    from src.core.environment import FFMPEG_INSTALL, ffmpeg_fixes
+
+    for platform_name, options in FFMPEG_INSTALL.items():
+        assert any(url for _, _, url in options), (
+            f"{platform_name} offers no option that works without a package manager"
+        )
+
+    fixes = ffmpeg_fixes()
+    assert fixes, "this platform must offer something"
+    assert all(fix.label for fix in fixes), "every option says what it is"
+    assert all(fix.command or fix.url for fix in fixes), "and gives something to act on"

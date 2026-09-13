@@ -241,6 +241,47 @@
             </div>
         </details>
 
+        <!-- Not numbered: this is set once, not a step of every job. Sits
+             directly under the panel that reports a missing model, because
+             that is the moment anyone comes looking for it. -->
+        <details class="card" id="models-card">
+            <summary>
+                <span class="card-title">Models</span>
+                <span id="models-summary" class="summary"></span>
+            </summary>
+
+            <div class="card-body">
+                <p class="hint">
+                    Which tool describes the pictures and which reads the text. They are set
+                    separately because they are often different — and whichever you pick,
+                    press <strong>Test</strong> before relying on it.
+                </p>
+
+                <div class="model-row">
+                    <label for="vision-preset">Vision model</label>
+                    <select id="vision-preset"></select>
+                    <input type="text" id="vision-command" class="model-command" placeholder="e.g. claude -p" hidden>
+                    <button id="vision-test" class="secondary">Test</button>
+                    <span id="vision-test-result" class="status"></span>
+                </div>
+                <p id="vision-note" class="hint model-note"></p>
+
+                <div class="model-row">
+                    <label for="text-preset">Text model</label>
+                    <select id="text-preset"></select>
+                    <input type="text" id="text-command" class="model-command" placeholder="e.g. claude -p" hidden>
+                    <button id="text-test" class="secondary">Test</button>
+                    <span id="text-test-result" class="status"></span>
+                </div>
+                <p id="text-note" class="hint model-note"></p>
+
+                <div class="action-row">
+                    <button id="models-save">Save models</button>
+                    <span id="models-save-status" class="status"></span>
+                </div>
+            </div>
+        </details>
+
         <!-- Step one: what does this show look like, and what are we matching against -->
         <section class="card">
             <div class="card-header">
@@ -260,7 +301,7 @@
                 <span id="knowledge-status" class="status"></span>
             </div>
 
-            <h3 class="subsection">Shot list</h3>
+            <h3 class="subsection">Shot list to match</h3>
             <p class="hint">
                 What the shots are matched against. A CSV or text document, or a folder of
                 thumbnails named by shot number — each is read into the same list of numbers and

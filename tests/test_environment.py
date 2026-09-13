@@ -56,7 +56,7 @@ def test_python_check_passes_on_a_supported_version():
     check = EnvironmentChecker(MediaToolchain(discover=False)).check_python()
 
     assert check.status == OK
-    assert check.fix is None, "a passing check should not offer a fix command"
+    assert not check.fixes, "a passing check should not offer a fix"
 
 
 def test_missing_ffmpeg_is_blocked_and_offers_a_fix():
@@ -65,11 +65,11 @@ def test_missing_ffmpeg_is_blocked_and_offers_a_fix():
 
     ffmpeg = checker.check_ffmpeg()
     assert ffmpeg.status == BLOCKED
-    assert ffmpeg.fix, "a missing dependency must tell the user how to install it"
+    assert ffmpeg.fixes, "a missing dependency must tell the user how to install it"
 
     encoders = checker.check_encoders()
     assert encoders.status == BLOCKED
-    assert encoders.fix
+    assert encoders.fixes
 
 
 def test_output_dir_unchosen_is_degraded_not_blocked(tmp_path):
@@ -91,7 +91,7 @@ def test_output_dir_missing_is_blocked(tmp_path):
     )
 
     assert check.status == BLOCKED
-    assert "mkdir" in check.fix
+    assert any("mkdir" in (f.command or "") for f in check.fixes)
 
 
 def test_disk_check_reports_free_space(tmp_path):

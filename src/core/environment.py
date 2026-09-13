@@ -44,14 +44,48 @@ STATUS_SEVERITY = {OK: 0, DEGRADED: 1, BLOCKED: 2}
 
 # --- FIX COMMANDS BY PLATFORM ---
 
+# Each platform gets alternatives rather than one command, because a single
+# line assumes a package manager the user may not have — `brew install ffmpeg`
+# on a Mac without Homebrew fails with "command not found", which reads as the
+# app being wrong rather than as a missing prerequisite. Every platform
+# therefore ends with a download that needs no package manager at all.
 FFMPEG_INSTALL = {
-    "Windows": "winget install Gyan.FFmpeg",
-    "Darwin": "brew install ffmpeg",
-    "Linux": "sudo apt install ffmpeg",
+    "Windows": [
+        ("With winget (Windows 10 and 11)", "winget install Gyan.FFmpeg", None),
+        ("Or download a build", None, "https://www.gyan.dev/ffmpeg/builds/"),
+    ],
+    "Darwin": [
+        ("With Homebrew", "brew install ffmpeg", None),
+        (
+            "No Homebrew? Install it first",
+            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+            None,
+        ),
+        ("Or download a build", None, "https://evermeet.cx/ffmpeg/"),
+    ],
+    "Linux": [
+        ("Debian and Ubuntu", "sudo apt install ffmpeg", None),
+        ("Fedora", "sudo dnf install ffmpeg", None),
+        ("Or download a build", None, "https://johnvansickle.com/ffmpeg/"),
+    ],
 }
 
 
 # --- RESULT MODELS ---
+
+
+class FixStep(BaseModel):
+    """
+    One way to resolve a failing check.
+
+    A list of these rather than a single command, because one command assumes
+    a package manager the user may not have. Every dependency here ends with an
+    option that needs nothing installed first.
+    """
+
+    label: str                        # "With Homebrew", "Or download a build"
+    command: Optional[str] = None     # To paste into a terminal
+    url: Optional[str] = None         # To open in a browser
 
 
 class Check(BaseModel):
@@ -61,7 +95,9 @@ class Check(BaseModel):
     label: str                    # What the user reads
     status: str                   # ok | degraded | blocked
     detail: str                   # What was found
-    fix: Optional[str] = None     # Copyable command that resolves it
+
+    # How to resolve it. Empty on a passing check.
+    fixes: List[FixStep] = []
 
     # Reported, but not counted in the overall status. For a row about
     # something the user may never use: the panel's headline answers "can I do
@@ -96,9 +132,21 @@ def gating_status(checks: List[Check]) -> str:
     return worst_status([check.status for check in checks if not check.advisory])
 
 
-def ffmpeg_fix() -> str:
-    """The right ffmpeg install command for the machine we are running on."""
-    return FFMPEG_INSTALL.get(platform.system(), "Install ffmpeg and put it on PATH")
+def ffmpeg_fixes() -> List[FixStep]:
+    """
+    Ways to install ffmpeg on the machine we are running on.
+
+    Only this platform's options are offered: showing a Windows user the
+    Homebrew line would be noise, and the app already knows which it is on.
+    """
+    options = FFMPEG_INSTALL.get(
+        platform.system(),
+        [("Install ffmpeg and put it on PATH", None, "https://ffmpeg.org/download.html")],
+    )
+
+    return [
+        FixStep(label=label, command=command, url=url) for label, command, url in options
+    ]
 
 
 # --- PLATFORM NAMING ---
@@ -273,7 +321,8 @@ class EnvironmentChecker:
                 label="Python",
                 status=BLOCKED,
                 detail=f"Python {current}; {required} or newer is required",
-                fix="Install Python 3.11+, then recreate the virtual environment",
+                fixes=[FixStep(label="Install Python 3.11 or newer, then recreate the virtual environment",
+                               url="https://www.python.org/downloads/")],
             )
 
         return Check(key="python", label="Python", status=OK, detail=current)
@@ -286,7 +335,7 @@ class EnvironmentChecker:
                 label="ffmpeg",
                 status=BLOCKED,
                 detail="Not found on PATH",
-                fix=ffmpeg_fix(),
+                fixes=ffmpeg_fixes(),
             )
 
         return Check(key="ffmpeg", label="ffmpeg", status=OK, detail=self.toolchain.ffmpeg.version)
@@ -299,7 +348,7 @@ class EnvironmentChecker:
                 label="ffprobe",
                 status=BLOCKED,
                 detail="Not found on PATH",
-                fix=ffmpeg_fix(),
+                fixes=ffmpeg_fixes(),
             )
 
         return Check(key="ffprobe", label="ffprobe", status=OK, detail=self.toolchain.ffprobe.version)
@@ -321,7 +370,7 @@ class EnvironmentChecker:
                 label="Mezzanine encoders",
                 status=BLOCKED,
                 detail="Cannot check without ffmpeg",
-                fix=ffmpeg_fix(),
+                fixes=ffmpeg_fixes(),
             )
 
         wanted = sorted(set(config.MEZZANINE_ENCODERS.values()))
@@ -334,7 +383,7 @@ class EnvironmentChecker:
                 label="Mezzanine encoders",
                 status=BLOCKED,
                 detail=f"This ffmpeg build has no {config.REQUIRED_ENCODER}",
-                fix="Install a full ffmpeg build: " + ffmpeg_fix(),
+                fixes=ffmpeg_fixes(),
             )
 
         if missing:
@@ -349,7 +398,7 @@ class EnvironmentChecker:
                     f"{', '.join(present)} — no {', '.join(missing)}, "
                     f"so {unsupported} sources cannot be cut"
                 ),
-                fix="Install a full ffmpeg build: " + ffmpeg_fix(),
+                fixes=ffmpeg_fixes(),
             )
 
         return Check(key="encoders", label="Mezzanine encoders", status=OK, detail=", ".join(present))
@@ -369,7 +418,12 @@ class EnvironmentChecker:
                 label="PySceneDetect",
                 status=BLOCKED,
                 detail="Not installed",
-                fix="pip install -r requirements.txt",
+                fixes=[
+                    FixStep(
+                        label="Install the pinned dependencies",
+                        command="pip install -r requirements.txt",
+                    )
+                ],
             )
 
         try:
@@ -411,7 +465,7 @@ class EnvironmentChecker:
                 label="Output directory",
                 status=BLOCKED,
                 detail=f"{output_dir} does not exist",
-                fix=f'mkdir "{output_dir}"',
+                fixes=[FixStep(label="Create it", command=f'mkdir "{output_dir}"')],
             )
 
         if not os.access(output_dir, os.W_OK):
@@ -420,7 +474,7 @@ class EnvironmentChecker:
                 label="Output directory",
                 status=BLOCKED,
                 detail=f"{output_dir} is not writable",
-                fix="Choose a directory you own, or correct its permissions",
+                fixes=[FixStep(label="Choose a directory you own, or correct its permissions")],
             )
 
         return Check(key="output_dir", label="Output directory", status=OK, detail=str(output_dir))
@@ -445,7 +499,7 @@ class EnvironmentChecker:
                 label="Free disk space",
                 status=DEGRADED,
                 detail=f"{detail}, below the {config.MIN_FREE_GB:.0f} GB comfort threshold",
-                fix="Free some space, or pick an output directory on a larger volume",
+                fixes=[FixStep(label="Free some space, or pick an output directory on a larger volume")],
             )
 
         return Check(key="disk", label="Free disk space", status=OK, detail=detail)

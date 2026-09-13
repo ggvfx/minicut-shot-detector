@@ -16,8 +16,20 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from src.backends.adapter import BackendError, create_backend
 from src.backends.availability import backend_checks
-from src.core.config import PRODUCTION_DIR, STATIC_DIR, ProjectConfig, load_settings
+from src.core.config import (
+    BACKEND_COMMAND,
+    CLI_PRESETS,
+    PRODUCTION_DIR,
+    SETTINGS_FILE,
+    STATIC_DIR,
+    BackendConfig,
+    ProjectConfig,
+    Settings,
+    load_settings,
+    save_settings,
+)
 from src.core.environment import IDENTIFIER, SPLITTER, TABS, EnvironmentChecker
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport
@@ -117,6 +129,127 @@ def get_environment(
     extra = backend_checks(load_settings()) if tab == IDENTIFIER else None
 
     return checker.report(tab, target, refresh=refresh, extra=extra)
+
+
+# --- IDENTIFIER: MODEL BACKENDS ---
+
+
+class BackendChoice(BaseModel):
+    """One pass's backend, as the settings panel sends it."""
+
+    preset: str = "claude"                 # A key from CLI_PRESETS
+    command: Optional[List[str]] = None    # Only used when preset is "custom"
+
+
+class SettingsRequest(BaseModel):
+    """Both passes, saved together — they are always shown together."""
+
+    vision: BackendChoice
+    text: BackendChoice
+
+
+@app.get("/api/settings")
+def get_settings():
+    """
+    The configured backends, and the presets available to choose from.
+
+    Sends the presets alongside so the panel is built from one source rather
+    than from a list in the front end that would drift from this one.
+    """
+    settings = load_settings()
+
+    return {
+        "presets": [
+            {"key": key, "label": preset["label"], "note": preset["note"]}
+            for key, preset in CLI_PRESETS.items()
+        ],
+        "vision": _describe_choice(settings.vision),
+        "text": _describe_choice(settings.text),
+    }
+
+
+def _describe_choice(config: BackendConfig) -> dict:
+    """
+    Which preset a saved config corresponds to, for the dropdown.
+
+    Matching on the command rather than storing the preset name: the command is
+    the thing that actually runs, and a stored name could disagree with it
+    after someone edits settings.json by hand.
+    """
+    command = config.command or []
+
+    for key, preset in CLI_PRESETS.items():
+        if key != "custom" and preset["command"] == command:
+            return {"preset": key, "command": command}
+
+    return {"preset": "custom", "command": command}
+
+
+@app.post("/api/settings")
+def post_settings(request: SettingsRequest):
+    """
+    Saves both backends.
+
+    Notes:
+        Written whether or not the command works. Someone setting up a tool
+        they have not installed yet should be able to save it and come back —
+        the panel already reports what is reachable, so refusing to save would
+        just mean losing their typing.
+    """
+    settings = Settings(
+        vision=_build_config(request.vision),
+        text=_build_config(request.text),
+    )
+    save_settings(settings)
+
+    return {"saved": True, "path": str(SETTINGS_FILE)}
+
+
+def _build_config(choice: BackendChoice) -> BackendConfig:
+    """
+    Turns a dropdown choice into a backend config.
+
+    Raises:
+        HTTPException: If the preset is not one this app offers.
+    """
+    if choice.preset not in CLI_PRESETS:
+        raise HTTPException(status_code=422, detail=f"Unknown preset {choice.preset!r}")
+
+    command = (
+        choice.command if choice.preset == "custom" else CLI_PRESETS[choice.preset]["command"]
+    )
+
+    return BackendConfig(kind=BACKEND_COMMAND, command=[part for part in (command or []) if part])
+
+
+@app.post("/api/backends/test")
+def post_backend_test(choice: BackendChoice):
+    """
+    Runs a backend once and reports what came back.
+
+    This is what makes the panel usable by someone who does not work in a
+    terminal. A dropdown and a Save button can only promise; pressing Test
+    either shows the model's own words or says exactly what went wrong, which
+    is the difference between setting this up and giving up on it.
+
+    Notes:
+        Deliberately a tiny prompt. It proves the tool runs, is authenticated
+        and answers — which is everything the panel needs to know — without
+        spending anything worth counting.
+    """
+    backend = create_backend(_build_config(choice))
+
+    try:
+        reply = backend.send("Reply with the single word: ready")
+    except BackendError as error:
+        return {"ok": False, "detail": str(error)}
+
+    return {
+        "ok": True,
+        "detail": reply.text.strip()[:200],
+        "seconds": reply.seconds,
+        "backend": reply.backend,
+    }
 
 
 # --- IDENTIFIER: PRODUCTION KNOWLEDGE ---

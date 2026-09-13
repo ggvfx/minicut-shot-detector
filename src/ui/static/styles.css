@@ -161,15 +161,64 @@ input[type="text"] {
 
 .check-detail { color: var(--text-dim); }
 
+/* The "paste this" row under a failing check. Laid out as an instruction
+   rather than as text, because someone who does not live in a terminal needs
+   to be shown that this is a thing to do and that they need not retype it. */
 .check-fix {
     grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.fix-hint { color: var(--text-dim); font-size: 12px; }
+
+.fix-command {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 4px 8px;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
     font-size: 12px;
     cursor: pointer;
+    user-select: all;
 }
+
+.fix-copy { padding: 3px 10px; font-size: 12px; }
+
+/* For the option that needs no package manager at all */
+.fix-link { color: var(--ok); font-size: 12px; }
+
+/* ===== MODEL SETTINGS ===== */
+
+.model-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.model-row label { color: var(--text-dim); min-width: 96px; }
+
+select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.model-command { flex: 1; min-width: 180px; }
+
+/* Aligned under the control it explains, not under the label */
+.model-note { margin: 0 0 12px 104px; }
+
+.status.ok { color: var(--ok); }
+.status.blocked { color: var(--blocked); }
 
 /* ===== INTRO ===== */
 

@@ -154,6 +154,30 @@ BACKEND_TIMEOUT_SECONDS = 180
 # Where local model runtimes conventionally listen.
 LOCAL_ENDPOINT = "http://127.0.0.1:11434"
 
+# --- CLI PRESETS ---
+
+# Ready-made commands for the tools people already have, so setting a backend
+# up is picking from a list rather than knowing an executable's flags. The
+# whole point of the command backend is that it works with whatever a studio
+# has standardised on, and that only helps if choosing it is easy.
+#
+# Each entry is what to run. The prompt goes in on stdin unless the arguments
+# ask for it by name, so most tools need only their non-interactive flag.
+#
+# Add one by adding a line. Nothing else has to change.
+CLI_PRESETS = {
+    "claude": {
+        "label": "Claude Code",
+        "command": ["claude", "-p"],
+        "note": "Uses your existing Claude Code login. No API key needed.",
+    },
+    "custom": {
+        "label": "Custom command…",
+        "command": [],
+        "note": "Any tool that takes a prompt on stdin and prints the reply.",
+    },
+}
+
 
 class BackendConfig(BaseModel):
     """
