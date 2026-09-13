@@ -602,102 +602,115 @@ that out before anything is built on top of it.
   Also removed three dead things nothing reached: `.checkbox` and `.subsection`
   in the stylesheet, and `state.records`.
 
+### Reordered: breakdown before matching
+
+**The export is built first, and against the CG blockout.** Agreed after
+realising the two functions are not peers — one feeds the other.
+
+A production breaks a sequence down from the Unreal blockout, numbers it, and
+exports CSV plus thumbnails to populate the database. *Then*, during
+production, mini cuts are matched against that data. So the breakdown creates
+the very shot list the matcher later reads.
+
+Two things follow, and both are why this order is right rather than merely
+convenient:
+
+- **We stop waiting on a shot list.** Building matching first meant testing it
+  against a ShotGrid export nobody could produce. Building export first means
+  the matcher is later tested against a list this tool generated, in exactly
+  the shape it produces.
+- **The hard vision problem comes first.** A CG blockout is flat untextured
+  mannequins with no faces and no costume — much harder to describe than an AI
+  generation. If observation survives that, the photoreal material is the
+  easier case, not the other way round.
+
+The production knowledge is written and covers both passes: six characters with
+their fixed blocking colours (red Vega, blue Nico, purple Flora, green Celeste,
+orange Tess, yellow Amaya), one prop, two environments. It lives in
+`production/` and is **gitignored as client IP**.
+
 - [ ] **7.1 Frame sampling**
   `FrameSampler` — a handful of small frames per shot, and one thumbnail.
-  Nothing about judging framing needs 1920 pixels, and small frames keep API
-  calls cheap and fit CLI tools that only take previews.
   **Done when:** frames come out of a real shot at the right size, in time
   order, and a file with no video stream is refused clearly.
 
 - [ ] **7.2 The observation pass — and the decision point**
-  `Observer`, the schema, and the prompt. **Then run it on real material**: a
-  few photoreal shots and a CG blockout one, through a CLI backend, twice each.
+  `Observer`, the schema, and the prompt. **Then run it on the real blockout**,
+  through a CLI backend, twice per shot.
 
   **This decides the rest of the phase**, the way 4.3 did:
-  - Are the observations *usable* — does it see "top of head to shoulders, two
-    people, one partly blocking frame left"?
-  - Are they *consistent* between two runs of the same shot? Confidence has to
+  - Does it report the mannequin colour reliably? That is the whole
+    identification in a blockout, so nothing else matters if this fails.
+  - Does it separate a static mannequin from an empty set, and count figures?
+  - Is it *consistent* between two runs of the same shot? Confidence has to
     survive that wobble.
-  - Does the plain-observation schema beat simply asking for film terms? If it
-    does not, the terminology file is unnecessary and the design gets simpler.
+  - Does the plain-observation schema beat simply asking for film terms?
 
   *This one needs you — judging whether a description is useful is not
   something the tests can do.*
 
-- [x] **7.0.2 One production file, counted** *(12 tests)*
-  Production knowledge moved back beside Models on the Identifier tab: both are
-  about what the analysis knows before it starts, and both are per-job in a way
-  that installing ffmpeg is not.
-
-  One `production.md` under `# Characters`, `# Props` and `# Environments`,
-  with the entries under each counted back — "3 characters, 2 props, 4
-  environments". **That count is the point:** it is the cheapest way to see the
-  file was read the way it was meant, and a heading typed at the wrong level
-  shows up as a category with nothing in it. A category that is absent stays
-  absent rather than reading zero, because "no props section" and "an empty
-  props section" are different things.
-
-  A **Re-read** button, because editing the file in another window and having
-  it picked up is the whole reason this is a folder and not an upload. Proven
-  by doing it with the page open: 8 entries to 9 without the panel closing.
-
-  **Film terminology is now invisible to the user.** It ships in
-  `templates.py`, never reaches the front end, and a test asserts the word does
-  not appear in the knowledge response. Rewritten from two standard references
-  — Epidemic Sound on shots, MasterClass on moves — with every term defined by
-  what would be *seen* rather than by other jargon, because "top of head to
-  shoulders" can be matched against an observation and "a close shot" cannot.
-
-- [x] **7.3 Project knowledge** *(12 tests)* — *done across 7.0 and 7.0.2*
-  `load_knowledge`, the `production/` folder, and a worked `production.md` to
-  write against. The name is matched case-insensitively and read as utf-8-sig,
-  because this is a hand-written file: one saved as `Production.md` on Windows
-  would otherwise stop working the day the show moves to Linux, and sooner or
-  later it arrives with a byte order mark on it.
-
-- [ ] **7.4 The interpretation pass**
-  `Interpreter` — observations into the project's vocabulary, characters named
-  with the observed evidence kept beside the name.
+- [ ] **7.3 The interpretation pass**
+  `Interpreter` — observations into the project's vocabulary and character
+  names, with the observed evidence kept beside the name.
   **Done when:** the same observation produces the same term on every shot of a
-  batch, and an appearance matching nobody is left unnamed.
+  batch, and a figure matching nobody is left unnamed.
 
-- [ ] **7.5 Reading a shot list**
-  CSV and TSV with a confirmed column mapping; a thumbnail folder; freeform
-  text through the model as a fallback.
-  **Done when:** all three end as the same `ShotListEntry` records, and a
-  mistyped column name says what the file actually contains.
+- [ ] **7.4 The pipeline and its cache**
+  `IdentifierPipeline.prepare()` — shots, observe, interpret — with
+  observations cached beside the files.
+  **Done when:** re-running after editing `production.md` re-interprets a batch
+  without a single vision call.
 
-- [ ] **7.6 Matching and derived confidence**
-  `compare`, `best_match`, `decide`. Confidence from which attributes agree,
-  never asked of a model. Nothing proposed below the threshold or within the
-  margin of the runner-up.
-  **Done when:** a shot with no good match is left unnamed, a near-tie is
-  reported as a near-tie, and every note names what agreed and what did not.
+- [ ] **7.5 The table**
+  Fill in the shell the tab already lays out: thumbnail, description, editable
+  shot number, notes. Progress belongs here — a batch is 1–40 shots at model
+  speed.
+  **Done when:** a batch can be watched and reviewed without reloading.
 
-- [ ] **7.7 The pipeline and its cache**
-  `IdentifierPipeline` — pass order, and observations cached beside the shots.
-  **Done when:** re-running after editing the terminology file re-matches a
-  batch without a single vision call.
-
-- [ ] **7.8 The tab, filled in** — *the shell was built at 7.0*
-  Wire the controls the shell laid out: describe, match, the results table, and
-  the editable shot number. Progress *is* built here — a batch is 1–40 shots at
-  model speed, which is a different measurement from the splitter's 44 seconds.
-  **Done when:** a batch can be watched, reviewed and approved without
-  reloading the page.
-
-- [ ] **7.9 Renaming, reversibly**
-  `planned_name`, `check_plan`, `apply_renames`, `undo_renames`. The plan is
-  shown before it is applied and verified again immediately before, the log is
-  written first, and the whole batch can be put back.
-  **Done when:** forty files rename and unrename cleanly, and a plan with a
-  duplicate or an existing target is refused before anything moves.
-
-- [ ] **7.10 The breakdown export**
-  CSV and thumbnails. Nearly free — the same interpretations, written out
-  instead of compared.
+- [ ] **7.6 The breakdown export** — *the point of this reorder*
+  CSV plus thumbnails, in the shape a tracker imports.
   **Done when:** the CSV opens in a spreadsheet with every thumbnail path
-  pointing at a file that exists.
+  pointing at a file that exists, and it can be handed to production as the
+  shot list for a sequence.
+
+- [ ] **7.7 Shot numbering**
+  How a breakdown assigns numbers. **Open question, not a settled feature** —
+  every facility numbers differently, and a wrong convention applied to forty
+  shots is worse than none. Decide against a real project's naming rules.
+
+---
+
+Everything below is the **matching half**, which the breakdown above now feeds.
+
+- [ ] **7.8 Reading a shot list**
+  CSV and TSV with a confirmed column mapping; a thumbnail folder; freeform
+  text through the model as a fallback. The first list to read will be one this
+  tool exported.
+
+- [ ] **7.9 Matching and derived confidence**
+  `compare`, `best_match`, `decide`. Confidence from which attributes agree,
+  never asked of a model.
+  **Done when:** a shot with no good match is left unnamed, a near-tie is
+  reported as one, and every note names what agreed and what did not.
+
+- [ ] **7.10 Renaming, reversibly**
+  The plan is shown before it is applied and verified again immediately
+  before, the log is written first, and the whole batch can be put back.
+
+---
+
+### Open questions for the production knowledge
+
+Raised when the character sheets were written up; none of them block 7.1.
+
+1. **Nico has no pixie sheet.** Recorded as "the one principal without one" —
+   correct, or just not supplied yet?
+2. **Vega has two human sheets**, identical but for a beaded crystal veil.
+   Recorded as one costume with a variant rather than two modes.
+3. **"FAIRY QUEEN'S"** signage appears on a castle in the blocking wide, in the
+   same shot as the carousel. Part of EXT Carousel, or a third environment?
+4. **The Granizados del Rey stand** is filed under Props. If it is set dressing
+   fixed to a location it may belong under Environments.
 
 **Phase done when:** a folder of shots from anywhere gets its shot numbers with
 a person reviewing rather than typing, and a project with no shot list yet can
