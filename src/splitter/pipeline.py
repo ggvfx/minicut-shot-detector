@@ -35,15 +35,15 @@ from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport, Shot,
 from src.core.sidecar import capture_environment, sidecar_path_for, write_sidecar
 from src.core.timecode import Timecode
 from src.core.utils import ensure_directory
-from src.detection.reconcile import boundaries_to_shots, merge_detections
-from src.detection.scene_detect import detect_all
+from src.splitter.reconcile import boundaries_to_shots, merge_detections
+from src.splitter.scene_detect import detect_all
 from src.media.mezzanine import MezzanineBuilder
 from src.media.probe import SourceProbe
 from src.media.proxy import ProxyBuilder
 from src.media.splitter import ShotSplitter
 from src.media.workspace import MEZZANINE_SUFFIX, work_dir_for
-from src.validation.integrity import validate_shot_list
-from src.validation.validator import JobValidator
+from src.splitter.integrity import validate_shot_list
+from src.splitter.validator import JobValidator
 
 
 class SplitterPipeline:

@@ -3,8 +3,15 @@
 Working reference. The current phase is broken into tasks; later phases are
 listed only by what they are, and get broken down when we reach them.
 
-Scope reminder: **the splitter detects cuts and writes one file per shot.**
-That is the whole job. Anything else is in `Deferred` at the bottom.
+Scope reminder, one line per tab, because scope creep here looks like
+helpfulness:
+
+- **The splitter** detects cuts and writes one file per shot. That is the whole
+  job — no stills, no conversion, no naming.
+- **The identifier** describes shots and matches them to shot numbers a person
+  approves. It does not edit, cut, or touch a shot's contents.
+
+Anything else is in `Deferred` at the bottom, with the reason it was cut.
 
 ---
 
@@ -260,7 +267,7 @@ on work that never needed doing.
 correct the occasional one. ✅ True as of 4.3 — finishing early here is the
 good outcome, not a shortfall.
 
-## Phase 5 — Loose Ends ⬅ Current
+## Phase 5 — Loose Ends ✅ Complete
 
 The splitter is functionally complete as of 4.3: point it at a mini cut, let it
 find the shots, correct anything it got wrong, and get back one file per shot.
@@ -346,7 +353,140 @@ survive**, which is worth recording so it is not resurrected by habit:
   timecodes, and the picker — with the console clean throughout.
 
 **Phase done when:** nothing about running the app is annoying enough to
-mention. Then the splitter is finished and the identifier tab starts.
+mention. ✅ Reached — the splitter is finished.
+
+---
+
+## Phase 6 — Two Tabs ⬅ Current
+
+Making room for the identifier before writing it. Structure and skeletons only:
+nothing in this phase does anything at runtime.
+
+- [x] **6.1 One package per tab**
+  `detection/`, `validation/` and `pipeline.py` sat at the top of `src/`, which
+  was right with one tab and misleading with two. Now `src/splitter/` holds
+  what only the splitter needs, `src/core/` and `src/media/` hold what both
+  tabs use, and where a new module belongs is a question with an answer.
+
+  Mechanical, and the 260 tests were the safety net. `git mv` throughout, so
+  history follows the files.
+
+- [x] **6.2 Skeletons for the backends and the identifier**
+  `src/backends/` and `src/identifier/`, written as signatures, docstrings and
+  pseudocode — the reviewable plan, per the skeleton rule in CLAUDE.md.
+
+  Every module imports cleanly and ruff passes, so the shape is checked even
+  though none of it runs. **These are a plan, not residents:** anything the
+  next phases decide against gets deleted, with the reasoning moved to
+  Deferred, exactly as TransNetV2 and the flash-frame filter were.
+
+- [ ] **6.3 Backend adapters, for real** *(no UI yet)*
+  Implement `CommandBackend` first — it is the path that has to work — then
+  `HttpApiBackend`, then `LocalBackend`. Each one testable on its own with a
+  fake command and a stub server, so none of it needs a real model to have a
+  test suite.
+  **Done when:** the same prompt returns text through all three, and a missing
+  key, a missing executable and an unreachable runtime each produce a clear
+  message rather than a traceback.
+
+- [ ] **6.4 Backends in the environment panel**
+  Report which backends are reachable, and block only when *none* is. **A
+  machine with no GPU and a configured command is a fully supported setup and
+  must read green** — an absent local runtime is an unused option, not a fault.
+  **Done when:** the panel is honest on a laptop with nothing installed.
+
+**Phase done when:** a prompt can be sent through a CLI, an API and a local
+runtime by the same code, and the panel tells the truth about which are there.
+
+---
+
+## Phase 7 — The Identifier
+
+The design is settled and written down in
+[ARCHITECTURE.md](ARCHITECTURE.md#the-identifier); this is the order to build
+it in. Each task is tested before the next, as with the splitter.
+
+The order is deliberate, and it is the same lesson as Phase 4: **do the part
+that might not work first.** Everything here rests on one untested assumption —
+that a model can describe real footage usefully enough to match on. 7.2 finds
+that out before anything is built on top of it.
+
+- [ ] **7.1 Frame sampling**
+  `FrameSampler` — a handful of small frames per shot, and one thumbnail.
+  Nothing about judging framing needs 1920 pixels, and small frames keep API
+  calls cheap and fit CLI tools that only take previews.
+  **Done when:** frames come out of a real shot at the right size, in time
+  order, and a file with no video stream is refused clearly.
+
+- [ ] **7.2 The observation pass — and the decision point**
+  `Observer`, the schema, and the prompt. **Then run it on real material**: a
+  few photoreal shots and a CG blockout one, through a CLI backend, twice each.
+
+  **This decides the rest of the phase**, the way 4.3 did:
+  - Are the observations *usable* — does it see "top of head to shoulders, two
+    people, one partly blocking frame left"?
+  - Are they *consistent* between two runs of the same shot? Confidence has to
+    survive that wobble.
+  - Does the plain-observation schema beat simply asking for film terms? If it
+    does not, the terminology file is unnecessary and the design gets simpler.
+
+  *This one needs you — judging whether a description is useful is not
+  something the tests can do.*
+
+- [ ] **7.3 Project knowledge**
+  `load_knowledge`, and worked examples of `terminology.md` and
+  `characters.md` to write against.
+  **Done when:** both files load, and their absence degrades the result to
+  plain descriptions rather than failing.
+
+- [ ] **7.4 The interpretation pass**
+  `Interpreter` — observations into the project's vocabulary, characters named
+  with the observed evidence kept beside the name.
+  **Done when:** the same observation produces the same term on every shot of a
+  batch, and an appearance matching nobody is left unnamed.
+
+- [ ] **7.5 Reading a shot list**
+  CSV and TSV with a confirmed column mapping; a thumbnail folder; freeform
+  text through the model as a fallback.
+  **Done when:** all three end as the same `ShotListEntry` records, and a
+  mistyped column name says what the file actually contains.
+
+- [ ] **7.6 Matching and derived confidence**
+  `compare`, `best_match`, `decide`. Confidence from which attributes agree,
+  never asked of a model. Nothing proposed below the threshold or within the
+  margin of the runner-up.
+  **Done when:** a shot with no good match is left unnamed, a near-tie is
+  reported as a near-tie, and every note names what agreed and what did not.
+
+- [ ] **7.7 The pipeline and its cache**
+  `IdentifierPipeline` — pass order, and observations cached beside the shots.
+  **Done when:** re-running after editing the terminology file re-matches a
+  batch without a single vision call.
+
+- [ ] **7.8 The tab**
+  Summary, limitations and environment as on the splitter, then: load project
+  knowledge, load a shot list, load a folder of shots, and a table that fills
+  in row by row. Progress *is* built here — a batch is 1–40 shots at model
+  speed, which is a different measurement from the splitter's 44 seconds.
+  **Done when:** a batch can be watched, reviewed and approved without
+  reloading the page.
+
+- [ ] **7.9 Renaming, reversibly**
+  `planned_name`, `check_plan`, `apply_renames`, `undo_renames`. The plan is
+  shown before it is applied and verified again immediately before, the log is
+  written first, and the whole batch can be put back.
+  **Done when:** forty files rename and unrename cleanly, and a plan with a
+  duplicate or an existing target is refused before anything moves.
+
+- [ ] **7.10 The breakdown export**
+  CSV and thumbnails. Nearly free — the same interpretations, written out
+  instead of compared.
+  **Done when:** the CSV opens in a spreadsheet with every thumbnail path
+  pointing at a file that exists.
+
+**Phase done when:** a folder of shots from anywhere gets its shot numbers with
+a person reviewing rather than typing, and a project with no shot list yet can
+export a breakdown to start one. **That is v1: both tabs.**
 
 ---
 

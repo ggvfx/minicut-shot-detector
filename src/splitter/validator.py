@@ -30,7 +30,7 @@ from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Shot, SourceInfo, ValidationResult
 from src.core.timecode import Timecode
 from src.core.utils import ensure_directory
-from src.validation.integrity import validate_shot_list
+from src.splitter.integrity import validate_shot_list
 
 # --- TIMEOUTS ---
 

@@ -2,16 +2,36 @@
 
 **Design principle:**
 Each stage is decoupled and independently testable. The pipeline only
-coordinates execution order. Detection is deterministic — the same input
-produces byte-identical boundaries every run.
+coordinates execution order.
 
-**Data flow (high level):**
+Two tabs, two pipelines, one set of foundations:
+
+| | Splitter | Identifier |
+|---|---|---|
+| Takes | one mini cut | a folder of single-shot files |
+| Gives | one file per shot | shot numbers, or a breakdown to seed a database |
+| Nature | **deterministic** — same input, byte-identical boundaries | **judgement** — a model proposes, a person decides |
+| Needs | ffmpeg | ffmpeg, and a model backend |
+
+**They do not depend on each other.** The identifier takes any folder of video
+files, whether or not the splitter made them. If a splitter sidecar happens to
+be beside them it may be read for frame ranges and timecodes, but it is never
+required — most batches will arrive from somewhere else entirely.
+
+**Splitter data flow:**
 
 Probe → Mezzanine → Proxy → Detect → Review → Cut → Validate → Sidecar
 
 The pipeline has two entry points, because a person sits in the middle of it:
 `prepare()` does everything up to the proxy, and `run()` takes the reviewed
 boundaries through to the sidecar.
+
+**Identifier data flow:**
+
+Frames → Observe → Interpret → Match → Review → Rename *or* Export
+
+Three model passes, and the split between them is the whole design. See
+[The identifier](#the-identifier) below.
 
 ---
 
@@ -28,7 +48,7 @@ boundaries through to the sidecar.
 
 Produces a `SourceInfo`.
 
-### 2. Detect — `src/detection/`
+### 2. Detect — `src/splitter/`
 
 Two passes over the mezzanine, both from PySceneDetect, neither a neural
 network. Each compares a frame with the one before it; they differ in what they
@@ -55,7 +75,7 @@ not built to see.
 Each pass produces a list of `Boundary`, carrying the names of the detectors
 that found it.
 
-### 3. Reconcile — `src/detection/reconcile.py`
+### 3. Reconcile — `src/splitter/reconcile.py`
 
 Plain functions — nothing to hold between calls.
 
@@ -97,7 +117,7 @@ a keyframe, so cutting the original data can only land where keyframes already
 are. Verified by hand — 30 frames requested out of an all-intra mezzanine gives
 30 frames, pixel-identical.
 
-### 5. Validate — `src/validation/`
+### 5. Validate — `src/splitter/`
 
 - **Integrity:** durations sum to the source, no gaps, no overlaps, correct
   bounds. Proves the numbers add up.
@@ -134,12 +154,150 @@ the identifier tab and is not built here.
 
 ---
 
+## The identifier
+
+**Not built. This is the agreed design, not a description of code.**
+
+It does two jobs that share one expensive step:
+
+```
+                                  ┌─► match to a shot list ──► rename the files
+frames ─► observe ─► interpret ───┤
+                                  └─► export ──────────────► CSV + thumbnails
+```
+
+The first is the point of the tab: give a mini cut's shots the shot numbers
+production already uses, so they can be submitted against the right names. The
+second falls out of it almost free — the same descriptions, exported instead of
+matched, so a new project's shots can be entered into a database from a blockout
+without typing them all.
+
+### Why three passes and not one
+
+This is the central decision, and everything else follows from it.
+
+**1. Observe — vision model, frames in, plain text out.**
+
+It is asked for *observables against a fixed schema* and nothing else: how many
+people are in frame, where the frame cuts the main subject, whether something
+in the foreground partly blocks the view, which way the subject faces, the
+setting, and what changes across the frames.
+
+It is **not** asked for film terminology. A model asked for "the shot size"
+returns some averaged internet convention applied inconsistently across forty
+shots — and inconsistent vocabulary is fatal when the next step is comparing
+text to text. It is also given **no project knowledge at all**: a model told
+that Tess has blue hair will find blue hair.
+
+**2. Interpret — text model, no images.**
+
+Turns observations into the project's own vocabulary, using markdown files the
+user owns:
+
+| File | Turns |
+|---|---|
+| terminology | "top of head to shoulders", "a shoulder blocking frame left" → `CS`, `OTS` |
+| characters | "red mannequin on rollerskates" → "likely Tess" |
+
+Both the observation and what it was read as are kept. A wrong identification
+is then visible rather than silent — the same principle as the frame numbers
+burned into the review proxy: make the check something you can see.
+
+Character sheets are detailed, and they describe one identity across
+representations — how someone looks in a final render, and that in a CG
+blockout they are a particular mannequin. Keeping that out of the observation
+pass is what stops the sheet writing the answer.
+
+**3. Match — text model, no images.**
+
+Compares interpreted attributes against the shot list, attribute by attribute.
+**Confidence is derived from which attributes agree**, never asked of a model:
+matching characters *and* location *and* shot size is a different thing from
+matching only the characters, and saying so is what makes the number mean
+anything. The same comparison writes the notes — "characters and location
+match, shot size differs" — and decides when to stay silent. **A shot it cannot
+place is left unnamed for a person to handle.**
+
+This also solves the thumbnail case. A reference thumbnail is a still, so it has
+no camera move; matching simply does not compare an attribute the reference
+could never have.
+
+### What this buys
+
+- Only pass 1 needs images or a vision model, it runs **once per shot**, and its
+  output is cached beside the files. Everything a user iterates on — fixing the
+  terminology, adding a character, correcting the shot list — re-runs passes 2
+  and 3 over cached text in seconds.
+- The vocabulary is the project's, not the model's, so the same observation
+  always produces the same term. Deterministic where it can be.
+- Passes 2 and 3 are text-only, which is what makes the backend question below
+  answerable.
+
+### Model backends
+
+One adapter interface, configured per pass: **give a prompt and optionally some
+images, get text back.** Three implementations — a CLI command, an HTTP API, or
+a local runtime.
+
+**The CLI and API paths are the product. Local is the option.** This is built
+to be handed to people whose machines are nothing like the one it was written
+on, and no design decision may assume local inference — not speed, not context
+size, not "we can just run it again". A machine with no GPU and a configured
+command is a fully supported setup, reported green by the environment panel.
+
+Vision and text are configured **separately**, because they will often differ.
+A studio using an agentic CLI for text may have to point the observe pass
+somewhere else; someone with one API key points both at it; someone with a big
+graphics card runs both locally. Same code.
+
+No model is committed to this repo. The smallest useful local vision model is
+~1.7 GB, which makes it a download, a version to track and a thing to go wrong
+— and that arrangement was already tried and deleted once, when the TransNetV2
+export lived in `models/`.
+
+**Frames are small on purpose** — a few hundred pixels, from the same ffmpeg
+machinery as the 640px review proxy. Nothing about judging framing needs 1920
+pixels, and small frames make API calls cheap, local inference quick, and fit
+CLI tools that only accept preview-sized images.
+
+### Two things the splitter settled that this reverses, deliberately
+
+**Progress must be reported.** The splitter shows only that work is happening,
+because its worst realistic case is 44 seconds. A batch here is 1–40 shots at
+model speed, so the table fills in row by row as results land. Same reasoning,
+opposite answer, because the measurement is different.
+
+**Renaming is the only destructive thing either tab does.** It happens on
+explicit approval, never automatically, and writes a log beside the files so it
+can be undone.
+
+---
+
 ## Module map
+
+Two features over shared foundations. Anything either tab could want lives in
+`core/` or `media/`; anything only one tab wants lives in that tab's package.
+Where a thing belongs is then a question with an answer, rather than a habit.
+
+```
+src/
+├── core/          shared: config, models, timecode, ffmpeg, environment, sidecar
+├── media/         shared: probing, frames, mezzanine, proxy, extraction, workspace
+├── splitter/      detection, reconciliation, validation, the splitter pipeline
+├── identifier/    observation, interpretation, matching, renaming, export     (not built)
+├── backends/      the model adapters  — CLI, HTTP API, local runtime         (not built)
+└── ui/            routes, path picker, and the browser front end
+```
+
+**The restructure is a task, not a description.** Today `detection/`,
+`validation/` and `pipeline.py` sit at the top of `src/`, which was right when
+there was one tab and becomes misleading with two. Moving them under
+`splitter/` is mechanical and covered by the existing suite — see TODO.md 6.1.
 
 | Path | Holds |
 |---|---|
 | `main.py` | Entry point — starts the server, opens the browser |
-| `src/pipeline.py` | `SplitterPipeline` — stage order and failure handling. No processing logic. |
+| `src/splitter/pipeline.py` | `SplitterPipeline` — stage order and failure handling. No processing logic. |
 | `src/core/config.py` | Fixed constants and the per-run `ProjectConfig` |
 | `src/core/models.py` | `SourceInfo`, `Boundary`, `Shot`, `ValidationResult`, `JobResult` |
 | `src/core/utils.py` | Helpers used by more than one module — checksums, directory creation |
@@ -152,10 +310,31 @@ the identifier tab and is not built here.
 | `src/media/proxy.py` | `ProxyBuilder` — the small numbered proxy the player scrubs |
 | `src/media/splitter.py` | `ShotSplitter` — per-shot extraction |
 | `src/media/workspace.py` | `.minicut-work/` — its naming, and what may be deleted |
-| `src/detection/scene_detect.py` | `SceneDetectPass` — the two PySceneDetect passes |
-| `src/detection/reconcile.py` | Merge, filter, convert to shots |
-| `src/validation/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
-| `src/validation/validator.py` | `JobValidator` — the checks that decode frames |
+| `src/splitter/scene_detect.py` | `SceneDetectPass` — the two PySceneDetect passes |
+| `src/splitter/reconcile.py` | Merge, and convert boundaries to shots |
+| `src/splitter/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
+| `src/splitter/validator.py` | `JobValidator` — the checks that decode frames |
+
+Not built, and listed so the shape is agreed before anything is written:
+
+| Path | Would hold |
+|---|---|
+| `src/backends/adapter.py` | The interface every backend implements |
+| `src/backends/command.py` | A configured CLI — the default path |
+| `src/backends/http_api.py` | An HTTP endpoint with a key from the environment |
+| `src/backends/local.py` | A local runtime, for machines that can |
+| `src/identifier/frames.py` | Small sample frames out of a shot, via ffmpeg |
+| `src/identifier/observe.py` | Pass 1 — the observation schema, and the only images |
+| `src/identifier/knowledge.py` | Reading the project's terminology and character files |
+| `src/identifier/interpret.py` | Pass 2 — observations into the project's vocabulary |
+| `src/identifier/shotlist.py` | Reading a shot list: CSV, text, or a thumbnail folder |
+| `src/identifier/match.py` | Pass 3 — attribute comparison, and derived confidence |
+| `src/identifier/rename.py` | Applying names, and the log that undoes them |
+| `src/identifier/export.py` | The CSV and thumbnails a database is seeded from |
+| `src/identifier/pipeline.py` | `IdentifierPipeline` — pass order and caching |
+
+| Path | Holds |
+|---|---|
 | `src/ui/server.py` | FastAPI routes. The only module that knows about HTTP. |
 | `src/ui/browse.py` | Directory listing for the path picker |
 | `src/ui/static/main.js` | Wiring — imports the rest, attaches every listener |
@@ -167,6 +346,12 @@ the identifier tab and is not built here.
 | `src/ui/static/picker.js` | Path picker |
 | `src/ui/static/environment.js` | Dependency panel |
 | `src/ui/static/ui.js` | Display helpers used by more than one module |
+
+The front end gains a second set of modules for the identifier tab —
+`identify.js` for the table and its review, `knowledge.js` for the project
+files — sharing `environment.js`, `picker.js` and `ui.js` unchanged. Each tab
+keeps its own state rather than sharing one object: they are separate jobs and
+one is often idle.
 
 ---
 

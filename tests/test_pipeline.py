@@ -17,7 +17,7 @@ from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, SourceInfo
 from src.media.probe import SourceProbe
 from src.media.workspace import WORK_DIRECTORY
-from src.pipeline import SplitterPipeline
+from src.splitter.pipeline import SplitterPipeline
 
 # --- HELPERS ---
 

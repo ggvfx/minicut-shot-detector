@@ -9,8 +9,8 @@ the first shot, the last shot, and the frame either side of a cut.
 import pytest
 
 from src.core.models import Boundary
-from src.detection.reconcile import boundaries_to_shots
-from src.detection.scene_detect import ADAPTIVE, CONTENT
+from src.splitter.reconcile import boundaries_to_shots
+from src.splitter.scene_detect import ADAPTIVE, CONTENT
 
 # --- HELPERS ---
 

@@ -8,7 +8,7 @@ double-counts a frame, or stops short of the end.
 """
 
 from src.core.models import Shot, SourceInfo
-from src.validation.integrity import (
+from src.splitter.integrity import (
     CHECK_BOUNDS,
     CHECK_FRAMES_SUM,
     CHECK_NO_GAPS,

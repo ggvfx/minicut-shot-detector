@@ -24,7 +24,7 @@ from src.core.timecode import Timecode
 from src.media.probe import SourceProbe
 from src.media.proxy import PROXY_SUFFIX
 from src.media.workspace import clear_work, owning_source, reclaimable_work
-from src.pipeline import SplitterPipeline
+from src.splitter.pipeline import SplitterPipeline
 from src.ui import browse
 
 app = FastAPI(title="Minicut Shot Detector")

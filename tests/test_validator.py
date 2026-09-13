@@ -14,7 +14,7 @@ from src.core.models import Shot
 from src.media.mezzanine import MezzanineBuilder
 from src.media.probe import SourceProbe
 from src.media.splitter import ShotSplitter
-from src.validation.validator import (
+from src.splitter.validator import (
     CHECK_BOUNDARY_FRAMES,
     CHECK_ROUND_TRIP,
     JobValidator,

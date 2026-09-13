@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 
-from src.detection.scene_detect import (
+from src.splitter.scene_detect import (
     ADAPTIVE,
     CONTENT,
     SceneDetectPass,

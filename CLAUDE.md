@@ -17,9 +17,14 @@ Two tabs:
 2. **Identifier** — load a directory of split shots, describe them, match them
    against a shot list, human-review the matches, rename on approval.
 
-**Current scope: the Splitter only.** Do not build identifier functionality
-unless explicitly asked. The identifier is documented here for context so that
-splitter outputs are designed to feed it.
+**The splitter is complete. The identifier is designed and not yet built** —
+see ARCHITECTURE.md for the agreed shape and TODO.md for the task order. v1 is
+both tabs.
+
+**The two tabs are independent.** The identifier takes any folder of video
+files. It may read a splitter sidecar if one happens to be there, but must
+never require one: most batches will arrive from elsewhere, and nobody should
+have to run the splitter to use the identifier.
 
 ---
 
@@ -151,6 +156,9 @@ These are settled decisions. Do not revisit them without asking.
    average of its neighbours rather than a constant. It is still deterministic,
    which is what the rule was protecting. The old wording banned a technique;
    this one states the property.
+
+   **The identifier is the opposite, and that is why it is a separate tab.**
+   Judgement lives there and nowhere else. The rules below govern it.
 8. **Pinned dependencies.** Exact versions in `requirements.txt`. Frame-accuracy
    behaviour shifts between ffmpeg builds; a floating version turns a
    reproducible pipeline into a mystery.
@@ -166,6 +174,43 @@ These are settled decisions. Do not revisit them without asking.
    own shots, bars and all. Feeding a mask to the detector only is a possible
    refinement, and would have to be measured before being believed, not
    assumed.
+
+### Identifier
+
+Settled in the same way, before any of it is built.
+
+10. **A CLI or an API must always work. Local inference is an option, never a
+    requirement.** This is built to be handed to people whose machines are
+    nothing like the one it is written on. No design decision may assume local
+    inference — not speed, not context size, not "we can just run it again". A
+    machine with no GPU and a configured command is fully supported and the
+    environment panel reports it green.
+
+    Vision and text backends are configured **separately**: a studio may run
+    every text pass through an agentic CLI and have to point image work
+    somewhere else.
+
+11. **No model file is committed, downloaded on first run, or required.** The
+    smallest useful local vision model is around 1.7 GB. That arrangement was
+    already built and deleted once, when the TransNetV2 export lived in
+    `models/`.
+
+12. **The vision pass gets no project knowledge, and is never asked for film
+    terminology.** It reports observables against a fixed schema. Terminology
+    and character names are applied afterwards by a text pass reading the
+    project's own markdown files, which is what makes the vocabulary consistent
+    across a batch and stops a character sheet writing the answer. Both what
+    was observed and what it was read as are kept and shown.
+
+13. **Confidence is derived from which attributes agree, never asked of a
+    model.** A model asked for a number returns a feeling. Matching characters
+    *and* location *and* shot size is a different claim from matching only the
+    characters, and the score has to say so. A shot that cannot be placed is
+    left unnamed rather than guessed at.
+
+14. **Renaming happens on approval and is reversible.** It is the only
+    destructive action in either tab. A log beside the files records what was
+    renamed from what, and undoes it.
 
 ---
 
