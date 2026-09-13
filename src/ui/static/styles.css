@@ -333,6 +333,9 @@ summary .summary { margin: 0; }
 /* Frame 0 always starts the first shot and cannot be removed */
 .tick.fixed { background: var(--text-dim); cursor: pointer; }
 
+/* Found by only one detector: kept, but the place to start reviewing */
+.tick.uncertain { background: var(--degraded); }
+
 .transport {
     display: flex;
     align-items: center;

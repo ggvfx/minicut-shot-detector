@@ -85,9 +85,9 @@ class PreparedJob(BaseModel):
     mezzanine_path: str
     proxy_path: str
 
-    # Boundaries found automatically, once detection exists. Until then this is
-    # empty and every boundary is placed by hand.
-    boundaries: List[int] = Field(default_factory=list)
+    # What detection found. Each carries the detectors that agreed on it, so
+    # review can start with the uncertain ones.
+    boundaries: List["Boundary"] = Field(default_factory=list)
 
 
 # --- DETECTION ---
@@ -104,15 +104,21 @@ class Boundary(BaseModel):
     frame: int
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
-    # Which detectors fired here. Both agreeing is the confident case; one
-    # firing alone is what gets flagged for human review.
-    found_by_transnet: bool = False
-    found_by_scenedetect: bool = False
+    # Which detectors found this frame, by name. A list rather than one flag
+    # per detector: the set of detectors has already changed once, and the
+    # sidecar should record which ones actually agreed rather than implying
+    # there will only ever be two.
+    found_by: List[str] = Field(default_factory=list)
 
     @property
     def detectors_agreed(self) -> bool:
-        """True when both passes independently found this boundary."""
-        return self.found_by_transnet and self.found_by_scenedetect
+        """
+        True when more than one pass found this frame independently.
+
+        One detector firing alone is not wrong — it is uncertain, which is what
+        gets flagged for a human to glance at.
+        """
+        return len(self.found_by) > 1
 
 
 class Shot(BaseModel):

@@ -23,6 +23,9 @@ const state = {
     probe: null,           // Last ProbeReport from the server
     prepared: null,        // Last PreparedJob: source, mezzanine and proxy
     boundaries: [],        // Frames on which shots start, frame 0 implied
+    // Frames only one detector found. Kept separate from the boundaries
+    // themselves so a mark placed by hand is never flagged as uncertain.
+    uncertain: new Set(),
 };
 
 // ===== ENVIRONMENT PANEL =====
@@ -240,7 +243,12 @@ async function analyseSource() {
 
         status.textContent = "";
         state.prepared = body;
-        state.boundaries = [...body.boundaries];
+        state.boundaries = body.boundaries.map((boundary) => boundary.frame);
+        state.uncertain = new Set(
+            body.boundaries
+                .filter((boundary) => boundary.found_by.length < 2)
+                .map((boundary) => boundary.frame)
+        );
         openReview();
 
     } finally {
@@ -340,6 +348,7 @@ function closeReview() {
 
     state.prepared = null;
     state.boundaries = [];
+    state.uncertain = new Set();
 }
 
 // ===== MARKERS =====
@@ -363,6 +372,9 @@ function toggleMarker() {
     } else {
         state.boundaries = [...state.boundaries, frame].sort((a, b) => a - b);
     }
+
+    // Looked at by a person, so no longer something to look at
+    state.uncertain.delete(frame);
 
     renderTimeline();
     renderReadout(frame);
@@ -425,9 +437,15 @@ function renderTimeline() {
     // Frame 0 is a first frame too, drawn differently because it is fixed
     for (const frame of [0, ...state.boundaries]) {
         const tick = document.createElement("button");
-        tick.className = frame === 0 ? "tick fixed" : "tick";
+
+        // Three states: the fixed start, an agreed cut, and one only a single
+        // detector found — which is where a review should begin
+        const uncertain = state.uncertain.has(frame);
+        tick.className = frame === 0 ? "tick fixed" : `tick${uncertain ? " uncertain" : ""}`;
         tick.style.left = `${(frame / last) * 100}%`;
-        tick.title = `Frame ${frame}`;
+        tick.title = uncertain
+            ? `Frame ${frame} — found by one detector, worth a look`
+            : `Frame ${frame}`;
         tick.addEventListener("pointerdown", (event) => {
             event.stopPropagation();
             document.getElementById("proxy-player").pause();
@@ -437,7 +455,11 @@ function renderTimeline() {
     }
 
     const shots = state.boundaries.length + 1;
-    document.getElementById("cut-count").textContent = `${shots} shot${shots === 1 ? "" : "s"}`;
+    const toCheck = state.boundaries.filter((frame) => state.uncertain.has(frame)).length;
+
+    document.getElementById("cut-count").textContent =
+        `${shots} shot${shots === 1 ? "" : "s"}` +
+        (toCheck > 0 ? ` · ${toCheck} to check` : "");
 }
 
 /** Shows the current frame, and what the mark button would do to it. */

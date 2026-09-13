@@ -1,14 +1,18 @@
 """
 Boundary Reconciliation.
 
-Merges the two detector outputs into the single boundary list the cutter works
+Merges what the detectors found into the single boundary list the cutter works
 from, then turns those boundaries into shots.
 
 This is where confidence is decided:
-- Both detectors fired    -> high confidence, no review needed
-- Only one fired          -> kept, but flagged for human review
-- Shot shorter than the minimum -> merged into its neighbour, and the merge is
-  recorded on the shot rather than silently applied
+- More than one detector fired -> agreed, no particular reason to look
+- Only one fired               -> kept, and flagged as worth a glance
+
+Note what that is not: a boundary only one detector found is **kept**, not
+discarded. Measuring the two passes on real deliveries showed each finding real
+cuts the other missed, so taking only what they agree on would lose material.
+The union costs a few extra marks to delete, which is the cheaper mistake when
+a person reviews every one of them.
 """
 
 import logging
@@ -24,26 +28,60 @@ from src.core.models import Boundary, Shot
 MATCH_TOLERANCE_FRAMES = 2
 
 
-def merge_detections(transnet: List[Boundary], scenedetect: List[Boundary]) -> List[Boundary]:
+def merge_detections(*passes: List[Boundary]) -> List[Boundary]:
     """
-    Combines both detector outputs into one list.
+    Combines what every detector found into one list.
 
     Args:
-        transnet: Boundaries from the primary pass.
-        scenedetect: Boundaries from the cross-check pass.
+        *passes: One boundary list per detector, in preference order — the
+            first pass wins the frame number where two land a frame or two
+            apart.
 
     Returns:
-        One boundary per real cut, each recording which detectors found it.
-        The TransNetV2 frame wins when the two disagree slightly — it is the
-        detector that understands shots.
+        One boundary per real cut, sorted by frame, each recording every
+        detector that found it. `detectors_agreed` then answers whether it is
+        worth a human glance.
+
+    Notes:
+        Detectors rarely land on the identical frame, so anything within
+        MATCH_TOLERANCE_FRAMES of an existing boundary is treated as the same
+        cut rather than a second one. Wider than that and genuinely fast cuts
+        would start collapsing together.
     """
-    # PSEUDOCODE
-    # 1. Walk the TransNetV2 list; for each, look for a scenedetect boundary
-    #    within MATCH_TOLERANCE_FRAMES.
-    # 2. On a match, set both found_by_* flags and keep the TransNetV2 frame.
-    # 3. Any unmatched boundary from either list is kept with only its own flag.
-    # 4. Sort by frame before returning.
-    raise NotImplementedError
+    merged: List[Boundary] = []
+
+    for boundaries in passes:
+        for boundary in sorted(boundaries, key=lambda item: item.frame):
+            existing = _nearest(merged, boundary.frame)
+
+            if existing is None:
+                merged.append(boundary.model_copy(deep=True))
+                continue
+
+            # Same cut, found again: record the detector and keep the frame
+            # from whichever pass claimed it first
+            for detector in boundary.found_by:
+                if detector not in existing.found_by:
+                    existing.found_by.append(detector)
+
+            existing.confidence = max(existing.confidence, boundary.confidence)
+
+    merged.sort(key=lambda item: item.frame)
+
+    agreed = sum(1 for boundary in merged if boundary.detectors_agreed)
+    logging.info(
+        f"{len(merged)} boundaries from {len(passes)} detectors — "
+        f"{agreed} agreed, {len(merged) - agreed} found by one"
+    )
+    return merged
+
+
+def _nearest(merged: List[Boundary], frame: int) -> Optional[Boundary]:
+    """The already-merged boundary this frame belongs to, if there is one."""
+    for boundary in merged:
+        if abs(boundary.frame - frame) <= MATCH_TOLERANCE_FRAMES:
+            return boundary
+    return None
 
 
 # --- MINIMUM SHOT LENGTH ---
@@ -64,6 +102,12 @@ def apply_minimum_length(boundaries: List[Boundary], min_length: int) -> List[Bo
 
     Returns:
         Filtered list. Every removal is logged, never silent.
+
+    Notes:
+        Deliberately not used yet. With a person reviewing every boundary, a
+        spurious short shot is one keystroke to remove, while a filter that
+        silently drops a genuinely quick cut leaves nothing to notice. It earns
+        its place if flash frames turn out to be common enough to be a chore.
     """
     # PSEUDOCODE
     # 1. Walk pairs of adjacent boundaries.
@@ -122,8 +166,9 @@ def boundaries_to_shots(boundaries: List[Boundary], frame_count: int) -> List[Sh
             raise ValueError(f"Two boundaries share frame {boundary.frame}")
         seen.add(boundary.frame)
 
-    # The boundary that opens each shot, so its confidence can be carried over.
-    # The first shot is opened by the start of the file, not by a detection.
+    # The boundary that opens each shot, so its confidence and agreement can
+    # be carried over. The first shot is opened by the start of the file rather
+    # than by a detection, so it is never flagged for review.
     openers: List[Optional[Boundary]] = [None, *ordered]
     starts = [0, *(boundary.frame for boundary in ordered)]
 

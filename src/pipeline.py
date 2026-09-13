@@ -18,9 +18,10 @@ adjusting boundaries costs nothing, and cutting afterwards is stream copies.
 run() reuses a mezzanine that is already there and still matches its source,
 so the two calls together encode the file once.
 
-Boundaries are supplied by the caller. Finding them automatically is Phase 4;
-until then they are placed by hand, which is deliberate — it means the cutter
-is proven on numbers we chose before any detector is allowed to choose them.
+`prepare()` proposes boundaries; `run()` takes whatever the person settled on.
+Detection is a starting point, never the last word: every boundary is reviewed
+before anything is written, which is what lets a detector that occasionally
+misses a wipe still be useful.
 """
 
 import logging
@@ -33,7 +34,8 @@ from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport, Shot, SourceInfo
 from src.core.sidecar import capture_environment, sidecar_path_for, write_sidecar
 from src.core.utils import ensure_directory
-from src.detection.reconcile import boundaries_to_shots
+from src.detection.reconcile import boundaries_to_shots, merge_detections
+from src.detection.scene_detect import detect_all
 from src.media.mezzanine import MezzanineBuilder
 from src.media.probe import SourceProbe
 from src.media.proxy import ProxyBuilder
@@ -109,7 +111,22 @@ class SplitterPipeline:
             source=report.source,
             mezzanine_path=str(mezzanine_path),
             proxy_path=str(proxy_path),
+            boundaries=self._detect(mezzanine_path),
         )
+
+    def _detect(self, mezzanine_path: Path) -> List[Boundary]:
+        """
+        Finds the cuts, as a starting point for review rather than an answer.
+
+        Runs against the mezzanine rather than the source: it is verified frame
+        for frame against it, and being all-intra it decodes without seeking
+        back to a keyframe for every read.
+
+        Both detectors run and their findings are merged. Anything only one of
+        them found is kept and marked, because measuring them showed each
+        finding real cuts the other missed.
+        """
+        return merge_detections(*detect_all(mezzanine_path))
 
     def run(self, boundaries: List[Boundary]) -> JobResult:
         """

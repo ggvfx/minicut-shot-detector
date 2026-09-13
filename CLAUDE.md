@@ -30,8 +30,8 @@ splitter outputs are designed to feed it.
 | Backend | Python 3.11+, FastAPI | SSE for progress streaming, from Phase 5 |
 | Frontend | Plain HTML + CSS + vanilla JS | No React, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens in their own browser |
-| Detection (primary) | TransNetV2 via ONNX Runtime | Not PyTorch — see below |
-| Detection (secondary) | PySceneDetect `AdaptiveDetector` | Cross-check only |
+| Detection | PySceneDetect, two passes | `ContentDetector` and `AdaptiveDetector` |
+| Detection (later) | TransNetV2 via ONNX Runtime | Deferred — see below |
 | Media | ffmpeg / ffprobe as subprocesses | Never a Python binding |
 | Review | 640px all-intra h264 proxy | Frame numbers burned in |
 | Mezzanine | All-intra in the source's own codec | libx264 / libx265, CRF 12 |
@@ -122,9 +122,15 @@ These are settled decisions. Do not revisit them without asking.
    mini cut of 17 shots: 5.9s against 34s, and the round trip writes a second
    copy of the mezzanine (893 MB) while it runs. The full check stays available
    for a final pass before a delivery.
-7. **The splitter is deterministic.** No LLM, no agent, no adaptive thresholds in
-   the detection path. Identical input must produce byte-identical boundaries on
-   every run. Judgment work belongs in the identifier tab.
+7. **The splitter is deterministic.** Identical input must produce identical
+   boundaries on every run, and no judgment enters the detection path — no LLM,
+   no agent, nothing that could answer differently twice.
+
+   *Reworded:* this rule used to say "no adaptive thresholds", which
+   `AdaptiveDetector` plainly is — it compares each frame against a rolling
+   average of its neighbours rather than a constant. It is still deterministic,
+   which is what the rule was protecting. The old wording banned a technique;
+   this one states the property.
 8. **Pinned dependencies.** Exact versions in `requirements.txt`. Frame-accuracy
    behaviour shifts between ffmpeg builds; a floating version turns a
    reproducible pipeline into a mystery.

@@ -30,19 +30,26 @@ Produces a `SourceInfo`.
 
 ### 2. Detect — `src/detection/`
 
-Two independent passes over the same source, with the same `detect()` interface
-so reconciliation does not care which produced what:
+Two passes over the mezzanine, both from PySceneDetect, neither a neural
+network. Each compares a frame with the one before it; they differ in what they
+compare the difference against:
 
-- `TransNetDetector` — TransNetV2 through ONNX Runtime, producing a transition
-  probability per frame. The primary detector, and the only stateful one: it
-  holds the loaded session.
-- `SceneDetectCrossCheck` — PySceneDetect's `AdaptiveDetector`, comparing
-  neighbouring frames statistically. The cross-check.
+- `SceneDetectPass(CONTENT)` — a fixed threshold.
+- `SceneDetectPass(ADAPTIVE)` — a rolling average of the surrounding frames, so
+  a cut has to stand out from its neighbours.
 
-The second pass is not there to improve accuracy. It is there so the two can
-disagree, because a disagreement is what flags a boundary for human review.
+Both run because measuring them on real deliveries showed each finding real
+cuts the other missed, in opposite conditions: Adaptive misses cuts in
+continuously high-motion footage, Content false-positives on near-identical
+frames in flat previz. The union is used, and anything only one of them found
+is marked for a human glance.
 
-Each produces a list of `Boundary`.
+`TransNetDetector` is written as a skeleton and deferred. It is a neural
+network trained on shot transitions, and its advantage is dissolves and fades —
+which are out of scope, and which a person can mark in two keystrokes.
+
+Each pass produces a list of `Boundary`, carrying the names of the detectors
+that found it.
 
 ### 3. Reconcile — `src/detection/reconcile.py`
 
@@ -133,8 +140,8 @@ the identifier tab and is not built here.
 | `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra re-encode in the source's codec |
 | `src/media/proxy.py` | `ProxyBuilder` — the small numbered proxy the player scrubs |
 | `src/media/splitter.py` | `ShotSplitter` — per-shot extraction |
-| `src/detection/transnet.py` | `TransNetDetector` — primary detector |
-| `src/detection/scene_detect.py` | `SceneDetectCrossCheck` — cross-check detector |
+| `src/detection/scene_detect.py` | `SceneDetectPass` — the two PySceneDetect passes |
+| `src/detection/transnet.py` | `TransNetDetector` — deferred to a later version |
 | `src/detection/reconcile.py` | Merge, filter, convert to shots |
 | `src/validation/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
 | `src/validation/validator.py` | `JobValidator` — the checks that decode frames |

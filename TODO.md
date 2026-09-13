@@ -188,18 +188,26 @@ working end to end in one sitting and gives a baseline to measure TransNetV2
 against. Doing the ONNX export first would mean the riskiest, least verifiable
 step gates everything behind it.
 
-- [ ] **4.1 PySceneDetect pass**
-  `SceneDetectCrossCheck.detect()` — open the video, run `AdaptiveDetector`,
-  take the start frame of every scene after the first, return `Boundary`
-  objects with `found_by_scenedetect` set. Its `FrameTimecode` objects convert
-  to plain integers at the boundary of this module and never leak past it.
-  **Done when:** a real mini cut returns a plausible boundary list.
+- [x] **4.1 PySceneDetect passes** *(8 tests)*
+  Both `ContentDetector` and `AdaptiveDetector`, merged into one list.
 
-- [ ] **4.2 Detection in the pipeline and the player**
-  Run it inside `prepare()`, return the frames in `PreparedJob.boundaries`,
-  and let the existing markers do the rest.
-  **Done when:** Analyse comes back with the shots already marked, and any of
-  them can be moved, added or removed before splitting.
+  Measuring them on real deliveries settled the design: on a photoreal night
+  sequence every boundary Content found alone was a real cut that Adaptive
+  missed; on Unreal previz four of five Content-only boundaries were false
+  positives while Adaptive found two real cuts Content missed. Neither
+  dominates, so the union is used and anything only one found is flagged.
+
+  `Boundary.found_by` is now a list of detector names rather than one flag per
+  detector, so adding a third changes nothing.
+
+- [x] **4.2 Detection in the pipeline and the player**
+  Runs inside `prepare()` against the mezzanine. The player shows every
+  boundary as a tick, amber where only one detector found it, and the header
+  reads "22 shots · 6 to check". Marking or unmarking by hand clears the
+  flag — a person has looked at it.
+
+  Verified on a real delivery: 21 boundaries, 15 agreed, and the 6 flagged were
+  exactly the ones confirmed by eye as real cuts.
 
 - [ ] **4.3 Judge it on real footage**
   Run 4.2 over every file in `D:\minicutExamples` and look at what it marks.
