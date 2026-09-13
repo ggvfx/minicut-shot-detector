@@ -32,6 +32,5 @@ export const state = {
     shotsDir: "",          // Folder of single-shot files being identified
     shotListPath: "",      // CSV, text document, or folder of named thumbnails
     knowledge: null,       // What the production folder was last found to hold
-    records: [],           // One per shot: description, proposed number, notes
     presets: null,         // Backend presets the server offers, for the model dropdowns
 };

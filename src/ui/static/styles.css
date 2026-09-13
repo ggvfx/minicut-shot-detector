@@ -381,18 +381,6 @@ summary .summary { margin: 0; }
 
 .hint { color: var(--text-dim); font-size: 13px; margin: 0 0 8px; }
 
-/* The label carries the tooltip, so the whole row is the hover target */
-.checkbox {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 12px 0;
-    color: var(--text-dim);
-    cursor: help;
-}
-
-.checkbox input { cursor: pointer; }
-
 /* ===== REVIEW PLAYER ===== */
 
 /* Height-driven, with the aspect ratio set from the source, so the picture
@@ -589,15 +577,3 @@ summary .summary { margin: 0; }
 .entry.file { color: var(--text-dim); }
 
 .picker-footer { display: flex; justify-content: flex-end; }
-
-/* A heading inside a card, where one section holds two related things — the
-   production knowledge folder and the shot list are both "what we match
-   against", but they are loaded differently. */
-.subsection {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    margin: var(--gap) 0 6px;
-    padding-top: var(--gap);
-    border-top: 1px solid var(--border);
-}

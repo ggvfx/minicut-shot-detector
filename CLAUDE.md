@@ -10,16 +10,21 @@ scheduled, reviewed or versioned. Doing it by hand is slow enough that material
 gets seen once and never enters the pipeline at all. Traditional editorial
 turnovers are the same job, and work here too.
 
-Two tabs:
+Three tabs, two of them workflows:
 
 1. **Splitter** — load a mini cut, detect shot boundaries, split into individual
    files in an output directory.
 2. **Identifier** — load a directory of split shots, describe them, match them
    against a shot list, human-review the matches, rename on approval.
+3. **Setup** — everything done once: what is installed, how to install it, and
+   how to connect a model. Kept out of both workflows so a panel nobody reads
+   does not sit above the work; each workflow tab carries a one-line status
+   strip instead and links here when something is wrong.
 
-**The splitter is complete. The identifier is designed and not yet built** —
-see ARCHITECTURE.md for the agreed shape and TODO.md for the task order. v1 is
-both tabs.
+**The splitter is complete. The identifier has its tab, its dependency panel,
+its model picker and its production knowledge working; the three model passes
+behind it are next** — see ARCHITECTURE.md for the agreed shape and TODO.md for
+the task order. v1 is both workflows.
 
 **The two tabs are independent.** The identifier takes any folder of video
 files. It may read a splitter sidecar if one happens to be there, but must
@@ -197,10 +202,18 @@ Settled in the same way, before any of it is built.
 
 12. **The vision pass gets no project knowledge, and is never asked for film
     terminology.** It reports observables against a fixed schema. Terminology
-    and character names are applied afterwards by a text pass reading the
-    project's own markdown files, which is what makes the vocabulary consistent
-    across a batch and stops a character sheet writing the answer. Both what
-    was observed and what it was read as are kept and shown.
+    and names are applied afterwards by a text pass, which is what makes the
+    vocabulary consistent across a batch and stops a character sheet writing
+    the answer. Both what was observed and what it was read as are kept and
+    shown.
+
+    **The two kinds of knowledge stay apart.** The production's own file —
+    `production/production.md`, under `# Characters`, `# Props`,
+    `# Environments` — changes every job and is the user's. Film terminology
+    ships in `templates.py` and is **never shown**: it changes almost never, so
+    exposing it only invites editing the one thing that does not need editing,
+    and a terminology file quietly broken is a whole batch described in words
+    that match no shot list.
 
 13. **Confidence is derived from which attributes agree, never asked of a
     model.** A model asked for a number returns a feeling. Matching characters

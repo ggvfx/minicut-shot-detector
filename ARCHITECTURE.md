@@ -4,14 +4,21 @@
 Each stage is decoupled and independently testable. The pipeline only
 coordinates execution order.
 
-Two tabs, two pipelines, one set of foundations:
+**Three tabs, two of them workflows.** Splitter and Identifier are the jobs;
+Setup is everything you do once, kept out of both so a panel nobody reads does
+not sit above the work people do daily. Each workflow tab carries a one-line
+status strip instead, and links to Setup when something is wrong.
 
 | | Splitter | Identifier |
 |---|---|---|
 | Takes | one mini cut | a folder of single-shot files |
 | Gives | one file per shot | shot numbers, or a breakdown to seed a database |
 | Nature | **deterministic** — same input, byte-identical boundaries | **judgement** — a model proposes, a person decides |
-| Needs | ffmpeg | ffmpeg, and a model backend |
+| Needs | ffmpeg, encoders, PySceneDetect | ffmpeg and a model backend — neither of the others |
+
+That last row is why each tab has its own dependency panel rather than sharing
+one: showing each the other's requirements puts rows in front of people who
+cannot act on them.
 
 **They do not depend on each other.** The identifier takes any folder of video
 files, whether or not the splitter made them. If a splitter sidecar happens to
@@ -191,13 +198,25 @@ that Tess has blue hair will find blue hair.
 
 **2. Interpret — text model, no images.**
 
-Turns observations into the project's own vocabulary, using markdown files the
-user owns:
+Turns observations into the project's own vocabulary, using two sources of
+knowledge that are deliberately kept apart because they change at completely
+different rates:
 
-| File | Turns |
-|---|---|
-| terminology | "top of head to shoulders", "a shoulder blocking frame left" → `CS`, `OTS` |
-| characters | "red mannequin on rollerskates" → "likely Tess" |
+| Source | Turns | Who owns it |
+|---|---|---|
+| `templates.FILM_TERMINOLOGY` | "top of head to shoulders", "a shoulder blocking frame left" → `CS`, `OTS` | ships with the app, **never shown** |
+| `production/production.md` | "red mannequin on rollerskates" → "likely Tess" | the production, read every run |
+
+A show's characters change every job; what "CS" means changes almost never.
+Putting the terminology in front of the user would only invite editing the one
+thing that does not need editing, and a terminology file quietly broken is a
+whole batch described in words that match no shot list.
+
+The production file is organised under `# Characters`, `# Props` and
+`# Environments`, and the entries under each are counted back to the user —
+"3 characters, 2 props, 4 environments". That count is the cheapest way to see
+the file was read the way it was meant: a heading typed at the wrong level
+shows up as a category with nothing in it.
 
 Both the observation and what it was read as are kept. A wrong identification
 is then visible rather than silent — the same principle as the frame numbers
@@ -329,13 +348,15 @@ there was one tab and becomes misleading with two. Moving them under
 | `src/backends/local.py` | A local runtime, for machines that can |
 | `src/backends/availability.py` | The backend rows in the dependency panel |
 
+| `src/identifier/knowledge.py` | Reading the production's file, and counting what is in it |
+| `src/identifier/templates.py` | `FILM_TERMINOLOGY` — the vocabulary, never shown to the user |
+
 Not built, and listed so the shape is agreed before anything is written:
 
 | Path | Would hold |
 |---|---|
 | `src/identifier/frames.py` | Small sample frames out of a shot, via ffmpeg |
 | `src/identifier/observe.py` | Pass 1 — the observation schema, and the only images |
-| `src/identifier/knowledge.py` | Reading the project's terminology and character files |
 | `src/identifier/interpret.py` | Pass 2 — observations into the project's vocabulary |
 | `src/identifier/shotlist.py` | Reading a shot list: CSV, text, or a thumbnail folder |
 | `src/identifier/match.py` | Pass 3 — attribute comparison, and derived confidence |
@@ -357,7 +378,8 @@ Not built, and listed so the shape is agreed before anything is written:
 | `src/ui/static/environment.js` | Dependency panel |
 | `src/ui/static/ui.js` | Display helpers used by more than one module |
 | `src/ui/static/tabs.js` | Switching, and telling a tab it became visible |
-| `src/ui/static/identify.js` | The identifier tab |
+| `src/ui/static/identify.js` | The identifier tab: models, knowledge, and the job |
+| `src/ui/static/setup.js` | The setup tab: dependency panels and install guides |
 
 Each tab has **its own environment panel**, and they are told different things:
 the splitter needs encoders and PySceneDetect and no model, the identifier

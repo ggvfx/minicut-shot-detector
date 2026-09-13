@@ -357,7 +357,7 @@ mention. ✅ Reached — the splitter is finished.
 
 ---
 
-## Phase 6 — Two Tabs ⬅ Current
+## Phase 6 — Two Tabs ✅ Complete
 
 Making room for the identifier before writing it. Structure and skeletons only:
 nothing in this phase does anything at runtime.
@@ -484,7 +484,7 @@ runtime by the same code, and the panel tells the truth about which are there.
 
 ---
 
-## Phase 7 — The Identifier
+## Phase 7 — The Identifier ⬅ Current
 
 The design is settled and written down in
 [ARCHITECTURE.md](ARCHITECTURE.md#the-identifier); this is the order to build
@@ -595,13 +595,36 @@ that out before anything is built on top of it.
   *This one needs you — judging whether a description is useful is not
   something the tests can do.*
 
-- [x] **7.3 Project knowledge** *(7 tests)* — *done as part of 7.0*
-  `load_knowledge`, the `production/` folder, and worked examples of
-  `terminology.md` and `characters.md` to write against. Names are matched
-  case-insensitively and read as utf-8-sig, because these are hand-written
-  files: one saved as `Characters.md` on Windows would otherwise stop working
-  the day the show moves to Linux, and at least one will arrive with a byte
-  order mark on it.
+- [x] **7.0.2 One production file, counted** *(12 tests)*
+  Production knowledge moved back beside Models on the Identifier tab: both are
+  about what the analysis knows before it starts, and both are per-job in a way
+  that installing ffmpeg is not.
+
+  One `production.md` under `# Characters`, `# Props` and `# Environments`,
+  with the entries under each counted back — "3 characters, 2 props, 4
+  environments". **That count is the point:** it is the cheapest way to see the
+  file was read the way it was meant, and a heading typed at the wrong level
+  shows up as a category with nothing in it. A category that is absent stays
+  absent rather than reading zero, because "no props section" and "an empty
+  props section" are different things.
+
+  A **Re-read** button, because editing the file in another window and having
+  it picked up is the whole reason this is a folder and not an upload. Proven
+  by doing it with the page open: 8 entries to 9 without the panel closing.
+
+  **Film terminology is now invisible to the user.** It ships in
+  `templates.py`, never reaches the front end, and a test asserts the word does
+  not appear in the knowledge response. Rewritten from two standard references
+  — Epidemic Sound on shots, MasterClass on moves — with every term defined by
+  what would be *seen* rather than by other jargon, because "top of head to
+  shoulders" can be matched against an observation and "a close shot" cannot.
+
+- [x] **7.3 Project knowledge** *(12 tests)* — *done across 7.0 and 7.0.2*
+  `load_knowledge`, the `production/` folder, and a worked `production.md` to
+  write against. The name is matched case-insensitively and read as utf-8-sig,
+  because this is a hand-written file: one saved as `Production.md` on Windows
+  would otherwise stop working the day the show moves to Linux, and sooner or
+  later it arrives with a byte order mark on it.
 
 - [ ] **7.4 The interpretation pass**
   `Interpreter` — observations into the project's vocabulary, characters named

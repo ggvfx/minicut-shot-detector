@@ -35,11 +35,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 STATIC_DIR = REPO_ROOT / "src" / "ui" / "static"
 
-# Where a production's own markdown goes — characters, terminology, and later
-# props and environments. Beside the app rather than uploaded per session: a
-# character sheet is written once and read on every run, and asking for it
-# every time would guarantee it gets skipped. Contents are gitignored; the
-# folder and its README are tracked so it exists on a fresh clone.
+# Where a production's own markdown goes — characters, props, environments.
+# Beside the app rather than uploaded per session: a show describes itself once
+# and it is read on every run, and asking for it every time would guarantee it
+# gets skipped. Contents are gitignored; the folder and its README are tracked
+# so it exists on a fresh clone.
+#
+# Film terminology is deliberately NOT here — it ships in
+# identifier/templates.py and is never shown, because it changes almost never.
 PRODUCTION_DIR = REPO_ROOT / "production"
 
 # --- FIXED REQUIREMENTS ---
@@ -218,7 +221,7 @@ class IdentifierConfig(BaseModel):
 
     # Path Persistence
     shots_dir: Optional[str] = None        # The folder of single-shot files to identify
-    knowledge_dir: Optional[str] = None    # Holds terminology.md and characters.md
+    knowledge_dir: Optional[str] = None    # Holds the production's own production.md
     shot_list_path: Optional[str] = None   # CSV, text document, or a folder of thumbnails
 
     # Backends
