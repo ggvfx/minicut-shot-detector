@@ -290,7 +290,31 @@ summary .summary { margin: 0; }
 
 /* Shrinks to the player, so the scrub strip is exactly as wide as the picture
    it belongs to rather than as wide as the card */
-.player-wrap { width: max-content; max-width: 100%; }
+.player-wrap { width: max-content; max-width: 100%; position: relative; }
+
+/* Sits beside the frame number burned into the picture, matching the height of
+   the digits so the pair reads as one marker.
+
+   Every measurement is a percentage of the player's WIDTH, including the
+   vertical ones — hence margin-top rather than top, which is the one offset
+   that resolves against width. The proxy is always 640 wide whatever its
+   shape, so the number is always 22px tall in a 640px frame: fixing the dot to
+   that ratio keeps it the size of the digits at any display size and any
+   aspect ratio, where a percentage of height would only hold for 16:9. */
+.frame-marker {
+    position: absolute;
+    top: 0;
+    margin-top: 1.9%;
+    left: 7.8%;   /* three digits; app.js sets it from the real frame count */
+    width: 2.2%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+.frame-marker.uncertain { background: var(--degraded); }
 
 /* Ticks sit on this strip, positioned by where their frame falls. Press or
    drag anywhere on it to seek: stepping is for precision, this is for crossing
@@ -336,23 +360,30 @@ summary .summary { margin: 0; }
 /* Found by only one detector: kept, but the place to start reviewing */
 .tick.uncertain { background: var(--degraded); }
 
+/* Centred under the picture, in the order they are reached: shot back, frame
+   back, play, frame on, shot on */
 .transport {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+/* Where the frame number and its mark button live, under the transport */
+.frame-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
     margin-bottom: var(--gap);
 }
 
 .readout {
-    margin-left: auto;
     color: var(--text-dim);
     font-variant-numeric: tabular-nums;
 }
-
-/* The mark button sits next to the readout, because that is where the eye
-   already is while reviewing */
-.transport #mark-button { margin-left: 4px; }
 
 /* ===== PROGRESS ===== */
 

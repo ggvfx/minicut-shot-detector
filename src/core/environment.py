@@ -175,9 +175,7 @@ class EnvironmentChecker:
             self.check_ffmpeg(),
             self.check_ffprobe(),
             self.check_encoders(),
-            self.check_onnxruntime(),
             self.check_scenedetect(),
-            self.check_model(),
             self.check_output_dir(output_dir),
             self.check_disk(output_dir),
         ]
@@ -289,8 +287,12 @@ class EnvironmentChecker:
         """
         ONNX Runtime and its execution providers.
 
-        CPU-only is the classic degraded case: detection still runs, just far
-        slower. That is the user's call to make, not ours.
+        Not currently run. Detection is two PySceneDetect passes, which need
+        nothing from ONNX; this returns when TransNetV2 does, and is kept so
+        that arrives as a one-line change rather than a rewrite.
+
+        CPU-only would be the classic degraded case: detection still runs, just
+        far slower. That is the user's call to make, not ours.
         """
         try:
             import onnxruntime
@@ -322,7 +324,12 @@ class EnvironmentChecker:
         )
 
     def check_scenedetect(self) -> Check:
-        """PySceneDetect, used for the cross-check pass."""
+        """
+        PySceneDetect, which is what finds the cuts.
+
+        Both detection passes come from this package, so its absence is the one
+        thing that would leave the app able to cut but not to propose where.
+        """
         try:
             import scenedetect  # noqa: F401
         except ImportError:
@@ -345,11 +352,12 @@ class EnvironmentChecker:
         """
         The TransNetV2 ONNX export.
 
+        Not currently run, for the same reason as `check_onnxruntime`: while it
+        was, the panel said "detection is not available" of an app that detects
+        cuts perfectly well without it.
+
         Verified by checksum once MODEL_SHA256 is set: a truncated or swapped
         model produces plausible-looking boundaries that are quietly wrong.
-
-        Reported as degraded rather than blocked while detection is still being
-        built — the app runs, it just cannot detect yet.
         """
         if not config.MODEL_PATH.exists():
             return Check(

@@ -17,7 +17,7 @@ which is gitignored. The CSVs are the tracked part.
 
 ## What this is for
 
-Not to validate TransNetV2. Its accuracy on hard cuts is a known quantity.
+Not to validate the detectors. Their accuracy on hard cuts is a known quantity.
 
 This validates *our pipeline*: off-by-one errors between detector output and
 frame index, frame rate conversion mistakes at 23.976 and 29.97, the cutter

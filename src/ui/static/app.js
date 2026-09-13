@@ -404,7 +404,19 @@ function beginScrub(event) {
 
     document.getElementById("proxy-player").pause();
     scrubTo(event);
+    followPointer();
+}
 
+/**
+ * Scrubs with the pointer until it is released.
+ *
+ * Split out because a drag can begin on a tick as well as on bare strip. A
+ * tick sits exactly where the playhead does when that frame is the current
+ * one, so a press there has to be able to become a drag — otherwise the
+ * playhead is unreachable whenever it is parked on a shot start, which is
+ * precisely where a review leaves it.
+ */
+function followPointer() {
     // Listening on the window means the drag survives leaving the strip, which
     // is what anyone dragging quickly will do
     window.addEventListener("pointermove", scrubTo);
@@ -446,10 +458,15 @@ function renderTimeline() {
         tick.title = uncertain
             ? `Frame ${frame} — found by one detector, worth a look`
             : `Frame ${frame}`;
+        // Stops the strip from handling the press as well, so the frame comes
+        // from the tick exactly rather than from where the pixel landed — then
+        // picks the drag up itself, so a press here is still a grab
         tick.addEventListener("pointerdown", (event) => {
             event.stopPropagation();
+            event.preventDefault();
             document.getElementById("proxy-player").pause();
             goToFrame(frame);
+            followPointer();
         });
         timeline.append(tick);
     }
@@ -472,6 +489,24 @@ function renderReadout(frame) {
     const button = document.getElementById("mark-button");
     button.textContent = marked ? "Remove first frame" : "Mark first frame";
     button.disabled = frame === 0;
+
+    // Same colours as the ticks, so scrubbing through the picture reads the
+    // same way as scanning the strip: green for a shot start, amber for one
+    // only a single detector found
+    const marker = document.getElementById("frame-marker");
+    marker.hidden = !marked;
+    marker.className = state.uncertain.has(frame) ? "frame-marker uncertain" : "frame-marker";
+    marker.title = marked ? `Frame ${frame} starts a shot` : "";
+
+    // The number is burned into the picture, so the dot has to be placed
+    // around it. Its width is set by the LONGEST frame number in the source,
+    // not the current one, so the dot holds still while scrubbing — a marker
+    // that shifts as the counter gains a digit is harder to scan than one that
+    // sits in the same place all the way through. Percentages of the player's
+    // width, matching the CSS: the counter starts 8px in and each monospaced
+    // digit advances about 12.7px, in a frame that is always 640 wide.
+    const digits = String(last).length;
+    marker.style.left = `${1.25 + digits * 1.98 + 0.6}%`;
 }
 
 // ===== SPLITTING =====
@@ -498,7 +533,10 @@ async function splitSource() {
                 source_path: state.sourcePath,
                 output_dir: state.outputDir,
                 boundaries: state.boundaries.map(String),
-                full_round_trip: document.getElementById("full-round-trip").checked,
+                // The default pixel check. Full round-trip verification is
+                // supported by the API but no longer offered on the page —
+                // see the note in index.html.
+                full_round_trip: false,
             }),
         });
 

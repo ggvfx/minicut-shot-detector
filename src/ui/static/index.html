@@ -95,14 +95,14 @@
                 <span id="cut-count" class="summary"></span>
             </div>
 
+            <!-- Full round-trip verification is deliberately not offered here.
+                 The default check catches every failure a stream copy can
+                 produce, so the option asked the user for a decision they had
+                 no basis to make. It is still supported end to end — POST
+                 /api/split takes full_round_trip — and the control can come
+                 back the day someone actually needs it. -->
             <div class="action-row">
                 <button id="analyse-button">Analyse for shot cuts</button>
-
-                <label class="checkbox" title="Shots are checked by comparing the frames either side of every cut against the source. Tick this to rejoin every shot and compare every frame instead: a stricter check that takes considerably longer and needs free space for a second copy of the source while it runs.">
-                    <input type="checkbox" id="full-round-trip">
-                    Full round-trip verification
-                </label>
-
                 <span id="analyse-status" class="status">Builds the review copy. This is the slow step.</span>
             </div>
 
@@ -118,19 +118,26 @@
                 <div class="player-wrap">
                     <video id="proxy-player" preload="auto"></video>
 
+                    <!-- Lights up beside the frame number burned into the
+                         picture when the current frame starts a shot, so
+                         scrubbing gives the same read as the ticks below -->
+                    <span id="frame-marker" class="frame-marker" hidden></span>
+
                     <!-- Press or drag anywhere to move; ticks mark shot starts -->
                     <div id="timeline" class="timeline"></div>
-                </div>
 
-                <div class="transport">
-                    <button id="play-button" class="secondary" title="Play or pause (Space)">Play</button>
-                    <button id="step-back" class="secondary" title="Back one frame (Left arrow) — ten with Shift">◀ Frame</button>
-                    <button id="step-forward" class="secondary" title="Forward one frame (Right arrow) — ten with Shift">Frame ▶</button>
-                    <button id="previous-cut" class="secondary" title="Previous shot start ([)">◀ Shot</button>
-                    <button id="next-cut" class="secondary" title="Next shot start (])">Shot ▶</button>
+                    <div class="transport">
+                        <button id="previous-cut" class="secondary" title="Previous shot start ([)">◀ Shot</button>
+                        <button id="step-back" class="secondary" title="Back one frame (Left arrow) — ten with Shift">◀ Frame</button>
+                        <button id="play-button" class="secondary" title="Play or pause (Space)">Play</button>
+                        <button id="step-forward" class="secondary" title="Forward one frame (Right arrow) — ten with Shift">Frame ▶</button>
+                        <button id="next-cut" class="secondary" title="Next shot start (])">Shot ▶</button>
+                    </div>
 
-                    <span id="frame-readout" class="readout"></span>
-                    <button id="mark-button" title="Mark or unmark the start of a shot (F)">Mark first frame</button>
+                    <div class="frame-row">
+                        <span id="frame-readout" class="readout"></span>
+                        <button id="mark-button" title="Mark or unmark the start of a shot (F)">Mark first frame</button>
+                    </div>
                 </div>
 
             </div>

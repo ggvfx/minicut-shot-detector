@@ -98,6 +98,10 @@ ourselves, so the detector is the only suspect.
   > a stricter check that takes considerably longer and needs free space for a
   > second copy of the source while it runs.
 
+  *The checkbox came out again in 4.2.1.* The round trip catches the same class
+  of error as the boundary hashes for several times the work, so v1 does not
+  offer it. `POST /api/split` still takes `full_round_trip`.
+
   Driven by hand in the browser on a real h265 mini cut: 674 frames split into
   four shots on boundaries typed as `120`, `00:00:12:12` and `455`, verified,
   sidecar written, mezzanine cleaned up.
@@ -208,6 +212,26 @@ step gates everything behind it.
 
   Verified on a real delivery: 21 boundaries, 15 agreed, and the 6 flagged were
   exactly the ones confirmed by eye as real cuts.
+
+- [x] **4.2.1 Review pass on the player** *(no new tests; 2 updated)*
+  Four changes from using it on a real delivery:
+
+  - The environment panel dropped from nine checks to seven. `onnxruntime` and
+    the model file are not dependencies of anything that ships, so reporting
+    them told the user to install something no job would ask for. Both checks
+    stay in `environment.py`, unrun, with docstrings saying why.
+  - The full round-trip checkbox came out of the UI, code and route untouched.
+  - A green dot beside the burned-in frame number marks a first frame, sized to
+    the height of the digits and placed from the source's own frame count so it
+    holds still while scrubbing. Amber where only one detector found the cut,
+    matching the ticks — scrubbing now reads the same way as scanning the strip.
+  - The transport moved under the picture, centred, in the order it is reached:
+    `◀ Shot, ◀ Frame, Play, Frame ▶, Shot ▶`.
+
+  Also fixed: a tick sits exactly where the playhead does when that frame is
+  current, and it was swallowing the press — so the playhead could not be
+  grabbed whenever it was parked on a shot start, which is where a review
+  leaves it. A press on a tick now jumps to that frame *and* starts the drag.
 
 - [ ] **4.3 Judge it on real footage**
   Run 4.2 over every file in `D:\minicutExamples` and look at what it marks.

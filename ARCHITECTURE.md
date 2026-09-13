@@ -44,9 +44,12 @@ continuously high-motion footage, Content false-positives on near-identical
 frames in flat previz. The union is used, and anything only one of them found
 is marked for a human glance.
 
-`TransNetDetector` is written as a skeleton and deferred. It is a neural
-network trained on shot transitions, and its advantage is dissolves and fades —
-which are out of scope, and which a person can mark in two keystrokes.
+`TransNetDetector` is written as a skeleton and deferred to a later phase. It
+is a neural network trained on shot transitions, and its advantage is gradual
+transitions — dissolves, fades and wipes — which a frame-to-frame difference is
+not built to see. It earns its place only if those turn out to be common enough
+in real deliveries that marking them by hand is a chore; hard cuts, which is
+nearly all of what a generative mini cut contains, are already handled.
 
 Each pass produces a list of `Boundary`, carrying the names of the detectors
 that found it.
@@ -57,8 +60,10 @@ Plain functions — nothing to hold between calls.
 
 - Matches boundaries between the two passes within a two frame tolerance
 - Both fired → confident. One fired → kept, flagged for review.
-- Merges shots below the minimum length: the flash frame filter. Merges are
-  recorded on the shot, never applied silently.
+- `apply_minimum_length` — the flash frame filter — is written and deliberately
+  left unimplemented. With a person reviewing every boundary, a spurious short
+  shot is one click to remove, while a filter that quietly drops a genuinely
+  quick cut leaves nothing to notice.
 - Converts boundaries into `Shot` ranges that tile the source exactly
 
 ### 3.5 Review — `ProxyBuilder` in `src/media/proxy.py`, and the front end
@@ -97,10 +102,13 @@ are. Verified by hand — 30 frames requested out of an all-intra mezzanine give
   against the mezzanine. Proves the pixels add up where it matters — shots are
   stream copies, so their interiors cannot change and every realistic failure
   moves an edge frame.
-- **Full round trip (optional):** rejoins every shot and compares every frame.
-  It decodes the whole job twice and writes a second copy of the mezzanine, so
-  it is offered as a checkbox for a final pass before a delivery rather than as
-  the default. CLAUDE.md records what that cost measured on one real mini cut.
+- **Full round trip (implemented, not offered):** rejoins every shot and
+  compares every frame. It decodes the whole job twice and writes a second copy
+  of the mezzanine, and it catches the same class of error the boundary hashes
+  already catch — shots are stream copies, so a corrupt interior is not a
+  failure mode that occurs. It stayed in the code with its tests, but the UI
+  checkbox came out for v1. `POST /api/split` still takes `full_round_trip`, so
+  putting it back is a front-end change only.
 
 The two modules split on whether a check needs ffmpeg. `integrity.py` holds
 the arithmetic as plain functions — no toolchain, no files, nothing decoded —
@@ -115,7 +123,7 @@ warns-and-continues, and it ships with v1.
 
 One JSON file per job: the shots with frame and timecode boundaries, the
 validation outcome, and the resolved environment that produced them — ffmpeg
-build, onnxruntime version, model checksum.
+build and the versions of what ran the detection.
 
 Written whether the job passed or failed — a failed job's sidecar is the most
 useful thing to look at when working out why. Reading sidecars back belongs to

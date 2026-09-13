@@ -28,12 +28,13 @@ def test_index_is_served():
 
 
 def test_environment_reports_every_check():
+    """Seven checks — what a job needs, not what TransNetV2 would add."""
     response = client.get("/api/environment")
 
     assert response.status_code == 200
     report = response.json()
     assert report["overall"] in ("ok", "degraded", "blocked")
-    assert len(report["checks"]) == 9
+    assert len(report["checks"]) == 7
 
 
 # --- BROWSE ---

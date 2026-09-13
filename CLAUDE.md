@@ -31,18 +31,24 @@ splitter outputs are designed to feed it.
 | Frontend | Plain HTML + CSS + vanilla JS | No React, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens in their own browser |
 | Detection | PySceneDetect, two passes | `ContentDetector` and `AdaptiveDetector` |
-| Detection (later) | TransNetV2 via ONNX Runtime | Deferred — see below |
+| Detection (conditional) | TransNetV2 via ONNX Runtime | A later phase, only if the classical passes prove insufficient on gradual transitions — see below |
 | Media | ffmpeg / ffprobe as subprocesses | Never a Python binding |
 | Review | 640px all-intra h264 proxy | Frame numbers burned in |
 | Mezzanine | All-intra in the source's own codec | libx264 / libx265, CRF 12 |
 
-### Why ONNX and not PyTorch
+### Why ONNX and not PyTorch — *if* TransNetV2 is built at all
 
-TransNetV2 ships as a repo with TF and PyTorch inference paths. We export the
-model to ONNX once as a build step and commit the `.onnx` file. This removes a
-several-hundred-MB torch dependency, produces identical output, and gets Apple
-Silicon acceleration via the CoreML execution provider. Runtime deps are
-`onnxruntime` + `numpy`.
+Nothing in this section has been built. The two PySceneDetect passes are what
+v1 ships with, and TransNetV2 is a later phase that only happens if they prove
+insufficient in real use — the case for it is dissolves, fades and wipes, not
+hard cuts. Until then nothing here is a runtime dependency, which is why the
+environment panel does not check for any of it.
+
+TransNetV2 ships as a repo with TF and PyTorch inference paths. We would export the
+the model to ONNX once as a build step and commit the `.onnx` file. That removes
+a several-hundred-MB torch dependency, produces identical output, and gets Apple
+Silicon acceleration via the CoreML execution provider. The runtime deps it
+would add are `onnxruntime` + `numpy`.
 
 ### Why not a native app
 
@@ -114,14 +120,17 @@ These are settled decisions. Do not revisit them without asking.
 
    *Revised after measuring:* there are two pixel checks, not one. The default
    compares the first and last frame of every shot against the mezzanine; the
-   optional full round trip rejoins every shot and compares every frame.
+   full round trip rejoins every shot and compares every frame.
 
    Both catch what a stream copy can actually get wrong — a shot starting or
    ending a frame out, a file holding the wrong content, a shot missing — because
    the pixels inside a stream-copied shot cannot change. Measured on a 3.4 minute
-   mini cut of 17 shots: 5.9s against 34s, and the round trip writes a second
-   copy of the mezzanine (893 MB) while it runs. The full check stays available
-   for a final pass before a delivery.
+   mini cut of 17 shots the round trip took roughly six times as long and wrote
+   a second copy of the mezzanine while it ran, to catch the same class of error.
+
+   *Revised again:* the round trip is no longer offered in the UI. The code and
+   its tests stay, and `POST /api/split` still takes `full_round_trip`, so it is
+   a front-end change to bring back if a real failure ever justifies it.
 7. **The splitter is deterministic.** Identical input must produce identical
    boundaries on every run, and no judgment enters the detection path — no LLM,
    no agent, nothing that could answer differently twice.
@@ -191,10 +200,12 @@ and the cutting afterwards is stream copies.
 
 ### 3. Detect
 
-- Pass 1: TransNetV2 ONNX. Per-frame transition probability, not a binary.
-- Pass 2: PySceneDetect `AdaptiveDetector`.
-- Reconcile into a boundary list. Both agree → high confidence. One fires only →
-  flag for review. Apply minimum shot length merge.
+- Pass 1: PySceneDetect `ContentDetector` — a fixed threshold.
+- Pass 2: PySceneDetect `AdaptiveDetector` — a rolling baseline.
+- Reconcile into a boundary list, matching within two frames. Both agree → high
+  confidence. One fires only → kept and flagged for review, because measuring
+  the two showed each finding real cuts the other missed.
+- A TransNetV2 pass belongs here if it is ever built, for gradual transitions.
 
 ### 4. Review
 
@@ -236,8 +247,8 @@ One JSON sidecar per source job:
 {
   "source": { "path": "...", "fps": 25, "start_tc": "10:00:00:00",
               "frame_count": 1500, "resolution": "1920x1080" },
-  "environment": { "ffmpeg": "...", "onnxruntime": "...",
-                   "model_sha256": "..." },
+  "environment": { "ffmpeg": "...", "ffprobe": "...", "scenedetect": "...",
+                   "platform": "...", "onnxruntime": "not installed" },
   "shots": [
     { "index": 1, "start_frame": 0, "end_frame": 74,
       "start_tc": "10:00:00:00", "end_tc": "10:00:02:24",
@@ -258,8 +269,8 @@ later, you need to know exactly what produced it.
 `tests/golden/` holds hand-labelled ground truth — a CSV of true cut frames per
 test video.
 
-Its purpose is **not** to validate TransNetV2, whose accuracy on hard cuts is a
-known quantity. It validates *our pipeline*: off-by-one errors between detector
+Its purpose is **not** to validate the detectors, whose accuracy on hard cuts
+is a known quantity. It validates *our pipeline*: off-by-one errors between detector
 output and frame index, frame rate conversion mistakes (23.976 / 29.97), the
 cutter landing on the wrong side of a boundary, mezzanine frames dropped or
 duplicated. A correct model wired up slightly wrong produces output that looks
@@ -287,14 +298,19 @@ only suspect.
 
 ## Dependency check panel
 
-Three states, not two. CPU-only is *degraded*, not failed — show an honest time
-estimate and allow the user to proceed. Only block on what genuinely cannot run.
+Three states, not two. Nothing chosen yet is *degraded*, not failed — the user
+has just opened the app. Only block on what genuinely cannot run.
 
-Check: ffmpeg + ffprobe on PATH and version; **encoder availability** parsed from
-`ffmpeg -encoders` (`libx264` required, `libx265` needed for h265 sources — a
-missing encoder otherwise only surfaces mid-job); Python version; `onnxruntime` import and available execution
-providers; model weights present and checksum-verified; `scenedetect` import;
-output directory writable; free disk space.
+The panel reports what a job needs, and nothing else. Seven checks: Python
+version; ffmpeg and ffprobe on PATH and version; **encoder availability**
+parsed from `ffmpeg -encoders` (`libx264` required, `libx265` needed for h265
+sources — a missing encoder otherwise only surfaces mid-job); `scenedetect`
+import; output directory writable; free disk space.
+
+`check_onnxruntime` and `check_model` are written and deliberately not run.
+Neither is a dependency of anything that ships, so reporting them would tell
+the user to install something no job will ever ask for. They go back into
+`run_all()` on the day a TransNetV2 pass exists.
 
 Every failure gives a copyable fix command, not an error string. Cache the
 result with a manual re-check button.

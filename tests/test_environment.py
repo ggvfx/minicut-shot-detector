@@ -133,7 +133,13 @@ def test_report_rechecks_when_the_output_directory_changes(tmp_path):
 
 
 def test_report_contains_every_check(tmp_path):
-    """Every check appears in the panel, with a valid status."""
+    """
+    Every check appears in the panel, with a valid status.
+
+    onnxruntime and the model file are deliberately absent: detection runs on
+    PySceneDetect, so neither is needed to complete a job. Both checks still
+    exist in the module, unrun, for when TransNetV2 arrives.
+    """
     report = EnvironmentChecker(MediaToolchain(discover=False)).report(tmp_path)
 
     keys = {check.key for check in report.checks}
@@ -142,12 +148,10 @@ def test_report_contains_every_check(tmp_path):
         "ffmpeg",
         "ffprobe",
         "encoders",
-        "onnxruntime",
         "scenedetect",
-        "model",
         "output_dir",
         "disk",
-    }
+    }, "the panel reports what this version needs, not what a later one might"
 
     for check in report.checks:
         assert check.status in (OK, DEGRADED, BLOCKED)

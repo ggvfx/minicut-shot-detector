@@ -18,10 +18,15 @@ sidecar. Finding those marks automatically is the next phase; the review that
 follows them is already built.
 
 **Current Capabilities:**
+* **Automatic Shot Detection:** Two PySceneDetect passes — ContentDetector and
+  AdaptiveDetector — run over the mezzanine and their results are merged. Each
+  boundary records which detectors found it, so one found by a single pass is
+  flagged for a look while agreement passes quietly.
 * **Frame-Accurate Review:** Plays a small all-intra proxy with each frame's
   number burned in, so the player's frame and the picture's frame can be
-  checked against each other. Step a frame at a time, jump cut to cut, and mark
-  where each shot starts with one key.
+  checked against each other. Step a frame at a time, jump shot to shot, and a
+  green dot beside the burned-in number marks a first frame while scrubbing.
+  Detected marks can be removed and missed ones added by hand.
 * **Splitting:** Cuts a mini cut into one file per shot with audio carried
   through, verifies every cut landed on the frame asked for, and writes a JSON
   sidecar recording what produced it.
@@ -35,13 +40,18 @@ follows them is already built.
 * **Disk Estimation:** Estimates the mezzanine and splits against free space
   on the output volume, before the job rather than when the drive fills.
 * **Dependency Panel:** Three-state environment reporting (ready / degraded /
-  blocked), with a copyable fix command for every failure and a manual re-check.
+  blocked) covering only what a job actually needs — Python, ffmpeg, ffprobe,
+  the mezzanine encoders, PySceneDetect, the output directory and free space —
+  with a copyable fix command for every failure and a manual re-check.
 * **Local Path Picker:** Server-side directory browsing, so multi-gigabyte media
   is never uploaded through the browser.
 
-**Next Milestone:** Automatic detection — TransNetV2 through ONNX Runtime with
-a PySceneDetect cross-check, filling in the markers a person currently places
-by hand. Review stays exactly as it is: detection proposes, the human decides.
+**Next Milestone:** Measuring the two PySceneDetect passes against real
+deliveries to decide whether a neural pass is needed at all. TransNetV2 through
+ONNX Runtime is planned for a following phase **if** the classical detectors
+prove insufficient — principally on dissolves, wipes and other gradual
+transitions, which a frame-to-frame difference is not built to see. Either way
+review stays exactly as it is: detection proposes, the human decides.
 
 ## Development Approach
 
@@ -140,12 +150,21 @@ here that must never drift.
   or unmark where a shot starts.
 
 ### Phase 4: Detection (Current)
-* TransNetV2 ONNX export as a committed build step.
-* Sliding-window inference and per-frame transition probabilities.
-* PySceneDetect cross-check pass and boundary reconciliation.
+* PySceneDetect ContentDetector and AdaptiveDetector passes (complete).
+* Boundary reconciliation, with agreement recorded per boundary (complete).
+* Measuring both against real deliveries to decide whether a neural pass is
+  needed — see Phase 6.
 
 ### Phase 5: Progress & Orchestration
 * SSE progress streaming, shot review table, full pipeline behind one button.
+
+### Phase 6: Neural Detection (Conditional)
+* TransNetV2 ONNX export as a committed build step, and sliding-window
+  inference producing per-frame transition probabilities.
+* Planned **only if** the classical passes prove insufficient in use. The case
+  for it is gradual transitions — dissolves, fades and wipes — which a
+  frame-to-frame difference is not built to see. Hard cuts, which is what
+  generative mini cuts are almost entirely made of, are already handled.
 
 ## 🚀 Overview
 
@@ -192,35 +211,37 @@ shot is a lossless stream copy out of it.
 * **Format Preserved:** Shots come back in the codec and container they went in
   as — h264 in, h264 out; h265 in, h265 out, at the source's resolution, frame
   rate and bit depth. Converting to a delivery format is not this tool's job.
-* **Two-Detector Reconciliation:** TransNetV2 runs as the primary pass with
-  PySceneDetect as an independent cross-check. Agreement means confidence;
-  disagreement flags the boundary for human review, which is what makes an
-  unattended run safe to trust.
+* **Two-Detector Reconciliation:** PySceneDetect's ContentDetector and
+  AdaptiveDetector both run, and their boundaries are merged rather than
+  intersected. Measured on real deliveries they fail in opposite directions —
+  Content finds cuts Adaptive misses in high-motion footage, Adaptive finds
+  cuts Content misses in previz — so the union is what gets used. Agreement
+  means confidence; a boundary only one pass found is kept and flagged for a
+  human glance.
 * **Integer Frames Throughout:** Frame numbers are integers everywhere and
   timecode is derived only at output. Frame rates are held as exact rationals
   (24000/1001), never as rounded floats that drift a frame over a long edit.
 * **Pixel-Level Verification:** Frame-hashes the first and last frame of every
   shot against the mezzanine, so a shot cut from the wrong place cannot pass a
-  frame count. A full round trip — rejoin everything and compare every frame —
-  is available for a final pass. Any failure blocks the job; the validation
-  stage never warns and continues.
-* **Flash-Frame Filtering:** A minimum shot length merges the sub-threshold
-  shots that camera flashes produce, and every merge is logged on the shot
-  rather than silently applied.
+  frame count. Any failure blocks the job; the validation stage never warns and
+  continues. A full round trip — rejoin everything and compare every frame — is
+  implemented and tested, but not offered in the UI: boundary hashes catch the
+  same class of error for a fraction of the write.
 * **Detect, Don't Ask:** Aspect ratio and letterbox masking are found with
   `cropdetect`, sampled across the file, then shown for confirmation with an
   override. A mask typed in wrongly quietly degrades detection.
-* **Honest Dependency Reporting:** Three states, not two. CPU-only inference is
-  degraded rather than failed — the cost is shown and the user decides.
-* **Reproducible Sidecars:** Every job records the resolved ffmpeg build,
-  runtime versions and model checksum alongside the shots, so a boundary that
-  looks wrong months later can be traced to what produced it.
+* **Honest Dependency Reporting:** Three states, not two. Nothing chosen yet is
+  degraded rather than failed, and every blocked check carries the command that
+  fixes it. The panel reports what a job needs, not what a later version might.
+* **Reproducible Sidecars:** Every job records the resolved ffmpeg build and
+  runtime versions alongside the shots, so a boundary that looks wrong months
+  later can be traced to what produced it.
 
 ## 🛠️ Technical Stack
 * **Language:** Python 3.11+
 * **Backend:** FastAPI, Uvicorn, Pydantic
 * **Frontend:** Plain HTML, CSS and vanilla JavaScript — no npm, no build step
-* **Detection:** TransNetV2 via ONNX Runtime, PySceneDetect
+* **Detection:** PySceneDetect (ContentDetector + AdaptiveDetector)
 * **Media Engine:** ffmpeg / ffprobe as subprocesses, never a Python binding
 * **Mezzanine:** All-intra libx264 / libx265 at CRF 12, matching the source codec
 
@@ -228,7 +249,7 @@ shot is a lossless stream copy out of it.
 * `main.py`: Entry point — starts the local server and opens the UI.
 * `src/core/`: Config, data models, timecode maths, ffmpeg toolchain, environment checks.
 * `src/media/`: Source probing, mezzanine creation, review proxy and shot extraction.
-* `src/detection/`: TransNetV2, PySceneDetect cross-check and boundary reconciliation.
+* `src/detection/`: PySceneDetect passes and boundary reconciliation.
 * `src/validation/`: Integrity and round-trip checks that can block a job.
 * `src/ui/`: FastAPI routes, path picker and the browser front end.
 * `scripts/`: One-off build steps, including the TransNetV2 ONNX export.
