@@ -551,9 +551,17 @@ that out before anything is built on top of it.
   missing, which is right for a status panel and useless for setting up a
   second machine or telling a colleague what they will need.
 
-  The workflow tabs keep a **one-line health strip** instead — hidden entirely
-  when nothing is wrong, because a permanent "everything is fine" banner is one
-  people stop reading and then stop noticing when it changes.
+  The workflow tabs keep a **one-line status strip** instead, always shown. It
+  answers "can I start?" — which someone wants confirmed before they begin
+  rather than implied by silence, and for anyone who does not know what this
+  app needs, a green "Ready" is the difference between confidence and guessing.
+  When it is not ready it says so and offers the way to Setup.
+
+  *Corrected after seeing it:* an unconfigured model now **blocks** the
+  Identifier rather than merely limiting it. Degraded means "will run, but
+  worse"; without a model that tab cannot describe a single shot, and calling
+  it a limitation would send someone off to try it and find nothing works. The
+  Splitter stays green throughout, which is the per-tab design paying off.
 
   **The model picker stayed on the Identifier**, not in Setup: which tool runs
   a batch is a per-job decision in a way that installing ffmpeg is not.

@@ -38,7 +38,7 @@ from src.core.config import (
     load_settings,
     save_settings,
 )
-from src.core.environment import BLOCKED, DEGRADED, OK, Check, gating_status
+from src.core.environment import BLOCKED, OK, Check, gating_status
 
 # --- A FAKE CLI ---
 
@@ -547,16 +547,19 @@ def test_the_settings_file_never_holds_a_key(tmp_path, monkeypatch):
 # --- BACKENDS IN THE PANEL ---
 
 
-def test_nothing_configured_is_degraded_not_blocked():
+def test_no_model_blocks_rather_than_merely_limiting():
     """
-    A working splitter must not be painted red over a tab the user may never
-    open. This is the rule that took the output directory off the panel.
+    Degraded means "will run, but worse". Without a model the Identifier cannot
+    describe a single shot, and calling that a limitation would send someone
+    off to try it and find nothing works.
+
+    The Splitter never sees these rows at all, so nothing is painted red over a
+    tab the user may never open.
     """
     checks = backend_checks(Settings())
 
     assert [check.key for check in checks] == ["backend_vision", "backend_text"]
-    assert all(check.status == DEGRADED for check in checks)
-    assert all("Splitter" in check.detail for check in checks), "says what still works"
+    assert all(check.status == BLOCKED for check in checks)
     assert all(check.fixes for check in checks), "and how to fix it"
 
 
@@ -572,7 +575,7 @@ def test_a_configured_command_reads_green():
     assert all(check.status == OK for check in backend_checks(settings))
 
 
-def test_an_absent_local_runtime_is_degraded_with_its_own_advice():
+def test_an_absent_local_runtime_gets_its_own_advice():
     """
     Each kind fails its own way, so "check your settings" would be true and
     useless. A local runtime is usually just not started.
@@ -583,7 +586,7 @@ def test_an_absent_local_runtime_is_degraded_with_its_own_advice():
 
     vision = backend_checks(settings)[0]
 
-    assert vision.status == DEGRADED
+    assert vision.status == BLOCKED
     assert any("ollama pull absent-vlm" in (f.command or "") for f in vision.fixes)
 
 
@@ -597,7 +600,7 @@ def test_a_keyless_api_backend_says_which_variable_to_set(monkeypatch):
 
     text = backend_checks(settings)[1]
 
-    assert text.status == DEGRADED
+    assert text.status == BLOCKED
     assert any("TEST_MODEL_KEY" in f.label for f in text.fixes)
 
 
@@ -614,7 +617,7 @@ def test_the_two_passes_are_reported_separately():
     vision, text = backend_checks(settings)
 
     assert vision.status == OK
-    assert text.status == DEGRADED
+    assert text.status == BLOCKED
 
 
 def test_backend_rows_never_gate_the_app():

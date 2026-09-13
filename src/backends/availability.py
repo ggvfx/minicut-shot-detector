@@ -8,15 +8,13 @@ Lives here rather than in `core/environment.py` because of the dependency
 direction: `core` may not import a domain package. The checker assembles the
 rows it owns and takes these as extras, which keeps the arrow pointing one way.
 
-**Nothing here gates the app.** The splitter needs no model at all, so every
-row is marked `advisory`: reported in the panel, left out of its headline
-status. An unconfigured backend is a limitation of the Identifier tab, not a
-fault, and letting one turn a working Splitter amber is the same mistake that
-took the output directory off the panel.
+These rows appear only in the Identifier's panel, and there they **block**: a
+user standing in that tab with no model cannot describe a single shot, and
+calling that a limitation would send them off to try it and find nothing works.
 
-When the Identifier tab is built, a user standing in it does want to be
-blocked — but that is a question for that tab's own view, not for the panel
-everyone sees on launch.
+The Splitter never sees them, because it needs no model at all. Whether a row
+gates is therefore the caller's decision, not a property of the row — which is
+what `advisory` is for, and why nothing here sets it.
 """
 
 import logging
@@ -24,7 +22,7 @@ from typing import List
 
 from src.backends.adapter import BackendError, create_backend
 from src.core.config import BACKEND_API, BACKEND_LOCAL, Settings
-from src.core.environment import DEGRADED, OK, Check, FixStep
+from src.core.environment import BLOCKED, OK, Check, FixStep
 
 # --- LABELS ---
 
@@ -56,8 +54,10 @@ def backend_checks(settings: Settings, advisory: bool = False) -> List[Check]:
         A check for the vision pass and one for the text pass, in that order.
 
     Notes:
-        Never worse than degraded, and never green when nothing is configured —
-        both halves of that matter.
+        Blocked rather than degraded when there is no usable model. Degraded
+        means "will run, but worse"; without a model this tab cannot describe a
+        single shot, and calling that a limitation would send someone off to
+        try it and find nothing works.
 
         Whether these gate depends on who is asking, which is why it is an
         argument rather than a property of the row. In the Identifier tab a
@@ -93,8 +93,8 @@ def _check_pass(name: str, settings: Settings) -> Check:
         return Check(
             key=f"backend_{name}",
             label=label,
-            status=DEGRADED,
-            detail="Not configured — needed for the Identifier tab, not the Splitter",
+            status=BLOCKED,
+            detail="Not configured — the Identifier cannot describe a shot without one",
             fixes=[CONFIGURE_FIX],
         )
 
@@ -102,7 +102,7 @@ def _check_pass(name: str, settings: Settings) -> Check:
         backend = create_backend(config)
     except BackendError as error:
         return Check(
-            key=f"backend_{name}", label=label, status=DEGRADED,
+            key=f"backend_{name}", label=label, status=BLOCKED,
             detail=str(error), fixes=[CONFIGURE_FIX],
         )
 
@@ -117,7 +117,7 @@ def _check_pass(name: str, settings: Settings) -> Check:
     return Check(
         key=f"backend_{name}",
         label=label,
-        status=DEGRADED,
+        status=BLOCKED,
         detail=f"{backend.describe()} — configured, but not answering",
         fixes=_unavailable_fix(config),
     )

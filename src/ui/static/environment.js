@@ -8,8 +8,9 @@
  * once-per-install job and it was previously split across the two tabs people
  * use daily — which meant a panel nobody reads sitting above the work.
  *
- * The workflow tabs keep a one-line health strip instead: silent when
- * everything is fine, and a link to Setup when it is not.
+ * The workflow tabs keep a one-line status strip instead, always shown: it
+ * answers "can I start?" before someone begins, and offers the way to Setup
+ * when the answer is no.
  *
  * Still two separate panels, because the tabs need genuinely different things —
  * the splitter needs encoders and PySceneDetect, the identifier needs a model
@@ -70,18 +71,26 @@ export async function loadEnvironment(tab = "splitter", refresh = false) {
 }
 
 /**
- * The one-line strip on a workflow tab.
+ * The one-line status strip at the top of a workflow tab.
  *
- * Hidden entirely when nothing is wrong. A permanent "everything is fine"
- * banner is something people stop reading, and then stop noticing when it
- * changes — the panel has to earn its place on screen each time.
+ * Always shown, including when everything is fine. It is the answer to "can I
+ * start?", which someone wants confirmed before they begin rather than implied
+ * by silence — and for anyone who does not know what this app needs, a green
+ * "Ready" is the difference between confidence and guessing.
+ *
+ * When it is not ready it says so and offers the way to Setup, so the strip is
+ * never a dead end.
  */
 function renderHealth(tab, report) {
     const strip = document.getElementById(`${tab}-health`);
     if (!strip) return;
 
+    strip.className = `health ${report.overall}`;
+    strip.replaceChildren();
+
     if (report.overall === "ok") {
-        strip.hidden = true;
+        strip.append(statusText("Ready — everything this tab needs is installed"));
+        strip.hidden = false;
         return;
     }
 
@@ -91,20 +100,24 @@ function renderHealth(tab, report) {
     // The verb has to agree with the count, or the one place the app speaks up
     // about a problem is also the place it looks unfinished
     const subject = one ? "1 thing" : `${problems.length} things`;
-    const verb = report.overall === "blocked"
-        ? (one ? "needs attention" : "need attention")
-        : (one ? "is not set up" : "are not set up");
-
-    strip.textContent = `${subject} ${verb}: `;
-    strip.className = `health ${report.overall}`;
+    const state = report.overall === "blocked"
+        ? `Not ready — ${subject} ${one ? "needs" : "need"} attention`
+        : `Ready, with limits — ${subject} ${one ? "is" : "are"} not set up`;
 
     const link = document.createElement("button");
     link.className = "inline-button";
-    link.textContent = "Open Setup";
+    link.textContent = "Go to Setup";
     link.addEventListener("click", () => showTab("setup"));
 
-    strip.append(link);
+    strip.append(statusText(state), link);
     strip.hidden = false;
+}
+
+/** The wording half of the strip, kept separate from the button. */
+function statusText(words) {
+    const span = document.createElement("span");
+    span.textContent = words;
+    return span;
 }
 
 /**
