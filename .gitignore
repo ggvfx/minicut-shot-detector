@@ -92,7 +92,15 @@ logs/
 # real one names a machine's own CLI paths and endpoints, so it is per-install.
 settings.json
 
-# A show's own character sheets and terminology. The folder and its README are
-# tracked so it exists on a fresh clone; what a production puts in it is theirs.
+# ===== PRODUCTION IP — NEVER COMMIT =====
+#
+# A show's own characters, props and environments. This is a client's
+# unreleased material and must not reach a public repository under any
+# circumstance.
+#
+# Everything in the folder is excluded and only the README is allowed back in,
+# so a new file added here is ignored by default rather than by remembering to
+# add a rule. Reference images and any other format a production drops in are
+# covered by the same line.
 production/*
 !production/README.md

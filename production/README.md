@@ -43,33 +43,34 @@ person.
 ```markdown
 # Characters
 
-## Tess
-Twenty-something woman, bright blue hair, always on rollerskates.
+## Rook
+Man in his forties, shaved head, heavy canvas coat worn open.
 
-**Tells her apart:** the only character on skates, in any version.
+**Tells him apart:** the only character who wears a hat indoors.
 
-**In CG blockout:** a red mannequin, on skates. The others are grey.
+**In CG blockout:** a grey mannequin — the tallest figure in any group.
 
-## Marcus
-Older man, heavy build, long dark coat and a flat cap.
+## Wren
+Girl of about twelve, cropped hair, carries a canvas satchel on a long strap.
 
-**Tells him apart:** the coat silhouette, and he is the tallest character.
+**Tells her apart:** by far the smallest figure; the satchel reads even in
+silhouette.
 
-**In CG blockout:** a tall grey mannequin with a coat shape over it.
+**In CG blockout:** a small grey mannequin with a box shape at the hip.
 
 # Props
 
-## The radio
-A boxy portable radio with a bent aerial, carried by Marcus.
+## The lantern
+A dented brass storm lantern with a cracked green glass panel.
 
-**In CG blockout:** a grey box with a thin rod on top.
+**In CG blockout:** a grey cylinder with a handle, carried at waist height.
 
 # Environments
 
-## The shoreline
-Open beach, wet sand, low breakwaters running into the sea. Overcast.
+## The harbour
+Exterior, night. Stone quay, fishing boats at low tide, sodium lights.
 
-**In CG blockout:** a flat plane with regular block shapes to the horizon.
+**In CG blockout:** a flat plane with regular block shapes along one edge.
 ```
 
 ## What is not here
