@@ -1,8 +1,17 @@
 """
-Global Configuration Management.
+Shared Configuration.
 
-Holds fixed project constants and the per-run settings object.
-Designed to be serializable so the UI can save and restore a job setup.
+**Used by both tabs.** Fixed project constants, and the per-run settings object
+for each tab — `ProjectConfig` for the splitter, `IdentifierConfig` for the
+identifier. Both are serialisable, so the UI can save and restore a job setup.
+
+One file, so there is one place to look for what a setting is and what it
+defaults to. No module invents its own default for anything a user can change;
+a module may hold a tuning constant it alone uses, next to the comment
+explaining the number.
+
+Split this per-tab only when it grows enough to be worth it, and say why at the
+time.
 """
 
 from pathlib import Path
@@ -103,3 +112,88 @@ class ProjectConfig(BaseModel):
 
     # Masking is deliberately absent: detected letterboxing is reported, never
     # applied, so there is nothing for the user to override.
+
+
+# --- MODEL BACKENDS ---
+
+# The three ways of reaching a model. The command and API paths are the
+# product; local is the option, because this is handed to people whose machines
+# are nothing like the one it was written on.
+BACKEND_COMMAND = "command"
+BACKEND_API = "api"
+BACKEND_LOCAL = "local"
+
+BACKEND_KINDS = (BACKEND_COMMAND, BACKEND_API, BACKEND_LOCAL)
+
+# Hosted APIs agree on almost nothing: the shape of the request, where the text
+# comes back, how an image is attached. The user says which dialect their
+# endpoint speaks rather than us sniffing, so a mismatch is a clear message
+# instead of a confusing one.
+STYLE_ANTHROPIC = "anthropic"
+STYLE_OPENAI = "openai"
+STYLE_OLLAMA = "ollama"
+
+API_STYLES = (STYLE_ANTHROPIC, STYLE_OPENAI, STYLE_OLLAMA)
+
+# Ceiling on a single reply. An observation is a dozen short lines, so this is
+# generous for the job and still stops a runaway answer costing real money.
+MAX_REPLY_TOKENS = 2000
+
+# Long enough for a vision model on a slow machine, short enough that a stalled
+# call fails rather than hanging a forty-shot batch all afternoon.
+BACKEND_TIMEOUT_SECONDS = 180
+
+# Where local model runtimes conventionally listen.
+LOCAL_ENDPOINT = "http://127.0.0.1:11434"
+
+
+class BackendConfig(BaseModel):
+    """
+    How to reach one model backend.
+
+    Held per pass, so the vision and text passes can point at different things —
+    a studio may run every text pass through a CLI it already licenses and have
+    to send image work somewhere else.
+
+    A passive container: nothing here performs work, and no credential is ever
+    stored in it. `api_key_env` names the environment variable holding the key,
+    which is read at the moment of the call — a config file is the sort of
+    thing that gets copied between machines and committed by accident.
+    """
+
+    kind: str = BACKEND_COMMAND            # One of BACKEND_KINDS
+    model: Optional[str] = None            # Model name, where the backend takes one
+    command: Optional[list] = None         # For "command": the executable and its arguments
+    endpoint: Optional[str] = None         # For "api" and "local": the URL
+    api_style: str = STYLE_ANTHROPIC       # Which dialect the endpoint speaks
+    api_key_env: Optional[str] = None      # For "api": the variable holding the key, never the key
+
+    timeout_seconds: int = BACKEND_TIMEOUT_SECONDS
+    max_tokens: int = MAX_REPLY_TOKENS
+
+
+class IdentifierConfig(BaseModel):
+    """
+    Settings for a single identifier run.
+
+    The same shape as `ProjectConfig` above and for the same reason: the
+    pipeline reads these values and hands them down to the stage modules, so
+    there is one object to serialise when the UI saves a job setup.
+
+    Vision and text are separate backends rather than one, because they are
+    routinely different in practice and a single setting could not express that.
+    """
+
+    # Path Persistence
+    shots_dir: Optional[str] = None        # The folder of single-shot files to identify
+    knowledge_dir: Optional[str] = None    # Holds terminology.md and characters.md
+    shot_list_path: Optional[str] = None   # CSV, text document, or a folder of thumbnails
+
+    # Backends
+    vision: BackendConfig = BackendConfig()
+    text: BackendConfig = BackendConfig()
+
+    # Re-observe shots that already have a cached description. Off by default:
+    # the vision pass is the expensive step and its whole purpose is to happen
+    # once, so repeating it has to be asked for.
+    force_observe: bool = False

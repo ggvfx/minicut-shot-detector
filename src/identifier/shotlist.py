@@ -26,7 +26,7 @@ SKELETON. Signatures and docstrings only.
 from pathlib import Path
 from typing import List, Optional
 
-from src.identifier.models import ShotListEntry
+from src.core.models import ShotListEntry
 
 # --- RECOGNISED INPUT ---
 

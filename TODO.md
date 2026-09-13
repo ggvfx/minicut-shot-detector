@@ -417,6 +417,33 @@ nothing in this phase does anything at runtime.
   came out into `transport.py` — the interface and the shapes in one file, how
   bytes move in another. Largest is now 329.
 
+- [x] **6.3.1 Make the identifier match the splitter** *(no new tests; 289 still pass)*
+  A review against `D:\_repos\CODE_STYLE.md` found the skeletons had drifted.
+  They followed the splitter's *style* but not its *shape*, and in one place
+  broke the style doc outright. Four corrections:
+
+  - **`BackendConfig` invented defaults outside `config.py`** — timeouts, token
+    ceilings, the default dialect. The doc is explicit: one file, every
+    setting. Moved, along with `IdentifierConfig`, which did not exist at all.
+  - **`IdentifierPipeline` took five loose arguments** where `SplitterPipeline`
+    takes `(config, toolchain)`. Now the same.
+  - **It had no staged form.** The splitter has public entry points and private
+    `_stage` methods documented "Stage N.". The identifier now mirrors that
+    exactly: `prepare()` does the work before the person decides, `rename()`
+    and `export()` act on what they approved, and `_shots`, `_observe`,
+    `_interpret`, `_match` are the numbered stages between.
+  - **`src/identifier/models.py` was a second models file.** Merged into
+    `core/models.py`, banded SHARED / THE SPLITTER / MODEL BACKENDS / THE
+    IDENTIFIER. `ProjectKnowledge` and `ModelReply` moved there too — they are
+    passed between modules, so they are models.
+
+  The rules this settled are now in CLAUDE.md under Repo conventions, because
+  they are the kind that get re-litigated by habit otherwise.
+
+  **Flagged, not acted on:** `core/models.py` is 439 lines. Over the threshold,
+  and it will grow as the identifier fills in. Left whole deliberately — one
+  place to look beats a small file — but worth a decision before Phase 7.
+
 - [ ] **6.4 Backends in the environment panel**
   Report which backends are reachable, and block only when *none* is. **A
   machine with no GPU and a configured command is a fully supported setup and

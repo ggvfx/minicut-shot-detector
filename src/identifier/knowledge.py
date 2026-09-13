@@ -25,44 +25,13 @@ SKELETON. Signatures and docstrings only.
 """
 
 from pathlib import Path
-from typing import Optional
 
-from pydantic import BaseModel
+from src.core.models import ProjectKnowledge
 
 # --- FILE NAMES ---
 
 TERMINOLOGY_FILE = "terminology.md"
 CHARACTERS_FILE = "characters.md"
-
-
-class ProjectKnowledge(BaseModel):
-    """
-    The markdown a project supplies, as text.
-
-    Held as text rather than parsed into structure. These files are written by
-    people for a model to read, and the moment we impose a schema on them we
-    are asking a production to fill in our form instead of describing their
-    show. The interpret pass gets them as they are.
-
-    Attributes:
-        terminology: How this project names shot sizes, types and moves.
-        characters: Who is in it and how they appear in each representation.
-        directory: Where they came from, for the UI to show.
-    """
-
-    terminology: str = ""
-    characters: str = ""
-    directory: Optional[str] = None
-
-    @property
-    def has_terminology(self) -> bool:
-        """Whether terms can be applied, or observations stay in plain words."""
-        return bool(self.terminology.strip())
-
-    @property
-    def has_characters(self) -> bool:
-        """Whether appearances can be named, or stay as descriptions."""
-        return bool(self.characters.strip())
 
 
 def load_knowledge(directory: Path) -> ProjectKnowledge:

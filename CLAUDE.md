@@ -472,6 +472,26 @@ changing a settled decision is a conversation first, not a commit.
 
 ## Repo conventions
 
+- **`core/models.py`, `core/config.py` and `core/utils.py` are shared by both
+  tabs, and stay one file each.** "What shape is a Shot?" and "what does this
+  setting default to?" must each have exactly one place to look, however many
+  features the app grows. A second models file beside the first means a reader
+  has to know which one before they can look anything up, and every feature
+  after that adds another. `models.py` is banded by which tab uses what.
+  **When one grows enough to be worth splitting, that is a conversation, not a
+  unilateral split** — see CODE_STYLE.md on splitting past the point of clarity.
+- **Every per-run setting and every default lives in `config.py`.** No module
+  invents its own default for something a user can change. A module may hold a
+  tuning constant it alone uses — `CONTENT_THRESHOLD`, `PROXY_WIDTH` — next to
+  the comment explaining the number, because the number means nothing without
+  it. Anything a config object carries, or that two modules need, belongs in
+  `config.py`.
+- **Both tabs look like one application.** The identifier follows the
+  splitter's shapes: a `*Config` in `config.py`, a pipeline holding config and
+  toolchain with public entry points and private numbered `_stage` methods,
+  engines as classes and pure transformations as functions. If something in the
+  identifier has no counterpart in the splitter, that is worth a look before it
+  is written.
 - Commit at task granularity or finer. When an agent-written change breaks
   something, `git diff` against a known-good commit is how it gets found.
 - `.gitignore` test media and output directories **before the first commit**.

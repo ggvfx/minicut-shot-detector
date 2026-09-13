@@ -18,7 +18,7 @@ SKELETON. Signatures and docstrings only.
 from pathlib import Path
 from typing import List
 
-from src.identifier.models import ShotRecord
+from src.core.models import ShotRecord
 
 # --- OUTPUT ---
 

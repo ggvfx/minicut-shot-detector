@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from src.backends.adapter import (
-    ANTHROPIC,
-    OPENAI,
+    STYLE_ANTHROPIC,
+    STYLE_OPENAI,
     BackendConfig,
     BackendError,
     ModelBackend,
@@ -109,10 +109,10 @@ class HttpApiBackend(ModelBackend):
         Built per call and never stored, so the key exists only for the length
         of one request.
         """
-        if self.config.api_style == ANTHROPIC:
+        if self.config.api_style == STYLE_ANTHROPIC:
             return {"x-api-key": key, "anthropic-version": ANTHROPIC_VERSION}
 
-        if self.config.api_style == OPENAI:
+        if self.config.api_style == STYLE_OPENAI:
             return {"Authorization": f"Bearer {key}"}
 
         # A local-style endpoint reached over the network takes no credential

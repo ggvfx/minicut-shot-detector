@@ -1,9 +1,13 @@
 """
-Core Data Models for the Shot Splitter.
+Shared Data Models.
 
-Defines the structured schemas passed between pipeline stages and written to
-the JSON sidecar. Using BaseModel means the sidecar can be re-loaded and
-re-validated later without hand-written parsing.
+**Used by both tabs.** The structured schemas passed between stages and written
+to disk, for the splitter and the identifier alike. Using BaseModel means a
+sidecar or a cache can be re-loaded and re-validated later without hand-written
+parsing, and a missing field is an error rather than a wrong answer further on.
+
+Grouped by which tab uses them, with the shared source model first. Split this
+per-tab only when it grows enough to be worth it, and say why at the time.
 
 Key terms used throughout the project:
 - frame     = integer frame index, 0 at the first frame of the source
@@ -15,6 +19,13 @@ Key terms used throughout the project:
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+# =====================================================================
+# SHARED
+#
+# What ffprobe reported about a file. Both tabs read media, so this is the one
+# model neither owns.
+# =====================================================================
 
 # --- SOURCE ---
 
@@ -48,6 +59,16 @@ class SourceInfo(BaseModel):
 
     # Letterbox/pillarbox crop found by cropdetect, as "w:h:x:y".
     detected_crop: Optional[str] = None
+
+
+# =====================================================================
+# THE SPLITTER
+#
+# Inspecting a mini cut, the boundaries found in it, and what a completed
+# split produced.
+# =====================================================================
+
+# --- INSPECTION ---
 
 
 class ProbeReport(BaseModel):
@@ -191,3 +212,228 @@ class JobResult(BaseModel):
     environment: Dict[str, str] = Field(default_factory=dict)
     mezzanine_path: Optional[str] = None
     sidecar_path: Optional[str] = None
+
+
+# =====================================================================
+# MODEL BACKENDS
+#
+# What every backend returns, whatever it is underneath.
+# =====================================================================
+
+# --- WHAT A MODEL BACKEND RETURNS ---
+
+
+class ModelReply(BaseModel):
+    """
+    What came back, and what produced it.
+
+    The backend and model are recorded alongside the text for the same reason
+    the splitter's sidecar records the ffmpeg build: when an answer looks wrong
+    weeks later, the first question is what produced it. Unlike the splitter,
+    the same input here can give a different answer twice, which makes the
+    record more important rather than less.
+    """
+
+    text: str
+    backend: str
+    model: Optional[str] = None
+    seconds: float = 0.0
+
+
+# =====================================================================
+# THE IDENTIFIER
+#
+# The shape of `Observation` is the important one here: it is what the vision
+# model is asked for, and deciding it in this file is how the project keeps a
+# consistent vocabulary across a batch instead of inheriting whatever a model
+# feels like saying.
+#
+# The schema is a hypothesis until it has been tried on real material.
+# =====================================================================
+
+# --- WHAT THE VISION PASS REPORTS ---
+
+
+
+class Observation(BaseModel):
+    """
+    What is literally in the picture, in plain words.
+
+    Deliberately free of film terminology. A model asked for "the shot size"
+    returns some averaged convention applied inconsistently across forty shots,
+    and inconsistent vocabulary is fatal when the next step compares text to
+    text. It is asked instead where the frame cuts the subject, and `interpret`
+    turns that into the project's own term.
+
+    Equally free of project knowledge: no character names, because a model told
+    that a character has blue hair will find blue hair.
+
+    Attributes:
+        subject_count: How many people or figures are in frame.
+        framing: Where the frame cuts the main subject, in plain words —
+            "top of head to shoulders", "full body with headroom".
+        foreground: Anything partly blocking the view, which is what an
+            over-the-shoulder is before it has a name.
+        facing: Which way the main subject faces.
+        setting: Where this appears to be.
+        appearance: What the figures look like — the evidence a character is
+            later identified from, kept so the identification can be checked.
+        action: What happens over the sampled frames.
+        motion: What changes across them — framing tightening, subject
+            crossing frame. Empty for a still reference image.
+        raw: The backend's reply as it arrived, so a parse that went wrong can
+            be seen rather than guessed at.
+    """
+
+    subject_count: Optional[int] = None
+    framing: str = ""
+    foreground: str = ""
+    facing: str = ""
+    setting: str = ""
+    appearance: List[str] = Field(default_factory=list)
+    action: str = ""
+    motion: str = ""
+    raw: str = ""
+
+
+# --- WHAT THE FIRST TEXT PASS MAKES OF IT ---
+
+
+class Interpretation(BaseModel):
+    """
+    The observation in the project's vocabulary.
+
+    Both halves are kept. `observed` stays visible next to `identified_as` so a
+    wrong reading is something a person can see rather than something they have
+    to take on trust — the same principle as the frame numbers burned into the
+    splitter's review proxy.
+
+    Attributes:
+        shot_size: From the terminology file — CS, MS, WS.
+        shot_type: OTS, 2-shot, and so on, where the observation supports one.
+        characters: Who the appearances were read as.
+        evidence: Why — the observed detail behind each identification.
+        camera_move: From the terminology file, where there was motion to read.
+        location: The setting, in the project's words.
+        summary: A one-line description in the project's language, which is
+            what the breakdown export shows.
+    """
+
+    shot_size: str = ""
+    shot_type: str = ""
+    characters: List[str] = Field(default_factory=list)
+    evidence: Dict[str, str] = Field(default_factory=dict)
+    camera_move: str = ""
+    location: str = ""
+    summary: str = ""
+
+
+# --- WHAT THE PROJECT SUPPLIES ---
+
+
+class ProjectKnowledge(BaseModel):
+    """
+    The markdown a project supplies, as text.
+
+    Held as text rather than parsed into structure. These files are written by
+    people for a model to read, and the moment we impose a schema on them we
+    are asking a production to fill in our form instead of describing their
+    show. The interpret pass gets them as they are.
+
+    Attributes:
+        terminology: How this project names shot sizes, types and moves.
+        characters: Who is in it and how they appear in each representation.
+        directory: Where they came from, for the UI to show.
+    """
+
+    terminology: str = ""
+    characters: str = ""
+    directory: Optional[str] = None
+
+    @property
+    def has_terminology(self) -> bool:
+        """Whether terms can be applied, or observations stay in plain words."""
+        return bool(self.terminology.strip())
+
+    @property
+    def has_characters(self) -> bool:
+        """Whether appearances can be named, or stay as descriptions."""
+        return bool(self.characters.strip())
+
+
+# --- THE SHOT LIST BEING MATCHED AGAINST ---
+
+
+class ShotListEntry(BaseModel):
+    """
+    One entry from the production's shot list.
+
+    Comes from a CSV, a text document, or a folder of thumbnails named by shot
+    number — a thumbnail is described by the vision pass and interpreted the
+    same way, so every source ends as text and there is one matching engine
+    rather than two.
+
+    `is_still` matters: a thumbnail cannot show camera movement, so matching
+    must not compare an attribute the reference could never have had.
+    """
+
+    shot_number: str
+    description: str = ""
+    interpretation: Optional[Interpretation] = None
+    is_still: bool = False
+
+
+# --- WHAT THE MATCH PASS DECIDES ---
+
+
+class AttributeMatch(BaseModel):
+    """
+    Whether one attribute agreed, and what the two sides said.
+
+    Confidence is built from these rather than asked of a model, so each one
+    has to carry its own evidence.
+    """
+
+    attribute: str
+    agreed: bool
+    shot_value: str = ""
+    entry_value: str = ""
+
+
+class Candidate(BaseModel):
+    """One possible shot number, with the attribute comparison behind it."""
+
+    shot_number: str
+    attributes: List[AttributeMatch] = Field(default_factory=list)
+    score: float = 0.0
+
+
+class ShotRecord(BaseModel):
+    """
+    One video file, everything learned about it, and what it was matched to.
+
+    This is the row in the table, and what gets cached beside the files so the
+    vision pass is never repeated.
+
+    `shot_number` stays None when nothing matched well enough. An unnamed shot
+    is a correct answer — guessing produces a wrongly named file, which is
+    worse than an obviously unnamed one and much harder to notice.
+    """
+
+    file: str
+    observation: Optional[Observation] = None
+    interpretation: Optional[Interpretation] = None
+
+    shot_number: Optional[str] = None
+    confidence: float = 0.0
+    notes: str = ""
+    candidates: List[Candidate] = Field(default_factory=list)
+
+    approved: bool = False
+    renamed_to: Optional[str] = None
+
+    # What produced the observation, so an answer that looks wrong months later
+    # can be traced. The same input can give a different answer twice here,
+    # which makes the record matter more than it does in the splitter.
+    backend: str = ""
+    model: str = ""

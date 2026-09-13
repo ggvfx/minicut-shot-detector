@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import List
 
 from src.backends.adapter import ModelBackend
-from src.identifier.models import Observation
+from src.core.models import Observation
 
 # --- THE SCHEMA ---
 

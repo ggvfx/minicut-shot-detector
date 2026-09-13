@@ -281,8 +281,10 @@ Where a thing belongs is then a question with an answer, rather than a habit.
 
 ```
 src/
-├── core/          shared: config, models, timecode, ffmpeg, environment, sidecar
-├── media/         shared: probing, frames, mezzanine, proxy, extraction, workspace
+├── core/          SHARED by both tabs: config, models, utils, timecode, ffmpeg,
+│                 environment, sidecar. One file each, so every setting and
+│                 every data shape has exactly one place to look.
+├── media/         SHARED: probing, frames, mezzanine, proxy, extraction, workspace
 ├── splitter/      detection, reconciliation, validation, the splitter pipeline
 ├── identifier/    observation, interpretation, matching, renaming, export     (not built)
 ├── backends/      the model adapters — CLI, HTTP API, local runtime
@@ -298,9 +300,9 @@ there was one tab and becomes misleading with two. Moving them under
 |---|---|
 | `main.py` | Entry point — starts the server, opens the browser |
 | `src/splitter/pipeline.py` | `SplitterPipeline` — stage order and failure handling. No processing logic. |
-| `src/core/config.py` | Fixed constants and the per-run `ProjectConfig` |
-| `src/core/models.py` | `SourceInfo`, `Boundary`, `Shot`, `ValidationResult`, `JobResult` |
-| `src/core/utils.py` | Helpers used by more than one module — checksums, directory creation |
+| `src/core/config.py` | **Shared.** Every constant and both tabs' per-run settings objects |
+| `src/core/models.py` | **Shared.** Every data model, banded by which tab uses it |
+| `src/core/utils.py` | **Shared.** Helpers needed in more than one module |
 | `src/core/ffmpeg_tools.py` | `MediaToolchain` — the only place a subprocess is run |
 | `src/core/timecode.py` | `Timecode` — the only place frames become time |
 | `src/core/environment.py` | `EnvironmentChecker` — the dependency panel |
@@ -314,7 +316,7 @@ there was one tab and becomes misleading with two. Moving them under
 | `src/splitter/reconcile.py` | Merge, and convert boundaries to shots |
 | `src/splitter/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
 | `src/splitter/validator.py` | `JobValidator` — the checks that decode frames |
-| `src/backends/adapter.py` | The interface, the config, and the API dialects |
+| `src/backends/adapter.py` | The interface every backend implements |
 | `src/backends/transport.py` | The HTTP itself — the one place a socket opens |
 | `src/backends/command.py` | A configured CLI — the default path |
 | `src/backends/http_api.py` | An HTTP endpoint with a key from the environment |
@@ -332,7 +334,7 @@ Not built, and listed so the shape is agreed before anything is written:
 | `src/identifier/match.py` | Pass 3 — attribute comparison, and derived confidence |
 | `src/identifier/rename.py` | Applying names, and the log that undoes them |
 | `src/identifier/export.py` | The CSV and thumbnails a database is seeded from |
-| `src/identifier/pipeline.py` | `IdentifierPipeline` — pass order and caching |
+| `src/identifier/pipeline.py` | `IdentifierPipeline` — stage order and caching. No processing logic. |
 
 | Path | Holds |
 |---|---|
@@ -397,6 +399,10 @@ Imports point one way only, which is what keeps any stage testable on its own:
 core/models.py        imports nothing of ours
 core/config.py        may import models
 core/utils.py         standard library only
+
+All three are SHARED by both tabs. One models file, one config file, one utils
+file — so "what shape is a Shot?" and "what does this setting default to?"
+each have exactly one place to look, however many features the app grows.
 core/ffmpeg_tools.py  standard library only
 core/*                may import the above
 media/, detection/, validation/   may import core

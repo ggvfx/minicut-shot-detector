@@ -20,10 +20,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
 from src.backends.adapter import (
-    ANTHROPIC,
-    OLLAMA,
-    OPENAI,
-    BackendConfig,
     BackendError,
     create_backend,
     extract_text,
@@ -32,6 +28,12 @@ from src.backends.adapter import (
 from src.backends.command import CommandBackend
 from src.backends.http_api import HttpApiBackend
 from src.backends.local import LocalBackend
+from src.core.config import (
+    STYLE_ANTHROPIC,
+    STYLE_OLLAMA,
+    STYLE_OPENAI,
+    BackendConfig,
+)
 
 # --- A FAKE CLI ---
 
@@ -223,7 +225,7 @@ def test_an_api_call_returns_the_text(stub_server, monkeypatch):
 
     backend = HttpApiBackend(
         BackendConfig(
-            kind="api", endpoint=url, api_style=ANTHROPIC,
+            kind="api", endpoint=url, api_style=STYLE_ANTHROPIC,
             api_key_env="TEST_MODEL_KEY", model="test-model",
         )
     )
@@ -453,9 +455,9 @@ def test_nothing_configured_gives_nothing():
 @pytest.mark.parametrize(
     "style, payload, expected",
     [
-        (ANTHROPIC, {"content": [{"text": "one"}, {"text": " two"}]}, "one two"),
-        (OPENAI, {"choices": [{"message": {"content": "answer"}}]}, "answer"),
-        (OLLAMA, {"response": "answer"}, "answer"),
+        (STYLE_ANTHROPIC, {"content": [{"text": "one"}, {"text": " two"}]}, "one two"),
+        (STYLE_OPENAI, {"choices": [{"message": {"content": "answer"}}]}, "answer"),
+        (STYLE_OLLAMA, {"response": "answer"}, "answer"),
     ],
 )
 def test_each_dialect_is_read_from_where_it_puts_the_text(style, payload, expected):
@@ -468,9 +470,9 @@ def test_a_reply_in_the_wrong_dialect_says_what_was_there():
     configured, which is a one-line fix once you can see it.
     """
     with pytest.raises(BackendError, match="choices"):
-        extract_text({"choices": [{"message": {"content": "hello"}}]}, ANTHROPIC)
+        extract_text({"choices": [{"message": {"content": "hello"}}]}, STYLE_ANTHROPIC)
 
 
 def test_an_empty_reply_is_an_error_not_an_empty_description():
     with pytest.raises(BackendError, match="returned no text"):
-        extract_text({"content": []}, ANTHROPIC)
+        extract_text({"content": []}, STYLE_ANTHROPIC)

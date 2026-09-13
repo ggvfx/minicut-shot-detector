@@ -16,8 +16,7 @@ SKELETON. Signatures and docstrings only.
 """
 
 from src.backends.adapter import ModelBackend
-from src.identifier.knowledge import ProjectKnowledge
-from src.identifier.models import Interpretation, Observation
+from src.core.models import Interpretation, Observation, ProjectKnowledge
 
 
 class Interpreter:

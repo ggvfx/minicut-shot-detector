@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from src.backends.adapter import (
-    OLLAMA,
+    STYLE_OLLAMA,
     BackendConfig,
     BackendError,
     ModelBackend,
@@ -34,12 +34,9 @@ from src.backends.adapter import (
     read_images,
 )
 from src.backends.transport import post_json
+from src.core.config import LOCAL_ENDPOINT
 
-# --- DEFAULTS ---
-
-# Where local runtimes conventionally listen. Configurable, because someone
-# will run it on another machine on their own network.
-DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
+# --- PATHS ---
 
 GENERATE_PATH = "/api/generate"
 TAGS_PATH = "/api/tags"
@@ -78,7 +75,7 @@ class LocalBackend(ModelBackend):
         """
         # A local runtime speaks its own dialect whatever the config says, so
         # this is not left to be configured wrongly
-        config = self.config.model_copy(update={"api_style": OLLAMA})
+        config = self.config.model_copy(update={"api_style": STYLE_OLLAMA})
         body = build_request(prompt, read_images(images), config)
 
         started = time.monotonic()
@@ -89,7 +86,7 @@ class LocalBackend(ModelBackend):
             raise self._explain(error) from error
 
         return ModelReply(
-            text=extract_text(payload, OLLAMA),
+            text=extract_text(payload, STYLE_OLLAMA),
             backend="local",
             model=self.config.model,
             seconds=round(time.monotonic() - started, 2),
@@ -165,7 +162,7 @@ class LocalBackend(ModelBackend):
 
     def _base(self) -> str:
         """The configured endpoint, or the conventional one."""
-        return (self.config.endpoint or DEFAULT_ENDPOINT).rstrip("/")
+        return (self.config.endpoint or LOCAL_ENDPOINT).rstrip("/")
 
     def _url(self, path: str) -> str:
         """A full URL for one of the runtime's paths."""

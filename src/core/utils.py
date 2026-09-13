@@ -1,10 +1,13 @@
 """
 Shared Utility Functions.
 
-Small helpers used across more than one module. Anything here must depend on
-nothing but the standard library — this is the bottom of the dependency chain.
+**Used by both tabs.** Small helpers needed in more than one module. Anything
+here must depend on nothing but the standard library — this is the bottom of
+the dependency chain, and everything else is free to import it.
 
-If a helper is only used by one module, it belongs in that module instead.
+If a helper is only used by one module, it belongs in that module instead. One
+file for now; split it per-package only when there is a concrete reason, and
+say what the reason is at the time.
 """
 
 from pathlib import Path

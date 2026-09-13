@@ -20,7 +20,7 @@ SKELETON. Signatures and docstrings only.
 
 from typing import List
 
-from src.identifier.models import Candidate, Interpretation, ShotListEntry
+from src.core.models import Candidate, Interpretation, ShotListEntry
 
 # --- WHAT COUNTS, AND FOR HOW MUCH ---
 
