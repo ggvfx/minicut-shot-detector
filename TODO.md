@@ -174,19 +174,92 @@ of it: **the page should be a workflow you move down**, not a set of panels.
    system-level change that may need elevation, takes minutes, and can fail in
    ways we cannot report while the request blocks. My advice is to wait until
    progress streaming exists, and to keep the copyable command until then.
-2. **What a user does when the readout is wrong.** If ffprobe reports the wrong
-   frame rate or frame count, the file's own metadata is wrong, and overriding
-   it here would silently change every calculation downstream. My advice is to
-   say so plainly rather than offer an override, and to treat re-wrapping a
-   mislabelled source as its own feature if it ever comes up.
 
 ## Phase 4 — Detection ⬅ Current
 
-TransNetV2 ONNX export, sliding-window inference, PySceneDetect cross-check,
-boundary reconciliation and the minimum shot length filter.
+Fill in the markers the player already knows how to show. Detection proposes,
+the human decides — which changes what "good enough" means: a detector that
+finds the overwhelming majority of hard cuts and occasionally misses a wipe is
+useful today, because the odd case is two keystrokes to fix.
 
-Golden set material to include, because these are where detection will be
-weakest and guessing about them now would be premature:
+**The order below is deliberately not the one CLAUDE.md originally implied.**
+PySceneDetect needs no model, no export and no new dependency, so it can be
+working end to end in one sitting and gives a baseline to measure TransNetV2
+against. Doing the ONNX export first would mean the riskiest, least verifiable
+step gates everything behind it.
+
+- [ ] **4.1 PySceneDetect pass**
+  `SceneDetectCrossCheck.detect()` — open the video, run `AdaptiveDetector`,
+  take the start frame of every scene after the first, return `Boundary`
+  objects with `found_by_scenedetect` set. Its `FrameTimecode` objects convert
+  to plain integers at the boundary of this module and never leak past it.
+  **Done when:** a real mini cut returns a plausible boundary list.
+
+- [ ] **4.2 Detection in the pipeline and the player**
+  Run it inside `prepare()`, return the frames in `PreparedJob.boundaries`,
+  and let the existing markers do the rest.
+  **Done when:** Analyse comes back with the shots already marked, and any of
+  them can be moved, added or removed before splitting.
+
+- [ ] **4.3 Judge it on real footage**
+  Run 4.2 over every file in `D:\minicutExamples` and look at what it marks.
+  **This is the decision point for the rest of the phase.** If PySceneDetect
+  marks hard cuts reliably, everything below is unnecessary and the splitter is
+  finished; if it is visibly patchy, the tasks below are worth their cost.
+
+---
+
+Everything past here is **conditional on 4.3**, and is the largest remaining
+chunk of the project. Do not start it because it is in the plan.
+
+- [ ] **4.4 Golden set** *(only if 4.3 says a second detector might be needed)*
+  Hand-label the true cut frames of two or three real examples into
+  `tests/golden/*.csv` and score precision and recall at ±2 frames.
+
+  Its purpose has narrowed. It was going to catch our own off-by-one and frame
+  rate bugs; those are now covered by the timecode tests, the frame count
+  asserted on every written shot, and the boundary-frame verification. What is
+  left is a way to answer one question: does TransNetV2 beat PySceneDetect by
+  enough to be worth building? Without that, tuning is by eye, which
+  CLAUDE.md rules out.
+
+  *This one needs you — ground truth has to come from a person watching the
+  footage.*
+
+- [ ] **4.5 TransNetV2 ONNX export**
+  `scripts/export_transnetv2.py`: fetch the upstream weights, export to ONNX,
+  verify the file loads and runs, print the checksum for `MODEL_SHA256`.
+  Expect this to be the fiddly one — torch is a large one-off dependency and
+  the upstream repo has to be located and trusted.
+  **Done when:** a committed `.onnx` passes the dependency panel's checksum.
+
+- [ ] **4.6 TransNetV2 inference**
+  Sliding windows of 100 frames predicting the middle 50, decoded by piping
+  raw RGB out of ffmpeg so frame N is provably frame N. *The output window
+  handling is where the real debugging will be — mishandling it offsets every
+  boundary by 25 frames, consistently enough to look deliberate.*
+  **Done when:** its boundaries score at least as well as PySceneDetect's on
+  the golden set.
+
+- [ ] **4.7 Reconciliation**
+  `merge_detections` and `apply_minimum_length`: match the two detectors within
+  a couple of frames, keep the TransNetV2 frame where they disagree slightly,
+  and merge shots below the flash-frame threshold with the merge recorded.
+  **Done when:** both passes combine into one list, and every merge is logged.
+
+- [ ] **4.8 Disagreement in the UI**
+  Mark the boundaries only one detector found, so review starts with the
+  uncertain ones rather than the first frame. This is what the cross-check was
+  always for.
+  **Done when:** a glance at the timeline says which cuts want a human eye.
+
+**Phase done when:** Analyse marks the shots itself and a person only has to
+correct the occasional one. If that is true after 4.3, the phase is done at
+4.3 — finishing early here is the good outcome, not a shortfall.
+
+### Golden set material
+
+Worth labelling because it is where detection will be weakest:
 
 - **A foreground wipe** — an object passing close to camera. As a transition it
   is not a hard cut, so it may be missed or placed a few frames off; mid-shot it
