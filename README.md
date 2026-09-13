@@ -41,8 +41,9 @@ follows them is already built.
   on the output volume, before the job rather than when the drive fills.
 * **Dependency Panel:** Three-state environment reporting (ready / degraded /
   blocked) covering only what a job actually needs — Python, ffmpeg, ffprobe,
-  the mezzanine encoders, PySceneDetect, the output directory and free space —
-  with a copyable fix command for every failure and a manual re-check.
+  the mezzanine encoders, PySceneDetect and free space — with a copyable fix
+  command for every failure and a manual re-check. Every row is something the
+  user can act on when they read it.
 * **Local Path Picker:** Server-side directory browsing, so multi-gigabyte media
   is never uploaded through the browser.
 
@@ -230,9 +231,10 @@ shot is a lossless stream copy out of it.
 * **Detect, Don't Ask:** Aspect ratio and letterbox masking are found with
   `cropdetect`, sampled across the file, then shown for confirmation with an
   override. A mask typed in wrongly quietly degrades detection.
-* **Honest Dependency Reporting:** Three states, not two. Nothing chosen yet is
-  degraded rather than failed, and every blocked check carries the command that
-  fixes it. The panel reports what a job needs, not what a later version might.
+* **Honest Dependency Reporting:** Three states, not two, and every blocked
+  check carries the command that fixes it. The panel reports what a job needs
+  and what the user can act on — not what a later version might want, and not
+  a choice they have not reached yet.
 * **Reproducible Sidecars:** Every job records the resolved ffmpeg build and
   runtime versions alongside the shots, so a boundary that looks wrong months
   later can be traced to what produced it.

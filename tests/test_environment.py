@@ -120,6 +120,22 @@ def test_report_is_cached_until_refreshed(tmp_path):
     assert third is not first, "refresh=True must re-run the checks"
 
 
+def test_a_fresh_launch_reports_nothing_about_the_output_directory():
+    """
+    Opening the app without having chosen an output directory is not a fault.
+
+    The directory is picked at the end of the workflow, so a panel that reports
+    on it at launch tells the user something is wrong before they have had the
+    chance to do anything — and they cannot clear it until they are finished.
+    """
+    report = EnvironmentChecker(MediaToolchain(discover=False)).report(None)
+
+    assert not any(check.key == "output_dir" for check in report.checks)
+    assert any(check.key == "disk" for check in report.checks), (
+        "free space is still reported, against the default volume until one is chosen"
+    )
+
+
 def test_report_rechecks_when_the_output_directory_changes(tmp_path):
     """Disk and writability are per-volume, so a new directory invalidates the cache."""
     checker = EnvironmentChecker(MediaToolchain(discover=False))
@@ -136,9 +152,12 @@ def test_report_contains_every_check(tmp_path):
     """
     Every check appears in the panel, with a valid status.
 
-    onnxruntime and the model file are deliberately absent: detection runs on
-    PySceneDetect, so neither is needed to complete a job. Both checks still
-    exist in the module, unrun, for when TransNetV2 arrives.
+    Three deliberate absences. onnxruntime and the model file are not
+    dependencies of anything that ships, so reporting them would name something
+    no job will ask for. The output directory is chosen at the end of the
+    workflow, so checking it on launch only ever said "not chosen yet".
+
+    All three checks still exist in the module, unrun.
     """
     report = EnvironmentChecker(MediaToolchain(discover=False)).report(tmp_path)
 
@@ -149,7 +168,6 @@ def test_report_contains_every_check(tmp_path):
         "ffprobe",
         "encoders",
         "scenedetect",
-        "output_dir",
         "disk",
     }, "the panel reports what this version needs, not what a later one might"
 

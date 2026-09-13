@@ -216,10 +216,16 @@ step gates everything behind it.
 - [x] **4.2.1 Review pass on the player** *(no new tests; 2 updated)*
   Four changes from using it on a real delivery:
 
-  - The environment panel dropped from nine checks to seven. `onnxruntime` and
+  - The environment panel dropped from nine checks to six. `onnxruntime` and
     the model file are not dependencies of anything that ships, so reporting
-    them told the user to install something no job would ask for. Both checks
-    stay in `environment.py`, unrun, with docstrings saying why.
+    them told the user to install something no job would ask for. The output
+    directory is chosen at the end of the workflow, so on launch it only ever
+    said "not chosen yet" — announcing a fault before the user had done
+    anything, and not clearable until they had finished. All three checks stay
+    in `environment.py`, unrun, with docstrings saying why.
+
+    The principle this settled: **every row must be something the user can act
+    on when they read it.**
   - The full round-trip checkbox came out of the UI, code and route untouched.
   - A green dot beside the burned-in frame number marks a first frame, sized to
     the height of the digits and placed from the source's own frame count so it

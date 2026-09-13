@@ -153,8 +153,9 @@ class EnvironmentChecker:
         The dependency report, cached between calls.
 
         Args:
-            output_dir: The user's chosen output directory, so writability and
-                free space are checked against the volume actually being used.
+            output_dir: The user's chosen output directory, so free space is
+                measured against the volume actually being used. None until
+                they pick one, which is the normal state on launch.
             refresh: Re-run the checks instead of returning the cached report.
         """
         key = str(output_dir)
@@ -176,7 +177,6 @@ class EnvironmentChecker:
             self.check_ffprobe(),
             self.check_encoders(),
             self.check_scenedetect(),
-            self.check_output_dir(output_dir),
             self.check_disk(output_dir),
         ]
 
@@ -389,7 +389,23 @@ class EnvironmentChecker:
         return Check(key="model", label="TransNetV2 weights", status=OK, detail=f"Verified {actual[:12]}")
 
     def check_output_dir(self, output_dir: Optional[Path]) -> Check:
-        """The chosen output directory must exist and be writable before a job starts."""
+        """
+        The chosen output directory must exist and be writable before a job starts.
+
+        Deliberately not in `run_all()`. It is the one check whose problem the
+        user cannot do anything about when they open the app: the directory is
+        chosen at the END of the workflow, so on a fresh launch this reported
+        "Not chosen yet" and dragged the whole panel to degraded — the panel
+        said something was wrong when nothing was.
+
+        Nothing is lost by leaving it out. `POST /api/split` refuses a job with
+        no output directory, and the pipeline calls `ensure_directory()`, so a
+        path that does not exist yet is created rather than an error.
+
+        Kept, and kept tested, because a read-only volume is still a real way
+        for a job to fail. If that ever bites, this belongs at the point of
+        splitting rather than in the launch panel.
+        """
         if output_dir is None:
             return Check(
                 key="output_dir",

@@ -298,19 +298,26 @@ only suspect.
 
 ## Dependency check panel
 
-Three states, not two. Nothing chosen yet is *degraded*, not failed — the user
-has just opened the app. Only block on what genuinely cannot run.
+Three states, not two. Only block on what genuinely cannot run.
 
-The panel reports what a job needs, and nothing else. Seven checks: Python
+The panel reports what a job needs, and nothing else. Six checks: Python
 version; ffmpeg and ffprobe on PATH and version; **encoder availability**
 parsed from `ffmpeg -encoders` (`libx264` required, `libx265` needed for h265
 sources — a missing encoder otherwise only surfaces mid-job); `scenedetect`
-import; output directory writable; free disk space.
+import; free disk space.
 
-`check_onnxruntime` and `check_model` are written and deliberately not run.
-Neither is a dependency of anything that ships, so reporting them would tell
-the user to install something no job will ever ask for. They go back into
-`run_all()` on the day a TransNetV2 pass exists.
+**Every check must be about something the user can act on when they read it.**
+Three are written and deliberately not run:
+
+- `check_onnxruntime` and `check_model` — not dependencies of anything that
+  ships, so reporting them tells the user to install something no job will ask
+  for. They go back into `run_all()` on the day a TransNetV2 pass exists.
+- `check_output_dir` — the directory is chosen at the *end* of the workflow, so
+  on launch this only ever said "not chosen yet" and dragged the panel to
+  degraded: it announced a fault before the user had done anything, and could
+  not be cleared until they had finished. `POST /api/split` refuses a job
+  without a directory and the pipeline creates one that does not exist, so
+  nothing is lost.
 
 Every failure gives a copyable fix command, not an error string. Cache the
 result with a manual re-check button.
