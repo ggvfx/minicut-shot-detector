@@ -6,7 +6,7 @@
  */
 
 import { state } from "./state.js";
-import { showProgress } from "./ui.js";
+import { fileNameOf, showProgress } from "./ui.js";
 import { refreshWorkFiles } from "./work.js";
 
 /**
@@ -100,9 +100,4 @@ function renderJob(job) {
 
     const sidecar = document.getElementById("result-sidecar");
     sidecar.textContent = job.sidecar_path ? `Sidecar: ${fileNameOf(job.sidecar_path)}` : "";
-}
-
-/** Last path segment, so a full Windows path does not fill the table. */
-function fileNameOf(path) {
-    return path ? path.split(/[\\/]/).pop() : "";
 }

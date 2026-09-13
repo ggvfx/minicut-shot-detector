@@ -16,3 +16,13 @@
 export function showProgress(running) {
     document.getElementById("progress").hidden = !running;
 }
+
+/**
+ * Last path segment, so a full Windows path does not fill a table cell.
+ *
+ * Shared: both tabs list files by name, and both are handed absolute paths
+ * because the media never leaves this machine.
+ */
+export function fileNameOf(path) {
+    return path ? path.split(/[\\/]/).pop() : "";
+}

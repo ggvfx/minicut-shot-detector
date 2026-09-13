@@ -577,3 +577,19 @@ summary .summary { margin: 0; }
 .entry.file { color: var(--text-dim); }
 
 .picker-footer { display: flex; justify-content: flex-end; }
+
+/* The shot number is the one editable cell in the review table — everything
+   else in the row is evidence for it, not something to change. Sized to the
+   content so a column of them does not push the description out of the row. */
+.shot-number {
+    width: 100%;
+    min-width: 90px;
+    max-width: 160px;
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+/* The description is the widest column and the one people actually read */
+.shot-summary { max-width: 42ch; }
+.shot-name { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.shot-note { font-size: 12px; color: var(--degraded); }

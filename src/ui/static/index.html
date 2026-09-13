@@ -318,19 +318,20 @@
             <div class="path-row">
                 <input type="text" id="shots-dir" placeholder="Folder of single-shot video files">
                 <button class="secondary" data-picker="shots">Browse…</button>
-                <button id="shots-inspect" disabled title="Not built yet">Inspect</button>
+                <button id="shots-describe">Describe shots</button>
             </div>
 
             <p id="shots-status" class="status"></p>
 
-            <!-- Three steps, mirroring the splitter's Inspect / Analyse / Split.
-                 Separate because they cost wildly different amounts: inspecting
-                 is free, describing is the slow one that spends model calls,
-                 and matching is text-only and re-runnable for nothing. -->
-            <div class="action-row" id="identify-actions" hidden>
-                <button id="shots-describe" disabled title="Not built yet">Describe shots</button>
-                <button id="shots-match" class="secondary" disabled title="Not built yet">Match to shot list</button>
+            <div class="action-row">
                 <span id="identify-status" class="status"></span>
+            </div>
+
+            <!-- Matching arrives with the shot list. Describing is the step
+                 that exists today, and it is the expensive one. -->
+            <div class="action-row" id="identify-actions" hidden>
+                <button id="shots-redescribe" class="secondary">Describe again</button>
+                <span class="hint">Descriptions are remembered per shot, so only new ones cost anything.</span>
             </div>
 
             <div id="identify-progress" class="progress" hidden><div class="progress-bar"></div></div>
@@ -353,8 +354,8 @@
                     <tr>
                         <th>Shot</th>
                         <th>Description</th>
+                        <th>Characters</th>
                         <th>Shot number</th>
-                        <th>Confidence</th>
                         <th>Notes</th>
                     </tr>
                 </thead>

@@ -22,17 +22,22 @@ mezzanine that already matches its source.
 
 Unlike the splitter this is judgement work and cannot be deterministic, which
 is why nothing is written until a person has approved it.
-
-SKELETON. Signatures and docstrings only.
 """
 
+import json
+import logging
 from pathlib import Path
 from typing import List, Optional
 
-from src.backends.adapter import ModelBackend
-from src.core.config import IdentifierConfig
+from src.backends.adapter import BackendError, ModelBackend, create_backend
+from src.core.config import PRODUCTION_DIR, IdentifierConfig
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import ProjectKnowledge, ShotListEntry, ShotRecord
+from src.core.models import Observation, ProjectKnowledge, ShotListEntry, ShotRecord
+from src.core.utils import ensure_directory
+from src.identifier.frames import FrameSampler
+from src.identifier.interpret import Interpreter
+from src.identifier.knowledge import load_knowledge
+from src.identifier.observe import Observer
 
 # --- WORKING FILES ---
 
@@ -44,6 +49,12 @@ CACHE_FILE = ".minicut-observations.json"
 # Video files considered. Anything else in the folder is ignored rather than
 # refused — a shot folder usually has a sidecar or a spreadsheet in it too.
 VIDEO_SUFFIXES = (".mp4", ".mov", ".mkv", ".m4v")
+
+# Sample frames live here while a batch runs. Inside the shots folder rather
+# than beside the shots themselves, for the same reason the splitter puts its
+# mezzanine in .minicut-work: an abandoned run leaves one obviously temporary
+# folder rather than three hundred loose JPEGs among the deliverables.
+FRAMES_DIRECTORY = ".minicut-frames"
 
 
 class IdentifierPipeline:
@@ -177,12 +188,36 @@ class IdentifierPipeline:
                 the folder, rather than returning an empty table that looks
                 like forty shots nothing could be said about.
         """
-        # PSEUDOCODE
-        # 1. List video files by suffix, sorted by name.
-        # 2. Raise if there are none.
-        # 3. Load the cache if present, attaching an observation to each file
-        #    whose size and modified time still match what was cached.
-        raise NotImplementedError
+        if not shots_dir.is_dir():
+            raise RuntimeError(f"Not a folder: {shots_dir}")
+
+        files = sorted(
+            path for path in shots_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in VIDEO_SUFFIXES
+        )
+
+        if not files:
+            raise RuntimeError(f"No video files in {shots_dir}")
+
+        cached = self._load_cache(shots_dir)
+        records = []
+
+        for path in files:
+            record = ShotRecord(file=str(path))
+            remembered = cached.get(path.name)
+
+            # Keyed on size as well as name: a shot re-exported under the same
+            # name is a different shot, and describing it from the old
+            # observation would be silently wrong.
+            if remembered and remembered.get("size") == path.stat().st_size:
+                record.observation = Observation.model_validate(remembered["observation"])
+                record.backend = remembered.get("backend", "")
+                record.model = remembered.get("model", "")
+
+            records.append(record)
+
+        logging.info(f"{len(records)} shots in {shots_dir}, {len(cached)} already described")
+        return records
 
     def _observe(self, records: List[ShotRecord], shots_dir: Path) -> List[ShotRecord]:
         """
@@ -197,14 +232,36 @@ class IdentifierPipeline:
             A shot that fails is recorded as failed and the batch continues.
             One unreadable file should not stop the other thirty-nine.
         """
-        # PSEUDOCODE
-        # 1. Build the vision backend from the config.
-        # 2. For each record without an observation, or all if force_observe:
-        # 3.   Sample frames into the working folder.
-        # 4.   Observe them, recording the backend and model used.
-        # 5.   Write the cache.
-        # 6.   On failure, note it on the record and carry on.
-        raise NotImplementedError
+        outstanding = [
+            record for record in records
+            if self.config.force_observe or record.observation is None
+        ]
+
+        if not outstanding:
+            logging.info("Every shot already described; no vision calls needed")
+            return records
+
+        observer = Observer(self._backend("vision"))
+        sampler = FrameSampler(self.toolchain)
+        frames_dir = ensure_directory(shots_dir / FRAMES_DIRECTORY)
+
+        for index, record in enumerate(outstanding, start=1):
+            path = Path(record.file)
+            logging.info(f"Describing {path.name} ({index} of {len(outstanding)})")
+
+            try:
+                frames = sampler.sample(path, frames_dir)
+                record.observation = observer.observe(frames)
+                record.backend = observer.backend.describe()
+                record.model = observer.backend.config.model or ""
+            except (BackendError, RuntimeError, ValueError) as error:
+                record.notes = f"Could not describe this shot: {error}"
+                logging.warning(f"{path.name}: {error}")
+                continue
+
+            self._write_cache(shots_dir, records)
+
+        return records
 
     def _interpret(self, records: List[ShotRecord]) -> List[ShotRecord]:
         """
@@ -214,11 +271,20 @@ class IdentifierPipeline:
             Text only, so this is cheap enough to re-run whenever the knowledge
             files change — which is the point of separating it from Stage 2.
         """
-        # PSEUDOCODE
-        # 1. Build the text backend and load the project knowledge.
-        # 2. Skip records with no observation.
-        # 3. Interpret each, keeping the observed evidence beside the reading.
-        raise NotImplementedError
+        described = [record for record in records if record.observation]
+        if not described:
+            return records
+
+        interpreter = Interpreter(self._backend("text"), self._knowledge())
+
+        for record in described:
+            try:
+                record.interpretation = interpreter.interpret(record.observation)
+            except BackendError as error:
+                record.notes = f"Could not interpret this shot: {error}"
+                logging.warning(f"{Path(record.file).name}: {error}")
+
+        return records
 
     def _match(self, records: List[ShotRecord], entries: List[ShotListEntry]) -> List[ShotRecord]:
         """
@@ -252,11 +318,15 @@ class IdentifierPipeline:
                 which pass it was for is the difference between a puzzle and a
                 setting to correct.
         """
-        # PSEUDOCODE
-        # 1. Take the vision or text BackendConfig from the config.
-        # 2. Build it with create_backend.
-        # 3. Raise, naming the pass, if it reports itself unavailable.
-        raise NotImplementedError
+        backend = create_backend(getattr(self.config, which))
+
+        if not backend.available():
+            raise RuntimeError(
+                f"The {which} model is not usable: {backend.describe()}. "
+                f"Set it in the Models panel and press Test."
+            )
+
+        return backend
 
     def _knowledge(self) -> ProjectKnowledge:
         """
@@ -267,10 +337,62 @@ class IdentifierPipeline:
             described, in plain words, and nobody is named — which is exactly
             the breakdown case for a show that has no character sheet yet.
         """
-        # PSEUDOCODE
-        # 1. Return empty knowledge when no directory is configured.
-        # 2. Otherwise load whichever files are present, logging what was found.
-        raise NotImplementedError
+        directory = (
+            Path(self.config.knowledge_dir) if self.config.knowledge_dir else PRODUCTION_DIR
+        )
+        knowledge = load_knowledge(directory)
+
+        if not knowledge.has_production:
+            logging.info(f"No production notes in {directory}; shots will not be named")
+
+        return knowledge
+
+    # --- THE CACHE ---
+
+    def _load_cache(self, shots_dir: Path) -> dict:
+        """
+        Observations remembered from a previous run.
+
+        Notes:
+            An unreadable cache is ignored rather than fatal. It is an
+            optimisation — the worst it can cost is describing the batch again,
+            where refusing to start would leave someone unable to work at all.
+        """
+        path = self._cache_path(shots_dir)
+        if not path.is_file():
+            return {}
+
+        try:
+            return json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError) as error:
+            logging.warning(f"Ignoring unreadable cache at {path}: {error}")
+            return {}
+
+    def _write_cache(self, shots_dir: Path, records: List[ShotRecord]) -> None:
+        """
+        Remembers every observation so far.
+
+        Written after each shot rather than at the end of the batch: the vision
+        pass is the expensive step, and a failure on shot thirty-nine must not
+        cost the thirty-eight that already succeeded.
+        """
+        remembered = {
+            Path(record.file).name: {
+                "size": Path(record.file).stat().st_size,
+                "observation": record.observation.model_dump(),
+                "backend": record.backend,
+                "model": record.model,
+            }
+            for record in records
+            if record.observation and Path(record.file).is_file()
+        }
+
+        try:
+            self._cache_path(shots_dir).write_text(
+                json.dumps(remembered, indent=2), encoding="utf-8"
+            )
+        except OSError as error:
+            logging.warning(f"Could not write the observation cache: {error}")
 
     @staticmethod
     def _cache_path(shots_dir: Path) -> Path:

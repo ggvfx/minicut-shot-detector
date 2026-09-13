@@ -17,6 +17,7 @@
 
 import { loadEnvironment } from "./environment.js";
 import { state } from "./state.js";
+import { fileNameOf } from "./ui.js";
 
 // --- PRODUCTION KNOWLEDGE ---
 
@@ -145,6 +146,11 @@ export function wireIdentifier() {
         .addEventListener("change", (event) => { state.shotListPath = event.target.value; });
 
     wireModels();
+
+    document.getElementById("shots-describe")
+        .addEventListener("click", () => describeShots(false));
+    document.getElementById("shots-redescribe")
+        .addEventListener("click", () => describeShots(true));
 }
 
 // --- MODEL BACKENDS ---
@@ -281,4 +287,128 @@ function wireModels() {
     }
 
     document.getElementById("models-save").addEventListener("click", saveModels);
+}
+
+// --- DESCRIBING A FOLDER ---
+
+/**
+ * Describes every shot in the chosen folder and fills in the table.
+ *
+ * The slow call: one vision pass per shot. It says so rather than pretending
+ * otherwise, and the server caches each observation as it lands, so pressing
+ * this again costs nothing for the shots already done.
+ */
+async function describeShots(force = false) {
+    const status = document.getElementById("identify-status");
+    const buttons = [
+        document.getElementById("shots-describe"),
+        document.getElementById("shots-redescribe"),
+    ];
+
+    if (!state.shotsDir) {
+        status.textContent = "Choose a folder of shots first.";
+        return;
+    }
+
+    for (const button of buttons) button.disabled = true;
+    document.getElementById("identify-progress").hidden = false;
+    status.textContent = force
+        ? "Describing every shot again…"
+        : "Describing… one model call per shot, so this takes a while.";
+
+    try {
+        const response = await fetch("/api/identify/describe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ shots_dir: state.shotsDir, force }),
+        });
+
+        const body = await response.json();
+
+        if (!response.ok) {
+            status.textContent = body.detail || "The shots could not be described.";
+            return;
+        }
+
+        state.records = body;
+        status.textContent = "";
+        renderRecords(body);
+
+    } catch {
+        status.textContent = "Could not reach the app.";
+    } finally {
+        for (const button of buttons) button.disabled = false;
+        document.getElementById("identify-progress").hidden = true;
+    }
+}
+
+/** Draws one row per shot, with the shot number editable. */
+function renderRecords(records) {
+    document.getElementById("identify-results-card").hidden = false;
+    document.getElementById("identify-actions").hidden = false;
+
+    const described = records.filter((record) => record.interpretation);
+    document.getElementById("shots-count").textContent =
+        `${records.length} shot${records.length === 1 ? "" : "s"}`;
+    document.getElementById("identify-verdict").textContent =
+        `${described.length} of ${records.length} described`;
+    document.getElementById("identify-verdict").className =
+        `summary ${described.length === records.length ? "ok" : "degraded"}`;
+
+    const body = document.querySelector("#identify-table tbody");
+    body.innerHTML = "";
+
+    for (const record of records) {
+        body.append(recordRow(record));
+    }
+}
+
+/** One row. The shot number is the only editable cell — the rest is evidence. */
+function recordRow(record) {
+    const row = document.createElement("tr");
+    const reading = record.interpretation ?? {};
+
+    row.append(
+        textCell(fileNameOf(record.file), "shot-name"),
+        textCell(reading.summary || "—", "shot-summary"),
+        textCell((reading.characters || []).join(", ") || "—"),
+        numberCell(record),
+        textCell(record.notes || "", "shot-note"),
+    );
+
+    return row;
+}
+
+function textCell(value, className = "") {
+    const cell = document.createElement("td");
+    cell.textContent = value;
+    if (className) cell.className = className;
+    return cell;
+}
+
+/**
+ * The shot number, editable.
+ *
+ * Blank is a legitimate answer — a shot nothing could place is left for a
+ * person rather than guessed at — so the field starts empty and says what it
+ * is for rather than pretending to have an opinion.
+ */
+function numberCell(record) {
+    const cell = document.createElement("td");
+    const input = document.createElement("input");
+
+    input.type = "text";
+    input.className = "shot-number";
+    input.value = record.shot_number || "";
+    input.placeholder = "—";
+
+    // Held on the record rather than read back off the table later: the table
+    // is a view, and the records are what an export or a rename will use
+    input.addEventListener("change", () => {
+        record.shot_number = input.value.trim();
+        record.approved = Boolean(record.shot_number);
+    });
+
+    cell.append(input);
+    return cell;
 }
