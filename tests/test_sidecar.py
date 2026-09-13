@@ -133,11 +133,13 @@ def test_missing_tools_are_recorded_as_absent():
     captured = capture_environment(MediaToolchain(discover=False))
 
     assert captured["ffmpeg"] == "not found"
-    assert captured["model_sha256"] == "no model present"
+    assert captured["ffprobe"] == "not found"
 
 
 def test_library_versions_are_recorded():
+    """What detected the cuts has to be in the record, not just what cut them."""
     captured = capture_environment(MediaToolchain(discover=False))
 
-    for package in ("onnxruntime", "scenedetect"):
-        assert captured[package], f"{package} version should be recorded"
+    assert captured["scenedetect"], "the detector version should be recorded"
+    assert captured["app"]
+    assert captured["platform"]

@@ -127,7 +127,8 @@ class Shot(BaseModel):
 
     `end_frame` is the last frame IN the shot, not the first frame of the next
     one. Off-by-one errors here are the most likely bug in the project, which
-    is exactly what the golden set is there to catch.
+    is why every written shot has its frame count asserted and the frames
+    either side of every cut hashed against the mezzanine.
     """
 
     index: int
@@ -165,9 +166,9 @@ class JobResult(BaseModel):
     """
     Everything one splitter run produced. This is what the sidecar serialises.
 
-    `environment` records the resolved ffmpeg build, onnxruntime version and
-    model checksum. When a boundary looks wrong months later, that is how you
-    find out what produced it.
+    `environment` records the resolved ffmpeg build and the version of what
+    detected the cuts. When a boundary looks wrong months later, that is how
+    you find out what produced it.
     """
 
     source: SourceInfo

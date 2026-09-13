@@ -31,24 +31,28 @@ splitter outputs are designed to feed it.
 | Frontend | Plain HTML + CSS + vanilla JS | No React, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens in their own browser |
 | Detection | PySceneDetect, two passes | `ContentDetector` and `AdaptiveDetector` |
-| Detection (conditional) | TransNetV2 via ONNX Runtime | A later phase, only if the classical passes prove insufficient on gradual transitions — see below |
+| ~~Detection (neural)~~ | ~~TransNetV2 via ONNX Runtime~~ | **Removed.** Judged unnecessary at 4.3 — see below |
 | Media | ffmpeg / ffprobe as subprocesses | Never a Python binding |
 | Review | 640px all-intra h264 proxy | Frame numbers burned in |
 | Mezzanine | All-intra in the source's own codec | libx264 / libx265, CRF 12 |
 
-### Why ONNX and not PyTorch — *if* TransNetV2 is built at all
+### Why there is no neural pass
 
-Nothing in this section has been built. The two PySceneDetect passes are what
-v1 ships with, and TransNetV2 is a later phase that only happens if they prove
-insufficient in real use — the case for it is dissolves, fades and wipes, not
-hard cuts. Until then nothing here is a runtime dependency, which is why the
-environment panel does not check for any of it.
+TransNetV2 was the original plan, designed in detail and written as a skeleton.
+It was **removed at 4.3**, when the two PySceneDetect passes were judged on a
+mix of CG renders and AI generations and turned out to be good enough: they get
+the cuts, fast cuts are where they trip, and fixing those with the manual
+first-frame marker is quick.
 
-TransNetV2 ships as a repo with TF and PyTorch inference paths. We would export the
-the model to ONNX once as a build step and commit the `.onnx` file. That removes
-a several-hundred-MB torch dependency, produces identical output, and gets Apple
-Silicon acceleration via the CoreML execution provider. The runtime deps it
-would add are `onnxruntime` + `numpy`.
+Removed rather than left in place, because ~300 lines nothing calls is exactly
+the bloat this project is trying not to accumulate. Git history holds the
+skeleton, TODO.md holds the reasoning.
+
+**Do not reintroduce it speculatively.** The one thing that would justify it is
+gradual transitions — dissolves, fades and wipes — which a frame-to-frame
+difference cannot see. If that day comes: ONNX, not PyTorch, exported once as a
+build step and committed, to avoid a several-hundred-MB torch dependency at
+runtime and to get CoreML acceleration on Apple Silicon.
 
 ### Why not a native app
 
@@ -153,7 +157,8 @@ These are settled decisions. Do not revisit them without asking.
    mini cut can mix masked and unmasked shots, which one global crop cannot
    describe. Output is always full frame — the splitter returns the source's
    own shots, bars and all. Feeding a mask to the detector only is a possible
-   refinement, measured against the golden set, not an assumption.
+   refinement, and would have to be measured before being believed, not
+   assumed.
 
 ---
 
@@ -205,7 +210,7 @@ and the cutting afterwards is stream copies.
 - Reconcile into a boundary list, matching within two frames. Both agree → high
   confidence. One fires only → kept and flagged for review, because measuring
   the two showed each finding real cuts the other missed.
-- A TransNetV2 pass belongs here if it is ever built, for gradual transitions.
+- There is no third pass. A neural one was planned and removed at 4.3.
 
 ### 4. Review
 
@@ -248,7 +253,7 @@ One JSON sidecar per source job:
   "source": { "path": "...", "fps": 25, "start_tc": "10:00:00:00",
               "frame_count": 1500, "resolution": "1920x1080" },
   "environment": { "ffmpeg": "...", "ffprobe": "...", "scenedetect": "...",
-                   "platform": "...", "onnxruntime": "not installed" },
+                   "platform": "...", "app": "..." },
   "shots": [
     { "index": 1, "start_frame": 0, "end_frame": 74,
       "start_tc": "10:00:00:00", "end_tc": "10:00:02:24",
@@ -264,20 +269,28 @@ later, you need to know exactly what produced it.
 
 ---
 
-## Golden set
+## How correctness is proven
 
-`tests/golden/` holds hand-labelled ground truth — a CSV of true cut frames per
-test video.
+There is no golden set. It was planned, and closed at 4.3 along with the neural
+pass it existed to justify — scoring precision and recall only matters when you
+are choosing between detectors.
 
-Its purpose is **not** to validate the detectors, whose accuracy on hard cuts
-is a known quantity. It validates *our pipeline*: off-by-one errors between detector
-output and frame index, frame rate conversion mistakes (23.976 / 29.97), the
-cutter landing on the wrong side of a boundary, mezzanine frames dropped or
-duplicated. A correct model wired up slightly wrong produces output that looks
-fine in a thumbnail and is wrong in every clip.
+What it was *originally* for — off-by-one errors between detector output and
+frame index, frame rate conversion mistakes at 23.976 and 29.97, the cutter
+landing on the wrong side of a boundary, mezzanine frames dropped or duplicated
+— is covered by things that run on every commit instead:
 
-Score precision/recall with a ±2 frame tolerance. Tune against this, never by
-eye. Re-run on every parameter change — it is the regression suite.
+- the timecode suite, on exact rationals and drop-frame
+- the frame count asserted on every shot as it is written
+- the frames either side of every cut, hashed against the mezzanine
+- integrity arithmetic: the shots tile the source, no gaps, no overlaps
+
+That last group is the point. **A detector wired up slightly wrong produces
+output that looks fine in a thumbnail and is wrong in every clip** — so the
+checks are on the pixels and the arithmetic, not on a score.
+
+If a neural pass is ever revived, a golden set comes back with it, because
+choosing between two detectors by eye is tuning by eye.
 
 ---
 
@@ -290,9 +303,12 @@ copy here would only let the two disagree.
 The ordering principle, which is worth keeping in mind when adding to it:
 **cutting was built before detection, on purpose.** A hand-placed pair of frame
 numbers exercised the mezzanine, the splits, the verification and the sidecar
-without the ONNX export existing — so when a boundary later lands a frame late,
+without any detector existing — so when a boundary later lands a frame late,
 the cutter has already been proven on numbers we chose, and the detector is the
 only suspect.
+
+That ordering paid for itself: detection landed in three tasks rather than
+eight, and the phase closed early because the cheap approach was tried first.
 
 ---
 
@@ -307,11 +323,8 @@ sources — a missing encoder otherwise only surfaces mid-job); `scenedetect`
 import; free disk space.
 
 **Every check must be about something the user can act on when they read it.**
-Three are written and deliberately not run:
+One check is written and deliberately not run:
 
-- `check_onnxruntime` and `check_model` — not dependencies of anything that
-  ships, so reporting them tells the user to install something no job will ask
-  for. They go back into `run_all()` on the day a TransNetV2 pass exists.
 - `check_output_dir` — the directory is chosen at the *end* of the workflow, so
   on launch this only ever said "not chosen yet" and dragged the panel to
   degraded: it announced a fault before the user had done anything, and could

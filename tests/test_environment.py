@@ -152,12 +152,10 @@ def test_report_contains_every_check(tmp_path):
     """
     Every check appears in the panel, with a valid status.
 
-    Three deliberate absences. onnxruntime and the model file are not
-    dependencies of anything that ships, so reporting them would name something
-    no job will ask for. The output directory is chosen at the end of the
-    workflow, so checking it on launch only ever said "not chosen yet".
-
-    All three checks still exist in the module, unrun.
+    The output directory is deliberately absent. It is chosen at the end of the
+    workflow, so checking it on launch only ever said "not chosen yet" — a
+    fault the user could not clear until they had finished. The check itself is
+    still here and still tested, just not in the panel.
     """
     report = EnvironmentChecker(MediaToolchain(discover=False)).report(tmp_path)
 

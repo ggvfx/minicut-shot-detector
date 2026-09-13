@@ -179,18 +179,20 @@ of it: **the page should be a workflow you move down**, not a set of panels.
    ways we cannot report while the request blocks. My advice is to wait until
    progress streaming exists, and to keep the copyable command until then.
 
-## Phase 4 — Detection ⬅ Current
+## Phase 4 — Detection ✅ Complete
 
 Fill in the markers the player already knows how to show. Detection proposes,
 the human decides — which changes what "good enough" means: a detector that
 finds the overwhelming majority of hard cuts and occasionally misses a wipe is
 useful today, because the odd case is two keystrokes to fix.
 
-**The order below is deliberately not the one CLAUDE.md originally implied.**
-PySceneDetect needs no model, no export and no new dependency, so it can be
-working end to end in one sitting and gives a baseline to measure TransNetV2
-against. Doing the ONNX export first would mean the riskiest, least verifiable
-step gates everything behind it.
+**The order below was deliberately not the one CLAUDE.md originally implied,
+and that is why the phase finished in three tasks instead of eight.**
+PySceneDetect needs no model, no export and no new dependency, so it could be
+working end to end in one sitting and give a baseline to judge TransNetV2
+against. Doing the ONNX export first would have meant the riskiest, least
+verifiable step gating everything behind it — and, as it turned out, gating it
+on work that never needed doing.
 
 - [x] **4.1 PySceneDetect passes** *(8 tests)*
   Both `ContentDetector` and `AdaptiveDetector`, merged into one list.
@@ -221,8 +223,9 @@ step gates everything behind it.
     them told the user to install something no job would ask for. The output
     directory is chosen at the end of the workflow, so on launch it only ever
     said "not chosen yet" — announcing a fault before the user had done
-    anything, and not clearable until they had finished. All three checks stay
-    in `environment.py`, unrun, with docstrings saying why.
+    anything, and not clearable until they had finished. `check_output_dir`
+    stays in `environment.py`, unrun and still tested; the onnxruntime and
+    model checks were deleted outright in the 4.3 cleanup.
 
     The principle this settled: **every row must be something the user can act
     on when they read it.**
@@ -239,77 +242,34 @@ step gates everything behind it.
   grabbed whenever it was parked on a shot start, which is where a review
   leaves it. A press on a tick now jumps to that frame *and* starts the drag.
 
-- [ ] **4.3 Judge it on real footage**
-  Run 4.2 over every file in `D:\minicutExamples` and look at what it marks.
-  **This is the decision point for the rest of the phase.** If PySceneDetect
-  marks hard cuts reliably, everything below is unnecessary and the splitter is
-  finished; if it is visibly patchy, the tasks below are worth their cost.
+- [x] **4.3 Judge it on real footage** — **the phase ends here, deliberately**
+  Run 4.2 over real material and look at what it marks.
 
----
+  **Result: good enough.** Driven over a mix of CG renders and AI generations.
+  The detectors get the cuts, with fast cuts the one place they trip — and
+  correcting those with the manual first-frame marker was quick enough not to
+  be a chore. That is the bar this phase set: *"a detector that finds the
+  overwhelming majority of hard cuts and occasionally misses one is useful
+  today, because the odd case is two keystrokes to fix."*
 
-Everything past here is **conditional on 4.3**, and is the largest remaining
-chunk of the project. Do not start it because it is in the plan.
-
-- [ ] **4.4 Golden set** *(only if 4.3 says a second detector might be needed)*
-  Hand-label the true cut frames of two or three real examples into
-  `tests/golden/*.csv` and score precision and recall at ±2 frames.
-
-  Its purpose has narrowed. It was going to catch our own off-by-one and frame
-  rate bugs; those are now covered by the timecode tests, the frame count
-  asserted on every written shot, and the boundary-frame verification. What is
-  left is a way to answer one question: does TransNetV2 beat PySceneDetect by
-  enough to be worth building? Without that, tuning is by eye, which
-  CLAUDE.md rules out.
-
-  *This one needs you — ground truth has to come from a person watching the
-  footage.*
-
-- [ ] **4.5 TransNetV2 ONNX export**
-  `scripts/export_transnetv2.py`: fetch the upstream weights, export to ONNX,
-  verify the file loads and runs, print the checksum for `MODEL_SHA256`.
-  Expect this to be the fiddly one — torch is a large one-off dependency and
-  the upstream repo has to be located and trusted.
-  **Done when:** a committed `.onnx` passes the dependency panel's checksum.
-
-- [ ] **4.6 TransNetV2 inference**
-  Sliding windows of 100 frames predicting the middle 50, decoded by piping
-  raw RGB out of ffmpeg so frame N is provably frame N. *The output window
-  handling is where the real debugging will be — mishandling it offsets every
-  boundary by 25 frames, consistently enough to look deliberate.*
-  **Done when:** its boundaries score at least as well as PySceneDetect's on
-  the golden set.
-
-- [ ] **4.7 Reconciliation**
-  `merge_detections` and `apply_minimum_length`: match the two detectors within
-  a couple of frames, keep the TransNetV2 frame where they disagree slightly,
-  and merge shots below the flash-frame threshold with the merge recorded.
-  **Done when:** both passes combine into one list, and every merge is logged.
-
-- [ ] **4.8 Disagreement in the UI**
-  Mark the boundaries only one detector found, so review starts with the
-  uncertain ones rather than the first frame. This is what the cross-check was
-  always for.
-  **Done when:** a glance at the timeline says which cuts want a human eye.
+  So **4.4 to 4.8 are not being built**, and the scaffolding written for them
+  has been removed rather than left in the tree looking like work in progress.
+  They are recorded under Deferred with the reasoning intact.
 
 **Phase done when:** Analyse marks the shots itself and a person only has to
-correct the occasional one. If that is true after 4.3, the phase is done at
-4.3 — finishing early here is the good outcome, not a shortfall.
+correct the occasional one. ✅ True as of 4.3 — finishing early here is the
+good outcome, not a shortfall.
 
-### Golden set material
-
-Worth labelling because it is where detection will be weakest:
-
-- **A foreground wipe** — an object passing close to camera. As a transition it
-  is not a hard cut, so it may be missed or placed a few frames off; mid-shot it
-  may read as a false positive. One of the `D:\minicutExamples` files has one.
-- **A letterboxed source** — to measure whether masking actually helps
-  detection, before deciding to feed the detector a crop.
-- **Camera flashes**, to check the minimum shot length filter is doing its job.
-
-## Phase 5 — Progress & Orchestration
+## Phase 5 — Progress & Orchestration ⬅ Current
 
 SSE progress streaming, the shot review table, and the whole pipeline behind
-one button.
+one button. Not broken into tasks yet — that happens when we start it.
+
+The splitter is functionally complete as of 4.3: point it at a mini cut, let it
+find the shots, correct anything it got wrong, and get back one file per shot.
+What is left in this phase is about knowing what the app is doing while it does
+it — the analyse and split steps currently run with no feedback beyond a
+disabled button, which is the roughest remaining edge.
 
 ---
 
@@ -318,6 +278,60 @@ one button.
 Each of these was cut deliberately. The reason is recorded so it reads as a
 decision rather than an oversight.
 
+### The TransNetV2 pass, and everything built for it
+
+Closed by 4.3. The code written for it — `src/detection/transnet.py`,
+`scripts/export_transnetv2.py`, `models/`, `tests/golden/`, the `onnxruntime`
+dependency, `MODEL_PATH` / `MODEL_SHA256`, and the `check_onnxruntime` /
+`check_model` environment checks — has been **deleted**, not commented out.
+Around 300 lines that no code path reached, in a project whose whole point is
+that it can be read end to end. Git history has all of it if it is ever wanted.
+
+What would justify revisiting it: **gradual transitions.** A frame-to-frame
+difference is not built to see a dissolve, fade or wipe, and that is the one
+thing a neural pass is clearly better at. Nothing else on this list is a reason
+to build it.
+
+- **4.4 Golden set** — hand-labelled true cut frames scored at ±2 frames. Its
+  only remaining purpose was answering "does TransNetV2 beat PySceneDetect by
+  enough to be worth building?" — a question nobody is asking now. The bugs it
+  was originally for are covered by the timecode tests, the frame count
+  asserted on every written shot, and the boundary-frame verification.
+- **4.5 ONNX export** — a build step fetching upstream weights, with torch as a
+  large one-off dependency.
+- **4.6 TransNetV2 inference** — sliding windows of 100 frames predicting the
+  middle 50. *Worth recording: the output window handling is where the real
+  debugging would have been. Mishandling it offsets every boundary by 25
+  frames, consistently enough to look deliberate.*
+- **4.7 Three-way reconciliation** — `merge_detections` already merges the two
+  classical passes; this was the version that preferred the TransNetV2 frame on
+  a near-miss.
+- **4.8 Disagreement in the UI** — **already built** in 4.2, as amber ticks and
+  the "N to check" count. It only appeared this far down the list because the
+  cross-check was assumed to arrive with TransNetV2.
+
+If it is ever revived, the material worth labelling first is a foreground wipe
+(one of the `D:\minicutExamples` files has one), a letterboxed source, and a
+sequence with camera flashes.
+
+### Also deferred
+
+- **Flash-frame filtering** — `reconcile.apply_minimum_length` is written and
+  left raising `NotImplementedError` on purpose. With a person reviewing every
+  boundary, a spurious short shot is one click to remove, while a filter that
+  quietly drops a genuinely quick cut leaves nothing to notice. 4.3 saw no
+  flash frames worth filtering.
+- **Full round-trip verification in the UI** — code, tests and the
+  `full_round_trip` field on `POST /api/split` all still there; the checkbox is
+  not. It catches the same class of error as the boundary hashes for several
+  times the work.
+- **Splitting `src/ui/static/app.js`** — 858 lines, over double the 400-line
+  threshold we flag at. The seam is already there: its eight sections
+  (environment, probe, analyse, player, markers, splitting, picker, keyboard)
+  become ES modules via `<script type="module">`, no build step needed. Left
+  alone for now because the front end has no automated tests, so a split is
+  verified by eye only — worth doing as its own focused piece of work rather
+  than tacked onto a cleanup.
 - **Per-shot stills** — identifier tab input; the shot files are enough to
   check a boundary
 - **VFR normalisation** — VFR is refused, not rewritten; wait for a real one

@@ -22,7 +22,6 @@ from src.core import config
 from src.core.environment import platform_name
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import JobResult
-from src.core.utils import file_sha256
 
 # --- NAMING ---
 
@@ -46,8 +45,8 @@ def capture_environment(toolchain: MediaToolchain) -> Dict[str, str]:
             recorded are the ones that produced these boundaries.
 
     Returns:
-        ffmpeg and ffprobe versions, onnxruntime and scenedetect versions, the
-        model checksum, the app version and the platform.
+        ffmpeg and ffprobe versions, the scenedetect version, the app version
+        and the platform.
     """
     environment = {
         "app": f"{config.APP_NAME} {config.APP_VERSION}",
@@ -55,18 +54,12 @@ def capture_environment(toolchain: MediaToolchain) -> Dict[str, str]:
         **toolchain.versions(),
     }
 
-    for package in ("onnxruntime", "scenedetect"):
-        try:
-            environment[package] = importlib.metadata.version(package)
-        except importlib.metadata.PackageNotFoundError:
-            # Recorded as absent rather than omitted: a sidecar that simply
-            # lacks the key cannot be told apart from an older format
-            environment[package] = "not installed"
-
-    if config.MODEL_PATH.is_file():
-        environment["model_sha256"] = file_sha256(config.MODEL_PATH)
-    else:
-        environment["model_sha256"] = "no model present"
+    try:
+        environment["scenedetect"] = importlib.metadata.version("scenedetect")
+    except importlib.metadata.PackageNotFoundError:
+        # Recorded as absent rather than omitted: a sidecar that simply lacks
+        # the key cannot be told apart from an older format
+        environment["scenedetect"] = "not installed"
 
     return environment
 

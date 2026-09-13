@@ -44,12 +44,13 @@ continuously high-motion footage, Content false-positives on near-identical
 frames in flat previz. The union is used, and anything only one of them found
 is marked for a human glance.
 
-`TransNetDetector` is written as a skeleton and deferred to a later phase. It
-is a neural network trained on shot transitions, and its advantage is gradual
+There is no third pass, and no neural one. A TransNetV2 detector was designed
+and skeletoned, then **removed** once the two classical passes were judged on
+real CG renders and AI generations: they get the cuts, fast cuts are where they
+trip, and correcting those by hand is quick. The skeleton is in git history and
+the reasoning is in TODO.md under Deferred. What would bring it back is gradual
 transitions — dissolves, fades and wipes — which a frame-to-frame difference is
-not built to see. It earns its place only if those turn out to be common enough
-in real deliveries that marking them by hand is a chore; hard cuts, which is
-nearly all of what a generative mini cut contains, are already handled.
+not built to see.
 
 Each pass produces a list of `Boundary`, carrying the names of the detectors
 that found it.
@@ -149,14 +150,12 @@ the identifier tab and is not built here.
 | `src/media/proxy.py` | `ProxyBuilder` — the small numbered proxy the player scrubs |
 | `src/media/splitter.py` | `ShotSplitter` — per-shot extraction |
 | `src/detection/scene_detect.py` | `SceneDetectPass` — the two PySceneDetect passes |
-| `src/detection/transnet.py` | `TransNetDetector` — deferred to a later version |
 | `src/detection/reconcile.py` | Merge, filter, convert to shots |
 | `src/validation/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
 | `src/validation/validator.py` | `JobValidator` — the checks that decode frames |
 | `src/ui/server.py` | FastAPI routes. The only module that knows about HTTP. |
 | `src/ui/browse.py` | Directory listing for the path picker |
 | `src/ui/static/` | `index.html`, `app.js`, `styles.css` |
-| `scripts/export_transnetv2.py` | One-off build step producing the committed `.onnx` |
 
 ---
 
@@ -204,7 +203,7 @@ reach into a domain package.
 - `timecode` — a display string, derived from frames only at output time
 - `mezzanine` — the all-intra intermediate every split is cut from
 - `proxy` — the small numbered copy the browser plays during review
-- `golden set` — hand-labelled true cut frames in `tests/golden/`, the regression suite
+- `work dir` — `.minicut-work/`, where the mezzanine and proxy live during a job
 
 ---
 

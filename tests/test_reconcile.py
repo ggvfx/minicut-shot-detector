@@ -10,17 +10,25 @@ import pytest
 
 from src.core.models import Boundary
 from src.detection.reconcile import boundaries_to_shots
+from src.detection.scene_detect import ADAPTIVE, CONTENT
 
 # --- HELPERS ---
 
 
 def at(frame: int, confidence: float = 1.0, agreed: bool = True) -> Boundary:
-    """A boundary at a frame, with both detectors agreeing by default."""
+    """
+    A boundary at a frame, with both detectors agreeing by default.
+
+    Agreement is expressed as the list of detectors that found it, because that
+    is what `Boundary` holds. This helper used to pass `found_by_transnet` and
+    `found_by_scenedetect`, which stopped existing when found_by became a list
+    — and Pydantic drops unknown fields silently, so every boundary it built
+    came out with found_by=[] and the assertions below passed by accident.
+    """
     return Boundary(
         frame=frame,
         confidence=confidence,
-        found_by_transnet=True,
-        found_by_scenedetect=agreed,
+        found_by=[CONTENT, ADAPTIVE] if agreed else [CONTENT],
     )
 
 
@@ -114,6 +122,19 @@ def test_confidence_comes_from_the_boundary_that_opened_the_shot():
 
     assert shots[1].confidence == pytest.approx(0.62)
     assert shots[1].detectors_agreed is False
+
+
+def test_an_agreed_boundary_opens_a_shot_that_is_not_flagged():
+    """
+    Agreement has to survive the conversion, not just disagreement.
+
+    This is the half that decides whether a cut shows as a plain tick or an
+    amber one, and it went untested while the helper was silently producing
+    boundaries no detector had found.
+    """
+    shots = boundaries_to_shots([at(50, agreed=True)], frame_count=100)
+
+    assert shots[1].detectors_agreed is True
 
 
 def test_first_shot_is_not_flagged_for_review():

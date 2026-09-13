@@ -23,13 +23,7 @@ APP_VERSION = "0.1.0"
 # src/core/config.py -> repo root is two parents up
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-MODELS_DIR = REPO_ROOT / "models"
-MODEL_PATH = MODELS_DIR / "transnetv2.onnx"
 STATIC_DIR = REPO_ROOT / "src" / "ui" / "static"
-
-# Checksum of the committed ONNX export. Filled in when detection lands;
-# until then the environment check reports "present" without verifying.
-MODEL_SHA256: Optional[str] = None
 
 # --- FIXED REQUIREMENTS ---
 

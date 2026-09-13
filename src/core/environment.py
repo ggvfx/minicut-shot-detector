@@ -24,7 +24,6 @@ from pydantic import BaseModel
 
 from src.core import config
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.utils import file_sha256
 
 # --- STATUS VALUES ---
 
@@ -42,20 +41,6 @@ FFMPEG_INSTALL = {
     "Darwin": "brew install ffmpeg",
     "Linux": "sudo apt install ffmpeg",
 }
-
-# --- ONNX EXECUTION PROVIDERS ---
-
-# Providers that actually run the model on local hardware. onnxruntime also
-# advertises remote providers such as Azure, which would otherwise make a
-# CPU-only machine look accelerated.
-ACCELERATED_PROVIDERS = (
-    "CoreMLExecutionProvider",      # Apple Silicon
-    "CUDAExecutionProvider",        # NVIDIA
-    "TensorrtExecutionProvider",    # NVIDIA, faster still
-    "DmlExecutionProvider",         # DirectML — any Windows GPU
-    "ROCMExecutionProvider",        # AMD
-    "OpenVINOExecutionProvider",    # Intel
-)
 
 
 # --- RESULT MODELS ---
@@ -283,46 +268,6 @@ class EnvironmentChecker:
 
         return Check(key="encoders", label="Mezzanine encoders", status=OK, detail=", ".join(present))
 
-    def check_onnxruntime(self) -> Check:
-        """
-        ONNX Runtime and its execution providers.
-
-        Not currently run. Detection is two PySceneDetect passes, which need
-        nothing from ONNX; this returns when TransNetV2 does, and is kept so
-        that arrives as a one-line change rather than a rewrite.
-
-        CPU-only would be the classic degraded case: detection still runs, just
-        far slower. That is the user's call to make, not ours.
-        """
-        try:
-            import onnxruntime
-        except ImportError:
-            return Check(
-                key="onnxruntime",
-                label="ONNX Runtime",
-                status=BLOCKED,
-                detail="Not installed",
-                fix="pip install -r requirements.txt",
-            )
-
-        providers = list(onnxruntime.get_available_providers())
-        accelerated = [name for name in providers if name in ACCELERATED_PROVIDERS]
-
-        if not accelerated:
-            return Check(
-                key="onnxruntime",
-                label="ONNX Runtime",
-                status=DEGRADED,
-                detail=f"{onnxruntime.__version__}, CPU only — detection will be slow but correct",
-            )
-
-        return Check(
-            key="onnxruntime",
-            label="ONNX Runtime",
-            status=OK,
-            detail=f"{onnxruntime.__version__} — {', '.join(accelerated)}",
-        )
-
     def check_scenedetect(self) -> Check:
         """
         PySceneDetect, which is what finds the cuts.
@@ -347,46 +292,6 @@ class EnvironmentChecker:
             version = "unknown version"
 
         return Check(key="scenedetect", label="PySceneDetect", status=OK, detail=version)
-
-    def check_model(self) -> Check:
-        """
-        The TransNetV2 ONNX export.
-
-        Not currently run, for the same reason as `check_onnxruntime`: while it
-        was, the panel said "detection is not available" of an app that detects
-        cuts perfectly well without it.
-
-        Verified by checksum once MODEL_SHA256 is set: a truncated or swapped
-        model produces plausible-looking boundaries that are quietly wrong.
-        """
-        if not config.MODEL_PATH.exists():
-            return Check(
-                key="model",
-                label="TransNetV2 weights",
-                status=DEGRADED if config.MODEL_SHA256 is None else BLOCKED,
-                detail=f"Not found at {config.MODEL_PATH} — detection is not available",
-                fix="python -m scripts.export_transnetv2",
-            )
-
-        if config.MODEL_SHA256 is None:
-            return Check(
-                key="model",
-                label="TransNetV2 weights",
-                status=OK,
-                detail=f"Present at {config.MODEL_PATH} (no checksum pinned yet)",
-            )
-
-        actual = file_sha256(config.MODEL_PATH)
-        if actual != config.MODEL_SHA256:
-            return Check(
-                key="model",
-                label="TransNetV2 weights",
-                status=BLOCKED,
-                detail=f"Checksum mismatch — expected {config.MODEL_SHA256[:12]}, found {actual[:12]}",
-                fix="python -m scripts.export_transnetv2 --force",
-            )
-
-        return Check(key="model", label="TransNetV2 weights", status=OK, detail=f"Verified {actual[:12]}")
 
     def check_output_dir(self, output_dir: Optional[Path]) -> Check:
         """
