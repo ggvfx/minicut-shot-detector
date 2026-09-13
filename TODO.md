@@ -293,6 +293,34 @@ survive**, which is worth recording so it is not resurrected by habit:
   Driven in the browser: analyse A, analyse B, row offers A's 0.07 GB, Clear
   frees exactly that and leaves B's mezzanine untouched.
 
+- [x] **5.2 One output folder per source, on every job**
+  Found by using it: load a second source without reloading the page and the
+  output directory stayed pointing at the folder chosen for the *first* one, so
+  the shots landed somewhere the user had not looked at since the job before —
+  loose among the masters rather than in a `_shots` folder.
+
+  `suggestOutputDirectory()` returned early whenever any output directory
+  existed at all, which is right for the first job of a session and wrong for
+  every one after it. Now a choice belongs to the source it was made for: a
+  directory the user picked or typed survives re-inspecting *that* source, and
+  a different source suggests its own folder.
+
+  Also fixed a latent one alongside it: the path split used `/[\/]/`, a
+  character class holding only the forward slash, so Windows paths never split
+  at all. It produced the right answer by accident — the un-split path became
+  the "name" and the suffix still landed in the right place — which is the kind
+  of accident that stops being one as soon as anything near it changes.
+
+  Verified in the browser: three sources inspected in a row each suggested
+  their own folder, a typed choice survived re-inspecting its own source and
+  did not leak to the next, and two full jobs back to back wrote seven shots
+  each into `jobA_shots/` and `jobB_shots/` with nothing loose between them.
+
+  **Worth noting:** this is the second UI bug to reach you. The Python is
+  covered by 255 tests; `app.js` has none, so its logic is only ever checked by
+  driving the browser. That is the real argument for the app.js split under
+  Deferred — the pure functions in it could be tested.
+
 **Phase done when:** nothing about running the app is annoying enough to
 mention. Then the splitter is finished and the identifier tab starts.
 

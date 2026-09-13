@@ -21,6 +21,10 @@ const state = {
     pickerMode: null,      // "source" | "output" while the dialog is open
     pickerPath: "",        // Directory currently shown in the dialog
     probe: null,           // Last ProbeReport from the server
+    // The source an output directory was deliberately chosen for. A choice
+    // belongs to the job it was made for: the next source suggests its own
+    // folder rather than inheriting the last one.
+    outputChosenFor: null,
     prepared: null,        // Last PreparedJob: source, mezzanine and proxy
     boundaries: [],        // Frames on which shots start, frame 0 implied
     // Frames only one detector found. Kept separate from the boundaries
@@ -189,14 +193,23 @@ function renderProbe(report) {
  * Proposes an output directory beside the source, named after it.
  *
  * Writing shots into the folder holding the masters would scatter a dozen
- * files among them, so the default is a folder of its own. Only ever a
- * suggestion: a directory the user has already chosen is left alone.
+ * files among them, so the default is a folder of its own.
+ *
+ * Every source gets its own suggestion, including the second and third of a
+ * sitting. This used to return early whenever an output directory existed at
+ * all, which meant the folder chosen for the *previous* source silently
+ * became the destination for the next one — the shots then landed somewhere
+ * the user had not looked at since the job before.
+ *
+ * A directory the user chose themselves is still left alone, but only for the
+ * source they chose it for: a choice belongs to the job it was made for.
  */
 function suggestOutputDirectory() {
-    if (state.outputDir) return;
+    if (state.outputChosenFor === state.sourcePath) return;
 
+    // Split on either separator: a path typed on Windows can arrive with both
     const separator = state.sourcePath.includes("\\") ? "\\" : "/";
-    const parts = state.sourcePath.split(/[\/]/);
+    const parts = state.sourcePath.split(/[\\/]/);
     const name = parts.pop().replace(/\.[^.]+$/, "");
 
     state.outputDir = [...parts, `${name}_shots`].join(separator);
@@ -839,6 +852,7 @@ function choosePath(path) {
         document.getElementById("source-path").value = path;
     } else {
         state.outputDir = path;
+        state.outputChosenFor = state.sourcePath;
         document.getElementById("output-dir").value = path;
         // Free space is checked against the chosen volume, and this is the
         // first moment we can say whether anything is reclaimable on it
@@ -952,6 +966,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("output-dir")
         .addEventListener("change", (event) => {
             state.outputDir = event.target.value;
+            // Typed by hand, so it is as deliberate as one picked from the
+            // dialog, and belongs to the source currently loaded
+            state.outputChosenFor = state.sourcePath;
             loadEnvironment(true);
             refreshWorkFiles();
         });
