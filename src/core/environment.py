@@ -132,6 +132,31 @@ def gating_status(checks: List[Check]) -> str:
     return worst_status([check.status for check in checks if not check.advisory])
 
 
+def python_fixes() -> List[FixStep]:
+    """
+    Ways to install a supported Python on this machine.
+
+    A download rather than a package manager first: someone whose Python is too
+    old is usually not the person with Homebrew already set up.
+    """
+    return [
+        FixStep(
+            label="Download an installer",
+            url="https://www.python.org/downloads/",
+        ),
+        *(
+            [FixStep(label="Or with Homebrew", command="brew install python@3.11")]
+            if platform.system() == "Darwin"
+            else []
+        ),
+        *(
+            [FixStep(label="Or with winget", command="winget install Python.Python.3.11")]
+            if platform.system() == "Windows"
+            else []
+        ),
+    ]
+
+
 def ffmpeg_fixes() -> List[FixStep]:
     """
     Ways to install ffmpeg on the machine we are running on.

@@ -14,6 +14,8 @@
     <nav class="tabs">
         <button class="tab active" data-tab="splitter">Splitter</button>
         <button class="tab" data-tab="identifier">Identifier</button>
+        <!-- Setup is not a workflow, so it sits apart from the two that are -->
+        <button class="tab tab-setup" data-tab="setup">Setup</button>
     </nav>
 </header>
 
@@ -50,21 +52,10 @@
             </ul>
         </section>
 
-        <!-- Collapsed by default: most of the time nothing is missing, and the
-             colour in the summary is all anyone needs to know. -->
-        <details class="card" id="environment-card">
-            <summary>
-                <span class="card-title">Environment</span>
-                <span id="environment-summary" class="summary">Checking…</span>
-                <!-- Not a <button>: one cannot be nested inside a <summary>
-                     without the click toggling the panel as well -->
-                <span id="recheck-button" class="inline-button" role="button" tabindex="0">Re-check</span>
-            </summary>
-
-            <div class="card-body">
-                <ul id="environment-checks" class="checks"></ul>
-            </div>
-        </details>
+        <!-- One line, not a panel. Setup is a once-per-install job and lives
+             in its own tab; what belongs here is whether anything is wrong
+             right now, and a way to get to where it is fixed. -->
+        <p id="splitter-health" class="health" hidden></p>
 
         <!-- Step one: what am I working on, and can it be cut? -->
         <section class="card">
@@ -227,23 +218,11 @@
             </ul>
         </section>
 
-        <!-- Its own panel, not the splitter's. The two tabs need genuinely
-             different things: this one needs models and no encoders. -->
-        <details class="card" id="identifier-environment-card">
-            <summary>
-                <span class="card-title">Environment</span>
-                <span id="identifier-environment-summary" class="summary">Checking…</span>
-                <span id="identifier-recheck-button" class="inline-button" role="button" tabindex="0">Re-check</span>
-            </summary>
+        <p id="identifier-health" class="health" hidden></p>
 
-            <div class="card-body">
-                <ul id="identifier-environment-checks" class="checks"></ul>
-            </div>
-        </details>
-
-        <!-- Not numbered: this is set once, not a step of every job. Sits
-             directly under the panel that reports a missing model, because
-             that is the moment anyone comes looking for it. -->
+        <!-- Above the workflow rather than in Setup: which model runs this
+             batch is a per-job decision, where installing ffmpeg is not.
+             Collapsed, because most jobs will not change it. -->
         <details class="card" id="models-card">
             <summary>
                 <span class="card-title">Models</span>
@@ -282,26 +261,15 @@
             </div>
         </details>
 
-        <!-- Step one: what does this show look like, and what are we matching against -->
+        <!-- Step one: what are we matching against. The character sheet is not
+             here: it is written once per show, so it lives in Setup, while a
+             shot list arrives with every job. -->
         <section class="card">
             <div class="card-header">
-                <h2>1 · Production knowledge</h2>
-                <span id="knowledge-summary" class="summary"></span>
+                <h2>1 · Shot list to match</h2>
+                <span id="shotlist-summary" class="summary"></span>
             </div>
 
-            <p class="hint">
-                Put your show's markdown in the folder below and it is read on every run — no
-                attaching it each session. Both files are optional: without them every shot is
-                still described, just in plain words with nobody named.
-            </p>
-
-            <dl id="knowledge-facts" class="facts"></dl>
-
-            <div class="action-row">
-                <span id="knowledge-status" class="status"></span>
-            </div>
-
-            <h3 class="subsection">Shot list to match</h3>
             <p class="hint">
                 What the shots are matched against. A CSV or text document, or a folder of
                 thumbnails named by shot number — each is read into the same list of numbers and
@@ -376,6 +344,122 @@
                 <button id="identify-export" class="secondary" disabled title="Not built yet">Export DB report</button>
                 <span id="identify-action-status" class="status"></span>
             </div>
+        </section>
+
+    </section>
+
+    <!-- ===== SETUP TAB ===== -->
+    <!-- Everything you do once, in one place. It was split across both
+         workflow tabs, which meant setting the app up meant visiting both and
+         left a panel you never read sitting above the work you do daily. -->
+    <section id="setup" class="tab-panel">
+
+        <section class="intro">
+            <p>
+                <strong>What the app needs, and where to point it</strong> — check what is
+                installed, choose the tools the Identifier talks to, and test them.
+            </p>
+            <p class="hint">
+                You should only need this once. The Splitter and Identifier tabs will say if
+                something here stops working.
+            </p>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Splitter</h2>
+                <span id="environment-summary" class="summary">Checking…</span>
+                <span id="recheck-button" class="inline-button" role="button" tabindex="0">Re-check</span>
+            </div>
+            <p class="hint">What is needed to cut a mini cut into shots.</p>
+            <ul id="environment-checks" class="checks"></ul>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Identifier</h2>
+                <span id="identifier-environment-summary" class="summary">Checking…</span>
+                <span id="identifier-recheck-button" class="inline-button" role="button" tabindex="0">Re-check</span>
+            </div>
+            <p class="hint">
+                What is needed to describe and name shots. Different from the Splitter: this
+                one needs a model and does not encode anything.
+            </p>
+            <ul id="identifier-environment-checks" class="checks"></ul>
+        </section>
+
+        <!-- Always here, whatever state the machine is in. The checks above
+             only speak up when something is missing, which is right for a
+             status panel and useless for setting up a second machine or
+             telling a colleague what they will need. -->
+        <details class="card" id="guide-card">
+            <summary>
+                <span class="card-title">Installing what you need</span>
+                <span id="guide-platform" class="summary"></span>
+            </summary>
+
+            <div class="card-body">
+                <dl id="guide-list" class="guide"></dl>
+            </div>
+        </details>
+
+        <!-- Static, because it does not depend on the machine — only on what
+             the command backend does, which is the same everywhere. -->
+        <details class="card">
+            <summary>
+                <span class="card-title">Connecting a command line tool</span>
+            </summary>
+
+            <div class="card-body">
+                <p class="hint">
+                    The Identifier talks to a model by running a command you already have and
+                    reading what it prints. Anything that takes a prompt and answers in text
+                    will work, so you are not waiting on us to support a particular tool.
+                </p>
+
+                <p class="hint">
+                    Pick <strong>Custom command…</strong> in the Models panel and type the
+                    command as you would in a terminal. The prompt is sent in on standard
+                    input, so most tools need only their non-interactive flag:
+                </p>
+
+                <dl class="guide">
+                    <dt>Claude Code</dt>
+                    <dd><code class="fix-command">claude -p</code> — already a preset.</dd>
+
+                    <dt>Another agentic CLI</dt>
+                    <dd>
+                        Whatever runs it non-interactively and prints the reply, for example
+                        <code class="fix-command">mytool chat --quiet</code>. If it needs the
+                        prompt as an argument rather than on standard input, write
+                        <code class="fix-command">{prompt}</code> where it should go.
+                    </dd>
+
+                    <dt>Sending frames to it</dt>
+                    <dd>
+                        Only the vision model gets images. Write
+                        <code class="fix-command">{images}</code> for one argument per frame,
+                        or <code class="fix-command">--image={image}</code> to repeat a flag
+                        for each one.
+                    </dd>
+                </dl>
+
+                <p class="hint">
+                    Press <strong>Test</strong> after any change. It runs the command once and
+                    shows you the reply, or says exactly what went wrong.
+                </p>
+            </div>
+        </details>
+
+        <section class="card">
+            <h2>Production knowledge</h2>
+            <p class="hint">
+                A folder beside the app holding your show's character sheet. Read on every
+                run, so you write it once rather than attaching it each session.
+            </p>
+            <dl id="knowledge-facts" class="facts"></dl>
+            <p id="knowledge-status" class="status"></p>
+            <span id="knowledge-summary" hidden></span>
         </section>
 
     </section>

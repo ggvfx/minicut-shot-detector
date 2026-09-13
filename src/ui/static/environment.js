@@ -1,16 +1,23 @@
 /*
- * Dependency Panel.
+ * Dependency Panels.
  *
- * Renders what the server says a tab needs. Read only: the panel reports, and
- * every row is something the user can act on.
+ * Renders what the server says each tab needs. Read only: the panel reports,
+ * and every row is something the user can act on.
  *
- * One panel per tab, because the two need genuinely different things — the
- * splitter needs encoders and PySceneDetect, the identifier needs a model and
- * neither of those. Showing each the other's requirements would put rows in
- * front of people who cannot act on them.
+ * Both panels live in the Setup tab, because setting the app up is a
+ * once-per-install job and it was previously split across the two tabs people
+ * use daily — which meant a panel nobody reads sitting above the work.
+ *
+ * The workflow tabs keep a one-line health strip instead: silent when
+ * everything is fine, and a link to Setup when it is not.
+ *
+ * Still two separate panels, because the tabs need genuinely different things —
+ * the splitter needs encoders and PySceneDetect, the identifier needs a model
+ * and neither of those.
  */
 
 import { state } from "./state.js";
+import { showTab } from "./tabs.js";
 
 // Which elements each tab's panel draws into. The splitter's are unprefixed
 // because it was here first and renaming its ids would churn the HTML for
@@ -52,11 +59,52 @@ export async function loadEnvironment(tab = "splitter", refresh = false) {
 
     try {
         const response = await fetch(`/api/environment?${params}`);
-        renderEnvironment(panel, await response.json());
+        const report = await response.json();
+
+        renderEnvironment(panel, report);
+        renderHealth(tab, report);
     } catch {
         summary.textContent = "Could not reach the app";
         summary.className = "summary blocked";
     }
+}
+
+/**
+ * The one-line strip on a workflow tab.
+ *
+ * Hidden entirely when nothing is wrong. A permanent "everything is fine"
+ * banner is something people stop reading, and then stop noticing when it
+ * changes — the panel has to earn its place on screen each time.
+ */
+function renderHealth(tab, report) {
+    const strip = document.getElementById(`${tab}-health`);
+    if (!strip) return;
+
+    if (report.overall === "ok") {
+        strip.hidden = true;
+        return;
+    }
+
+    const problems = report.checks.filter((check) => check.status !== "ok");
+    const one = problems.length === 1;
+
+    // The verb has to agree with the count, or the one place the app speaks up
+    // about a problem is also the place it looks unfinished
+    const subject = one ? "1 thing" : `${problems.length} things`;
+    const verb = report.overall === "blocked"
+        ? (one ? "needs attention" : "need attention")
+        : (one ? "is not set up" : "are not set up");
+
+    strip.textContent = `${subject} ${verb}: `;
+    strip.className = `health ${report.overall}`;
+
+    const link = document.createElement("button");
+    link.className = "inline-button";
+    link.textContent = "Open Setup";
+    link.addEventListener("click", () => showTab("setup"));
+
+    strip.append(link);
+    strip.hidden = false;
 }
 
 /**

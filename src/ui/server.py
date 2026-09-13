@@ -21,6 +21,7 @@ from src.backends.availability import backend_checks
 from src.core.config import (
     BACKEND_COMMAND,
     CLI_PRESETS,
+    MIN_PYTHON,
     PRODUCTION_DIR,
     SETTINGS_FILE,
     STATIC_DIR,
@@ -30,7 +31,15 @@ from src.core.config import (
     load_settings,
     save_settings,
 )
-from src.core.environment import IDENTIFIER, SPLITTER, TABS, EnvironmentChecker
+from src.core.environment import (
+    IDENTIFIER,
+    SPLITTER,
+    TABS,
+    EnvironmentChecker,
+    ffmpeg_fixes,
+    platform_name,
+    python_fixes,
+)
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport
 from src.core.timecode import Timecode
@@ -129,6 +138,35 @@ def get_environment(
     extra = backend_checks(load_settings()) if tab == IDENTIFIER else None
 
     return checker.report(tab, target, refresh=refresh, extra=extra)
+
+
+# --- SETUP GUIDE ---
+
+
+@app.get("/api/guide")
+def get_guide():
+    """
+    How to install what the app needs, whatever state the machine is in.
+
+    Separate from the environment checks on purpose. Those only speak up when
+    something is missing, which is right for a status panel and useless for
+    someone setting up a second machine, or checking what a colleague will
+    need before sending them the folder.
+
+    Only this platform's instructions: the app knows which it is on, and a
+    Windows user scrolling past Homebrew is noise.
+    """
+    return {
+        "platform": platform_name(),
+        "python": {
+            "label": f"Python {'.'.join(str(part) for part in MIN_PYTHON)} or newer",
+            "fixes": [step.model_dump() for step in python_fixes()],
+        },
+        "ffmpeg": {
+            "label": "ffmpeg and ffprobe",
+            "fixes": [step.model_dump() for step in ffmpeg_fixes()],
+        },
+    }
 
 
 # --- IDENTIFIER: MODEL BACKENDS ---

@@ -527,6 +527,8 @@ that out before anything is built on top of it.
   pipeline behind them is still a skeleton, and a button that looks ready and
   does nothing is worse than one that admits it.
 
+  *Reorganised immediately after, at 7.0.1:* setup moved to a third tab.
+
   **Two bugs found by looking at it, not by the suite:**
   - **Static files had no `Cache-Control`,** so the browser served an already
     evaluated ES module across reloads. An hour went into "the tab does not
@@ -536,6 +538,25 @@ that out before anything is built on top of it.
   - **`[hidden]` did nothing** on the action rows, because `display: flex`
     silently overrides the browser's `[hidden] { display: none }`. Disabled
     controls for later steps were showing from the start.
+
+- [x] **7.0.1 A Setup tab** *(1 test)*
+  Setting the app up was spread across both workflow tabs, which meant doing it
+  meant visiting both — and left a panel nobody reads sitting above the work
+  people do daily.
+
+  Setup now holds the two dependency panels, the production knowledge folder,
+  and reference material that is there whatever state the machine is in:
+  install commands for Python and ffmpeg on this platform, and how to point the
+  Identifier at a command line tool. The checks only speak up when something is
+  missing, which is right for a status panel and useless for setting up a
+  second machine or telling a colleague what they will need.
+
+  The workflow tabs keep a **one-line health strip** instead — hidden entirely
+  when nothing is wrong, because a permanent "everything is fine" banner is one
+  people stop reading and then stop noticing when it changes.
+
+  **The model picker stayed on the Identifier**, not in Setup: which tool runs
+  a batch is a per-job decision in a way that installing ffmpeg is not.
 
 - [ ] **7.1 Frame sampling**
   `FrameSampler` — a handful of small frames per shot, and one thumbnail.

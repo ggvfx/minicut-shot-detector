@@ -9,6 +9,7 @@
 import { state } from "./state.js";
 import { loadEnvironment } from "./environment.js";
 import { openIdentifier, wireIdentifier } from "./identify.js";
+import { openSetup, wireSetup } from "./setup.js";
 import { analyseSource, inspectSource } from "./source.js";
 import {
     beginScrub,
@@ -28,26 +29,14 @@ import { whenShown, wireTabs } from "./tabs.js";
 document.addEventListener("DOMContentLoaded", () => {
     loadEnvironment("splitter");
 
-    // The Identifier loads what it shows when it is opened, not on page load:
-    // someone who only uses the Splitter should never pay for a model
-    // availability check they will not read.
+    // Each tab loads what it shows when it is opened, not on page load: a
+    // splitter-only user should never pay for a model availability check they
+    // will not read.
     wireTabs();
     wireIdentifier();
+    wireSetup();
     whenShown("identifier", openIdentifier);
-
-    // Inside the <summary>, so its click must not also open or close the panel
-    const recheck = document.getElementById("recheck-button");
-    recheck.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        loadEnvironment("splitter", true);
-    });
-    recheck.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            loadEnvironment("splitter", true);
-        }
-    });
+    whenShown("setup", openSetup);
 
     for (const button of document.querySelectorAll("[data-picker]")) {
         button.addEventListener("click", () => openPicker(button.dataset.picker));

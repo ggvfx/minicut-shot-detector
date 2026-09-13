@@ -58,6 +58,9 @@ header {
 }
 
 .tab.active { color: var(--text); border-bottom-color: var(--ok); }
+
+/* Setup is not a workflow, so it sits apart from the two that are */
+.tab-setup { margin-left: auto; }
 .tab:disabled { opacity: 0.4; cursor: not-allowed; }
 .tab:hover:not(.active):not(:disabled) { color: var(--text); }
 
@@ -191,6 +194,41 @@ input[type="text"] {
 /* For the option that needs no package manager at all */
 .fix-link { color: var(--ok); font-size: 12px; }
 
+/* Reference lists in Setup: a term, then the ways to satisfy it */
+.guide { margin: 0; }
+.guide dt { color: var(--text); font-weight: 600; margin-top: 12px; }
+.guide dd { margin: 4px 0 0; color: var(--text-dim); }
+.guide dd .check-fix { margin-top: 4px; }
+
+/* ===== HEALTH STRIP ===== */
+
+/* The one line a workflow tab keeps. Hidden entirely when nothing is wrong —
+   a permanent "everything is fine" banner is one people stop reading, and then
+   stop noticing when it changes. */
+.health {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 var(--gap);
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+.health.degraded {
+    background: rgba(251, 191, 36, 0.1);
+    border-left: 3px solid var(--degraded);
+    color: var(--degraded);
+}
+
+.health.blocked {
+    background: rgba(248, 113, 113, 0.1);
+    border-left: 3px solid var(--blocked);
+    color: var(--blocked);
+}
+
+.health .inline-button { margin-left: 0; }
+
 /* ===== MODEL SETTINGS ===== */
 
 .model-row {
@@ -269,6 +307,9 @@ details[open] > summary::before { transform: rotate(90deg); }
 .inline-button:hover { background: var(--bg); }
 summary .summary { margin: 0; }
 .card-title { color: var(--text-dim); }
+
+/* Setup's cards are plain sections, so their heading carries the status */
+#setup .card-header h2 { color: var(--text); font-size: 15px; }
 .card-body { margin-top: 12px; }
 
 /* ===== LIMITATIONS BANNER ===== */

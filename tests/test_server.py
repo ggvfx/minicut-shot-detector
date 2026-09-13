@@ -317,3 +317,29 @@ def test_knowledge_reports_what_the_production_folder_holds():
         assert isinstance(report[name]["found"], bool)
         assert isinstance(report[name]["characters"], int)
         assert "text" not in report[name], "contents never cross the wire"
+
+
+# --- SETUP GUIDE ---
+
+
+def test_the_guide_says_what_to_install_whatever_the_machine_has():
+    """
+    Separate from the checks on purpose.
+
+    Those only speak up when something is missing, which is right for a status
+    panel and useless for setting up a second machine or telling a colleague
+    what they will need.
+    """
+    guide = client.get("/api/guide").json()
+
+    assert guide["platform"]
+    for item in ("python", "ffmpeg"):
+        assert guide[item]["label"]
+        assert guide[item]["fixes"], f"{item} must say how to install it"
+        assert all(
+            step["command"] or step["url"] for step in guide[item]["fixes"]
+        ), "every option gives something to act on"
+
+    assert any(step["url"] for step in guide["ffmpeg"]["fixes"]), (
+        "always a route that needs no package manager"
+    )
