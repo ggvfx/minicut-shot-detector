@@ -305,18 +305,27 @@ def test_work_leaves_the_open_source_alone(tmp_path):
 
 def test_knowledge_reports_what_the_production_folder_holds():
     """
-    The panel says what was found; the text itself is for the model.
-
-    Sizes rather than contents, because a character bible would make this
-    response enormous for no reason anybody can read.
+    The panel says what was found, by category; the text itself is for the
+    model and never crosses the wire.
     """
     report = client.get("/api/knowledge").json()
 
-    assert "directory" in report
-    for name in ("characters", "terminology"):
-        assert isinstance(report[name]["found"], bool)
-        assert isinstance(report[name]["characters"], int)
-        assert "text" not in report[name], "contents never cross the wire"
+    assert report["directory"]
+    assert report["file"].endswith(".md")
+    assert isinstance(report["found"], bool)
+    assert isinstance(report["counts"], dict)
+    assert report["categories"] == ["characters", "props", "environments"]
+
+
+def test_the_film_terminology_never_reaches_the_user():
+    """
+    It ships with the app and changes almost never. Putting it in front of
+    someone would only invite editing the one thing that does not need it.
+    """
+    body = client.get("/api/knowledge").text
+
+    assert "terminology" not in body.lower()
+    assert "OTS" not in body
 
 
 # --- SETUP GUIDE ---

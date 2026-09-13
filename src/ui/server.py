@@ -43,7 +43,7 @@ from src.core.environment import (
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport
 from src.core.timecode import Timecode
-from src.identifier.knowledge import load_knowledge
+from src.identifier.knowledge import CATEGORIES, PRODUCTION_FILE, load_knowledge
 from src.media.probe import SourceProbe
 from src.media.proxy import PROXY_SUFFIX
 from src.media.workspace import clear_work, owning_source, reclaimable_work
@@ -298,27 +298,26 @@ def get_knowledge():
     """
     What the production folder currently holds.
 
-    Read fresh every time rather than cached: someone edits a character sheet
-    in another window and presses Re-check expecting it to be picked up, and a
-    cache would quietly serve them the old one.
+    Read fresh every time rather than cached: someone edits the file in another
+    window and presses Re-check expecting it picked up, and a cache would
+    quietly serve them the old one.
 
-    Returns the size of each file rather than its contents. The panel says what
-    was found; the text itself is for the model, and a character bible would
-    make the response enormous for no reason.
+    Returns counts rather than contents. The panel says what was found; the
+    text itself is for the model, and a show's full description would make the
+    response enormous for no reason anybody can read.
+
+    The film terminology is deliberately absent. It ships with the app, changes
+    almost never, and showing it would only invite editing the one thing here
+    that does not need editing.
     """
     knowledge = load_knowledge(PRODUCTION_DIR)
 
     return {
         "directory": str(PRODUCTION_DIR),
-        "exists": PRODUCTION_DIR.is_dir(),
-        "characters": {
-            "found": knowledge.has_characters,
-            "characters": len(knowledge.characters),
-        },
-        "terminology": {
-            "found": knowledge.has_terminology,
-            "characters": len(knowledge.terminology),
-        },
+        "file": PRODUCTION_FILE,
+        "found": knowledge.has_production,
+        "counts": knowledge.counts,
+        "categories": list(CATEGORIES),
     }
 
 

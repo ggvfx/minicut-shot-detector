@@ -1,12 +1,11 @@
 /*
  * The Setup Tab.
  *
- * Everything you do once: what is installed, and where the production's
- * character sheet lives.
+ * Everything you do once: what is installed, and how to install it.
  *
- * Choosing a model is deliberately NOT here. Which tool runs a batch is a
- * per-job decision in a way that installing ffmpeg is not, so it sits on the
- * Identifier tab with the work it affects.
+ * Choosing a model and loading the production's own knowledge are deliberately
+ * NOT here. Both are per-job decisions in a way that installing ffmpeg is not,
+ * so they sit on the Identifier tab with the work they affect.
  *
  * Its own tab because setting the app up is not a workflow. It used to be
  * split across the two tabs people use daily, which meant setting up meant
@@ -16,72 +15,6 @@
  */
 
 import { loadEnvironment } from "./environment.js";
-import { state } from "./state.js";
-
-// --- PRODUCTION KNOWLEDGE ---
-
-/**
- * Reports what the production folder holds.
- *
- * Read on every open rather than once, because the whole point of a folder
- * over an upload is that someone edits a character sheet in another window and
- * expects it picked up.
- */
-export async function loadKnowledge() {
-    const summary = document.getElementById("knowledge-summary");
-    const facts = document.getElementById("knowledge-facts");
-    const status = document.getElementById("knowledge-status");
-
-    try {
-        const response = await fetch("/api/knowledge");
-        if (!response.ok) throw new Error("unreachable");
-
-        const knowledge = await response.json();
-        state.knowledge = knowledge;
-
-        renderFactsInto(facts, {
-            Folder: knowledge.directory,
-            Characters: describeFile(knowledge.characters),
-            Terminology: describeFile(knowledge.terminology),
-        });
-
-        const found = [knowledge.characters.found, knowledge.terminology.found].filter(Boolean);
-        summary.textContent = found.length === 2 ? "Loaded" : `${found.length} of 2 files`;
-        summary.className = `summary ${found.length === 2 ? "ok" : "degraded"}`;
-
-        // Neither file is required, so say what their absence costs rather
-        // than treating it as an error
-        status.textContent = found.length === 2
-            ? ""
-            : "Shots will still be described, in plain words, with nobody named.";
-
-    } catch {
-        summary.textContent = "Could not read";
-        summary.className = "summary blocked";
-        status.textContent = "The production folder could not be read.";
-    }
-}
-
-/** A file's state in words, since "true" tells a reader nothing. */
-function describeFile(file) {
-    if (!file.found) return "Not found";
-    return `Found — ${file.characters.toLocaleString()} characters`;
-}
-
-/** Renders a label/value map into a definition list. */
-function renderFactsInto(list, facts) {
-    list.innerHTML = "";
-
-    for (const [label, value] of Object.entries(facts)) {
-        const term = document.createElement("dt");
-        term.textContent = label;
-
-        const definition = document.createElement("dd");
-        definition.textContent = value;
-
-        list.append(term, definition);
-    }
-}
 
 // --- INSTALL GUIDE ---
 
@@ -155,7 +88,6 @@ function guideRow(fix) {
 export function openSetup() {
     loadEnvironment("splitter");
     loadEnvironment("identifier");
-    loadKnowledge();
     loadGuide();
 }
 
@@ -164,10 +96,7 @@ export function wireSetup() {
     for (const [tab, id] of [["splitter", "recheck-button"], ["identifier", "identifier-recheck-button"]]) {
         const recheck = document.getElementById(id);
 
-        const refresh = () => {
-            loadEnvironment(tab, true);
-            loadKnowledge();
-        };
+        const refresh = () => loadEnvironment(tab, true);
 
         recheck.addEventListener("click", refresh);
         recheck.addEventListener("keydown", (event) => {

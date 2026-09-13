@@ -4,10 +4,10 @@
  * Describes a folder of single-shot files, matches each to a shot number, and
  * hands the result to a person to correct before anything is renamed.
  *
- * Setting the app up is not here: the dependency panels and the production
- * knowledge folder are in the Setup tab, because they are done once and this
- * tab is used daily. Choosing a model *is* here, because which tool runs a
- * batch is a per-job decision in a way that installing ffmpeg is not.
+ * Setting the app up is not here: the dependency panels and the install guides
+ * are in the Setup tab, because they are done once and this tab is used daily.
+ * Choosing a model and loading the show's own knowledge *are* here, because
+ * both are per-job decisions in a way that installing ffmpeg is not.
  *
  * **First pass.** The path pickers and the health strip are live. Describing,
  * matching, renaming and exporting are laid out with their controls disabled —
@@ -17,6 +17,92 @@
 
 import { loadEnvironment } from "./environment.js";
 import { state } from "./state.js";
+
+// --- PRODUCTION KNOWLEDGE ---
+
+/**
+ * Reports what the production file holds, by category.
+ *
+ * Read on every open rather than once, because the whole point of a folder
+ * over an upload is that someone edits the file in another window and expects
+ * it picked up.
+ *
+ * Counts rather than contents: "20 characters, 5 props" is the cheapest way to
+ * see the file was read the way it was meant, and a heading typed at the wrong
+ * level shows up here as a category with nothing in it.
+ */
+export async function loadKnowledge() {
+    const summary = document.getElementById("knowledge-summary");
+    const facts = document.getElementById("knowledge-facts");
+    const status = document.getElementById("knowledge-status");
+
+    try {
+        const response = await fetch("/api/knowledge");
+        if (!response.ok) throw new Error("unreachable");
+
+        const knowledge = await response.json();
+        state.knowledge = knowledge;
+
+        renderFactsInto(facts, {
+            File: knowledge.file,
+            Folder: knowledge.directory,
+            Found: describeCounts(knowledge),
+        });
+
+        summary.textContent = knowledge.found ? summarise(knowledge) : "No file yet";
+        summary.className = `summary ${knowledge.found ? "ok" : "degraded"}`;
+
+        // Not required, so say what its absence costs rather than calling it
+        // an error — a show with no list yet is exactly who the breakdown
+        // export is for
+        status.textContent = knowledge.found
+            ? "Edit the file and press Re-read to pick up changes."
+            : `Put a ${knowledge.file} in the folder above to have shots named. `
+              + "Without it every shot is still described, just with nobody named.";
+
+    } catch {
+        summary.textContent = "Could not read";
+        summary.className = "summary blocked";
+        status.textContent = "The production folder could not be read.";
+    }
+}
+
+/** "3 characters, 2 props, 3 environments", or what is missing. */
+function describeCounts(knowledge) {
+    if (!knowledge.found) return "Nothing yet";
+
+    const parts = knowledge.categories
+        .filter((name) => name in knowledge.counts)
+        .map((name) => `${knowledge.counts[name]} ${trimPlural(name, knowledge.counts[name])}`);
+
+    return parts.length ? parts.join(", ") : "No category headings found";
+}
+
+/** The short version for the panel header. */
+function summarise(knowledge) {
+    const total = Object.values(knowledge.counts).reduce((sum, n) => sum + n, 0);
+    return total ? `${total} ${total === 1 ? "entry" : "entries"}` : "Nothing read";
+}
+
+/** "1 character" rather than "1 characters". */
+function trimPlural(name, count) {
+    return count === 1 ? name.replace(/s$/, "") : name;
+}
+
+/** Renders a label/value map into a definition list. */
+function renderFactsInto(list, facts) {
+    list.innerHTML = "";
+
+    for (const [label, value] of Object.entries(facts)) {
+        const term = document.createElement("dt");
+        term.textContent = label;
+
+        const definition = document.createElement("dd");
+        definition.textContent = value;
+
+        list.append(term, definition);
+    }
+}
 
 // --- OPENING THE TAB ---
 
@@ -31,10 +117,26 @@ export function openIdentifier() {
     // health strip, and the model picker that belongs with the work
     loadEnvironment("identifier");
     loadModels();
+    loadKnowledge();
 }
 
 /** Wires the tab's controls. Called once, from main.js. */
 export function wireIdentifier() {
+    // Editing the file in another window and pressing this is the whole point
+    // of a folder over an upload
+    const reread = document.getElementById("knowledge-recheck");
+    reread.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        loadKnowledge();
+    });
+    reread.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            loadKnowledge();
+        }
+    });
+
     // Typed paths are as valid as picked ones, the same as on the Splitter
     document.getElementById("shots-dir")
         .addEventListener("change", (event) => { state.shotsDir = event.target.value; });

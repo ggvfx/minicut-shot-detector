@@ -333,32 +333,38 @@ class Interpretation(BaseModel):
 
 class ProjectKnowledge(BaseModel):
     """
-    The markdown a project supplies, as text.
+    What a production supplies about its own show, plus the film vocabulary.
 
     Held as text rather than parsed into structure. These files are written by
     people for a model to read, and the moment we impose a schema on them we
     are asking a production to fill in our form instead of describing their
     show. The interpret pass gets them as they are.
 
+    The counts are the exception: the panel says "20 characters, 5 props" so
+    someone can see at a glance that the file was read the way they meant it,
+    which is the cheapest way to catch a heading typed at the wrong level.
+
     Attributes:
-        terminology: How this project names shot sizes, types and moves.
-        characters: Who is in it and how they appear in each representation.
-        directory: Where they came from, for the UI to show.
+        production: The show's own markdown — characters, props, environments.
+        terminology: Film vocabulary. Ships with the app and is never shown.
+        directory: Where the production file was looked for, for the UI.
+        counts: Entries found under each category heading.
     """
 
+    production: str = ""
     terminology: str = ""
-    characters: str = ""
     directory: Optional[str] = None
+    counts: Dict[str, int] = Field(default_factory=dict)
+
+    @property
+    def has_production(self) -> bool:
+        """Whether the show described itself, or shots stay unnamed."""
+        return bool(self.production.strip())
 
     @property
     def has_terminology(self) -> bool:
-        """Whether terms can be applied, or observations stay in plain words."""
+        """Always true in practice; here so a caller need not assume it."""
         return bool(self.terminology.strip())
-
-    @property
-    def has_characters(self) -> bool:
-        """Whether appearances can be named, or stay as descriptions."""
-        return bool(self.characters.strip())
 
 
 # --- THE SHOT LIST BEING MATCHED AGAINST ---

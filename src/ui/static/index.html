@@ -261,9 +261,32 @@
             </div>
         </details>
 
-        <!-- Step one: what are we matching against. The character sheet is not
-             here: it is written once per show, so it lives in Setup, while a
-             shot list arrives with every job. -->
+        <!-- What this show is made of. Under Models because both are about
+             what the analysis knows before it starts, and above the work
+             because a batch described without it is a batch with nobody
+             named. -->
+        <details class="card" id="knowledge-card">
+            <summary>
+                <span class="card-title">Production knowledge</span>
+                <span id="knowledge-summary" class="summary"></span>
+                <!-- Not a <button>: one cannot sit inside a <summary> without
+                     its click also toggling the panel -->
+                <span id="knowledge-recheck" class="inline-button" role="button" tabindex="0">Re-read</span>
+            </summary>
+
+            <div class="card-body">
+                <p class="hint">
+                    What is in your show — characters, props and environments — so shots can be
+                    described by name rather than by appearance. Read on every run, so you write
+                    it once rather than attaching it each session.
+                </p>
+
+                <dl id="knowledge-facts" class="facts"></dl>
+                <p id="knowledge-status" class="status"></p>
+            </div>
+        </details>
+
+        <!-- Step one: what are we matching against -->
         <section class="card">
             <div class="card-header">
                 <h2>1 · Shot list to match</h2>
@@ -450,17 +473,6 @@
                 </p>
             </div>
         </details>
-
-        <section class="card">
-            <h2>Production knowledge</h2>
-            <p class="hint">
-                A folder beside the app holding your show's character sheet. Read on every
-                run, so you write it once rather than attaching it each session.
-            </p>
-            <dl id="knowledge-facts" class="facts"></dl>
-            <p id="knowledge-status" class="status"></p>
-            <span id="knowledge-summary" hidden></span>
-        </section>
 
     </section>
 

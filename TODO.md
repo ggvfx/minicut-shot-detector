@@ -519,8 +519,15 @@ that out before anything is built on top of it.
 
   **Production knowledge is a folder, not an upload.** `production/` beside the
   app, read on every run, gitignored with a worked README and examples. A show
-  writes its character sheet once; asking for it every session would guarantee
-  it gets skipped. `load_knowledge` implemented to go with it *(was 7.3)*.
+  writes its own file once; asking for it every session would guarantee it gets
+  skipped. `load_knowledge` implemented to go with it *(was 7.3)*.
+
+  *Revised at 7.0.2:* one `production.md` under `# Characters`, `# Props` and
+  `# Environments`, with the entries under each counted back to the user —
+  "3 characters, 2 props, 4 environments". That count is the cheapest way to
+  see the file was read the way it was meant, and a heading typed at the wrong
+  level shows up as a category with nothing in it. Film terminology moved out
+  of sight entirely.
 
   Live: tab switching, both environment panels, the knowledge section, all four
   path pickers. Laid out and disabled: describe, match, rename, export — the

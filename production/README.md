@@ -1,56 +1,79 @@
 # Production Knowledge
 
-Put your show's markdown in this folder. The Identifier tab reads it on every
-run — you write it once, rather than attaching it each session.
+Put your show's `production.md` in this folder. The Identifier tab reads it on
+every run — you write it once, rather than attaching it each session. Edit it
+while the app is open and press **Re-read**.
 
 Everything here except this README is gitignored, so your show's material never
 ends up in the repository.
 
-## The file
+## What goes in it
 
-**`characters.md`** — who is in the show, and **how each one appears in each
-representation**. That last part is what makes the tab work: it is what lets a
-red mannequin on rollerskates in a CG blockout be recognised as the same person
-as a woman with blue hair in a final render.
+One file, organised under three headings. Each `##` under a heading is one
+entry, and the app counts them back to you — "3 characters, 2 props, 4
+environments" — so you can see at a glance that it was read the way you meant.
 
-It is optional. Without it the tab still describes every shot — it just
-describes them without naming anyone, which is exactly what you want when
-starting a breakdown for a show that has no character list yet.
+- **`# Characters`** — who is in the show
+- **`# Props`** — objects that matter enough to name
+- **`# Environments`** — the places scenes happen
 
-Props and environments will follow the same pattern. They are not built yet.
+All of it is optional. Without the file every shot is still described, just
+without anything being named, which is exactly what you want when starting a
+breakdown for a show that has no list yet.
 
-**Film terminology is not here.** What CS and OTS and "dolly in" mean ships
-with the app, in `src/identifier/templates.py`. It lives apart from this folder
-because it changes almost never, and a terminology file quietly broken would
-mean a whole batch described in words that match no shot list. Edit it there if
-your facility genuinely names things differently.
+## Writing it
 
-## Writing them
+Plain markdown, read by a language model rather than parsed. Write it for a
+person and it will work.
 
-Plain markdown. They are read by a language model, not parsed, so write them
-for a person and they will work.
+Two things worth knowing:
 
-One thing worth knowing: for identification, what does the work is the
-**distinguishing** detail — what separates this character from the others in
-the scene, and how they look across blockout versus final. Exhaustive costume
-description helps a human and mostly just adds length here. Lead with what
-tells them apart.
+**Lead with what tells them apart.** For identification, the useful detail is
+what separates this character from the others in the scene, not an exhaustive
+costume description. "The only one on skates" does more work than three
+paragraphs about a jacket.
 
-### characters.md
+**Say how each one looks in each representation.** A show is rarely all in one
+state. If a character is a red mannequin in a CG blockout and a woman with blue
+hair in a final render, saying so is what lets both be recognised as the same
+person.
+
+## Example
 
 ```markdown
 # Characters
 
 ## Tess
 Twenty-something woman, bright blue hair, always on rollerskates.
-Wears a patched yellow jacket over a grey vest.
 
-**In CG blockout:** a red mannequin, always on skates. The skates are the
-reliable tell — the other mannequins are grey.
+**Tells her apart:** the only character on skates, in any version.
+
+**In CG blockout:** a red mannequin, on skates. The others are grey.
 
 ## Marcus
 Older man, heavy build, long dark coat and a flat cap.
 
-**In CG blockout:** a tall grey mannequin in a coat. Distinguished from the
-other grey mannequins by the coat silhouette and his height.
+**Tells him apart:** the coat silhouette, and he is the tallest character.
+
+**In CG blockout:** a tall grey mannequin with a coat shape over it.
+
+# Props
+
+## The radio
+A boxy portable radio with a bent aerial, carried by Marcus.
+
+**In CG blockout:** a grey box with a thin rod on top.
+
+# Environments
+
+## The shoreline
+Open beach, wet sand, low breakwaters running into the sea. Overcast.
+
+**In CG blockout:** a flat plane with regular block shapes to the horizon.
 ```
+
+## What is not here
+
+**Film terminology** — what CS, OTS and "dolly in" mean — ships with the app
+and is not your file. It changes almost never, and a terminology file quietly
+broken would mean a whole batch described in words that match no shot list.
