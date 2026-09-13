@@ -681,12 +681,15 @@ def test_a_fix_always_offers_a_way_that_needs_no_package_manager():
     found", which reads as the app being broken rather than as a missing
     prerequisite. Every platform's guide therefore ends with a download.
     """
-    from src.core.environment import FFMPEG_INSTALL, ffmpeg_fixes
+    from src.core.environment import ffmpeg_fixes
+    from src.core.templates import FFMPEG_INSTALL, PYTHON_INSTALL
 
-    for platform_name, options in FFMPEG_INSTALL.items():
-        assert any(url for _, _, url in options), (
-            f"{platform_name} offers no option that works without a package manager"
-        )
+    for name, table in (("ffmpeg", FFMPEG_INSTALL), ("python", PYTHON_INSTALL)):
+        for platform_name, options in table.items():
+            assert any(url for _, _, url in options), (
+                f"{name} on {platform_name} offers no option that works "
+                f"without a package manager"
+            )
 
     fixes = ffmpeg_fixes()
     assert fixes, "this platform must offer something"

@@ -573,6 +573,35 @@ that out before anything is built on top of it.
   **The model picker stayed on the Identifier**, not in Setup: which tool runs
   a batch is a per-job decision in a way that installing ffmpeg is not.
 
+- [x] **7.0.3 Refactor checkpoint**
+  A pause to bring the written record level with the app and clear what the
+  last few days left behind.
+
+  **`server.py` split into `src/ui/routes/`**, one module per tab. It had
+  reached 537 lines across six areas and Phase 7 will add six more routes,
+  which would take it past 900 — and it was the one place the two tabs were
+  still jumbled together after we deliberately split `src/splitter/` from
+  `src/identifier/`. Done now rather than later so Phase 7's routes land in
+  the right file instead of being moved out of the wrong one. `server.py` is
+  now what its docstring always claimed: the app, the page, the static mount,
+  and the wiring. A small `runtime.py` holds the toolchain and checker the
+  routers share, which also breaks a circular import before it could exist.
+
+  **Install instructions moved to `core/templates.py`.** Per-platform commands
+  are reference data, not behaviour, and `templates.py` is what CODE_STYLE.md
+  names for that — the same pattern as `identifier/templates.py`. It leaves
+  `environment.py` doing one job: run the checks and roll them up.
+
+  **The models rule got sharpened rather than applied.** "Models live in
+  models.py" read literally would have moved twelve classes out of five files,
+  putting HTTP request bodies next to `Shot` and separating each from the code
+  that explains it. What the rule is actually for is having one place to look
+  for a shape that *travels*; a module's own return type stays with it. Written
+  into CLAUDE.md so it is not re-litigated by habit.
+
+  Also removed three dead things nothing reached: `.checkbox` and `.subsection`
+  in the stylesheet, and `state.records`.
+
 - [ ] **7.1 Frame sampling**
   `FrameSampler` — a handful of small frames per shot, and one thumbnail.
   Nothing about judging framing needs 1920 pixels, and small frames keep API

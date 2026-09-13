@@ -24,6 +24,12 @@ from pydantic import BaseModel
 
 from src.core import config
 from src.core.ffmpeg_tools import MediaToolchain
+from src.core.templates import (
+    FFMPEG_FALLBACK,
+    FFMPEG_INSTALL,
+    PYTHON_FALLBACK,
+    PYTHON_INSTALL,
+)
 
 # --- STATUS VALUES ---
 
@@ -41,35 +47,6 @@ TABS = (SPLITTER, IDENTIFIER)
 
 # Worst wins when rolling individual checks up into one overall status.
 STATUS_SEVERITY = {OK: 0, DEGRADED: 1, BLOCKED: 2}
-
-# --- FIX COMMANDS BY PLATFORM ---
-
-# Each platform gets alternatives rather than one command, because a single
-# line assumes a package manager the user may not have — `brew install ffmpeg`
-# on a Mac without Homebrew fails with "command not found", which reads as the
-# app being wrong rather than as a missing prerequisite. Every platform
-# therefore ends with a download that needs no package manager at all.
-FFMPEG_INSTALL = {
-    "Windows": [
-        ("With winget (Windows 10 and 11)", "winget install Gyan.FFmpeg", None),
-        ("Or download a build", None, "https://www.gyan.dev/ffmpeg/builds/"),
-    ],
-    "Darwin": [
-        ("With Homebrew", "brew install ffmpeg", None),
-        (
-            "No Homebrew? Install it first",
-            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
-            None,
-        ),
-        ("Or download a build", None, "https://evermeet.cx/ffmpeg/"),
-    ],
-    "Linux": [
-        ("Debian and Ubuntu", "sudo apt install ffmpeg", None),
-        ("Fedora", "sudo dnf install ffmpeg", None),
-        ("Or download a build", None, "https://johnvansickle.com/ffmpeg/"),
-    ],
-}
-
 
 # --- RESULT MODELS ---
 
@@ -133,44 +110,25 @@ def gating_status(checks: List[Check]) -> str:
 
 
 def python_fixes() -> List[FixStep]:
-    """
-    Ways to install a supported Python on this machine.
-
-    A download rather than a package manager first: someone whose Python is too
-    old is usually not the person with Homebrew already set up.
-    """
-    return [
-        FixStep(
-            label="Download an installer",
-            url="https://www.python.org/downloads/",
-        ),
-        *(
-            [FixStep(label="Or with Homebrew", command="brew install python@3.11")]
-            if platform.system() == "Darwin"
-            else []
-        ),
-        *(
-            [FixStep(label="Or with winget", command="winget install Python.Python.3.11")]
-            if platform.system() == "Windows"
-            else []
-        ),
-    ]
+    """Ways to install a supported Python on this machine."""
+    return _steps(PYTHON_INSTALL, PYTHON_FALLBACK)
 
 
 def ffmpeg_fixes() -> List[FixStep]:
-    """
-    Ways to install ffmpeg on the machine we are running on.
+    """Ways to install ffmpeg on this machine."""
+    return _steps(FFMPEG_INSTALL, FFMPEG_FALLBACK)
 
-    Only this platform's options are offered: showing a Windows user the
-    Homebrew line would be noise, and the app already knows which it is on.
-    """
-    options = FFMPEG_INSTALL.get(
-        platform.system(),
-        [("Install ffmpeg and put it on PATH", None, "https://ffmpeg.org/download.html")],
-    )
 
+def _steps(options: dict, fallback: list) -> List[FixStep]:
+    """
+    This platform's options, as panel rows.
+
+    Only this platform's: the app knows which it is on, and showing a Windows
+    user the Homebrew line would be noise.
+    """
     return [
-        FixStep(label=label, command=command, url=url) for label, command, url in options
+        FixStep(label=label, command=command, url=url)
+        for label, command, url in options.get(platform.system(), fallback)
     ]
 
 

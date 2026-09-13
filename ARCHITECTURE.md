@@ -313,7 +313,7 @@ src/
 ├── splitter/      detection, reconciliation, validation, the splitter pipeline
 ├── identifier/    observation, interpretation, matching, renaming, export     (not built)
 ├── backends/      the model adapters — CLI, HTTP API, local runtime
-└── ui/            routes, path picker, and the browser front end
+└── ui/            the app, one routes module per tab, and the front end
 ```
 
 **The restructure is a task, not a description.** Today `detection/`,
@@ -328,6 +328,7 @@ there was one tab and becomes misleading with two. Moving them under
 | `src/core/config.py` | **Shared.** Every constant and both tabs' per-run settings objects |
 | `src/core/models.py` | **Shared.** Every data model, banded by which tab uses it |
 | `src/core/utils.py` | **Shared.** Helpers needed in more than one module |
+| `src/core/templates.py` | **Shared.** Per-platform install instructions — data, not behaviour |
 | `src/core/ffmpeg_tools.py` | `MediaToolchain` — the only place a subprocess is run |
 | `src/core/timecode.py` | `Timecode` — the only place frames become time |
 | `src/core/environment.py` | `EnvironmentChecker` — a dependency panel per tab |
@@ -366,8 +367,13 @@ Not built, and listed so the shape is agreed before anything is written:
 
 | Path | Holds |
 |---|---|
-| `src/ui/server.py` | FastAPI routes. The only module that knows about HTTP. |
-| `src/ui/browse.py` | Directory listing for the path picker |
+| `src/ui/server.py` | The app, the page, the static mount, the wiring |
+| `src/ui/runtime.py` | The toolchain and checker every router shares |
+| `src/ui/routes/setup.py` | What is installed, and which model each pass uses |
+| `src/ui/routes/splitter.py` | Probe, prepare, proxy, split, working files |
+| `src/ui/routes/identifier.py` | Production knowledge, and Phase 7's routes |
+| `src/ui/routes/files.py` | The path picker, shared by both tabs |
+| `src/ui/browse.py` | Directory listing the picker route calls |
 | `src/ui/static/main.js` | Wiring — imports the rest, attaches every listener |
 | `src/ui/static/state.js` | The one object holding what the page knows |
 | `src/ui/static/source.js` | Inspect and analyse |

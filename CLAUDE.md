@@ -485,6 +485,15 @@ changing a settled decision is a conversation first, not a commit.
 
 ## Repo conventions
 
+- **A model lives with whichever code owns it, and `core/models.py` holds the
+  ones that travel.** The test is whether it is part of the app's data flow —
+  `Shot`, `Observation`, `ProjectKnowledge` pass between modules and belong in
+  `models.py`; `ToolInfo`, `DirectoryListing` and a route's request body are
+  one module's own shape and belong with it. Applied literally, "models live in
+  models.py" would drag twelve classes out of five files into one, put HTTP
+  request shapes next to `Shot`, and separate each from the only code that
+  explains it. The rule is about having one place to look for a shared shape,
+  not about the word "model".
 - **`core/models.py`, `core/config.py` and `core/utils.py` are shared by both
   tabs, and stay one file each.** "What shape is a Shot?" and "what does this
   setting default to?" must each have exactly one place to look, however many
@@ -499,6 +508,10 @@ changing a settled decision is a conversation first, not a commit.
   the comment explaining the number, because the number means nothing without
   it. Anything a config object carries, or that two modules need, belongs in
   `config.py`.
+- **One module per tab, at every layer.** `src/splitter/` and
+  `src/identifier/` over a shared `core/` and `media/`; `src/ui/routes/` the
+  same way. A reader who has learned where the splitter's code lives should
+  already know where its routes live.
 - **Both tabs look like one application.** The identifier follows the
   splitter's shapes: a `*Config` in `config.py`, a pipeline holding config and
   toolchain with public entry points and private numbered `_stage` methods,
