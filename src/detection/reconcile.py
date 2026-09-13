@@ -84,38 +84,6 @@ def _nearest(merged: List[Boundary], frame: int) -> Optional[Boundary]:
     return None
 
 
-# --- MINIMUM SHOT LENGTH ---
-
-
-def apply_minimum_length(boundaries: List[Boundary], min_length: int) -> List[Boundary]:
-    """
-    Removes boundaries that would create an impossibly short shot.
-
-    This is the flash-frame filter. A camera flash or a single white frame
-    reads as two cuts a few frames apart; real edits do not contain six frame
-    shots. Dropping the second boundary of such a pair merges the flash back
-    into the shot it belongs to.
-
-    Args:
-        boundaries: Merged boundary list, sorted by frame.
-        min_length: Shortest acceptable shot, in frames.
-
-    Returns:
-        Filtered list. Every removal is logged, never silent.
-
-    Notes:
-        Deliberately not used yet. With a person reviewing every boundary, a
-        spurious short shot is one keystroke to remove, while a filter that
-        silently drops a genuinely quick cut leaves nothing to notice. It earns
-        its place if flash frames turn out to be common enough to be a chore.
-    """
-    # PSEUDOCODE
-    # 1. Walk pairs of adjacent boundaries.
-    # 2. When the gap is below min_length, drop the LOWER confidence one.
-    # 3. Log each removal with both frames and the reason.
-    raise NotImplementedError
-
-
 # --- BOUNDARIES TO SHOTS ---
 
 

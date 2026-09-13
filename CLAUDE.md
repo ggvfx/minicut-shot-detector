@@ -413,6 +413,15 @@ docstring, and numbered `# PSEUDOCODE` steps ending in `raise NotImplementedErro
 That is a reviewable plan. The author reads and agrees the plan before it
 becomes code.
 
+**A skeleton is a plan, not a resident.** It is there to be reviewed and then
+implemented. When the decision goes the other way and the thing is not going to
+be built, **delete it** — put the design and the reasoning in TODO.md under
+Deferred, where git history keeps the code. Two rounds of this were needed
+already: the TransNetV2 detector and its export script, and the flash-frame
+filter. Unbuilt code left in the tree reads as work in progress, and in a
+project whose point is that it can be read end to end, that is the expensive
+kind of clutter.
+
 **Ask before restructuring.** Moving or renaming modules, adding a package, or
 changing a settled decision is a conversation first, not a commit.
 

@@ -393,11 +393,19 @@ sequence with camera flashes.
 
 ### Also deferred
 
-- **Flash-frame filtering** — `reconcile.apply_minimum_length` is written and
-  left raising `NotImplementedError` on purpose. With a person reviewing every
+- **Flash-frame filtering** — a minimum shot length, merging the pair of cuts a
+  camera flash or a single white frame produces. With a person reviewing every
   boundary, a spurious short shot is one click to remove, while a filter that
   quietly drops a genuinely quick cut leaves nothing to notice. 4.3 saw no
   flash frames worth filtering.
+
+  `reconcile.apply_minimum_length` existed as a skeleton raising
+  `NotImplementedError`, and was **deleted** in the pre-identifier cleanup for
+  the same reason the TransNetV2 scaffolding went: a function nothing calls is
+  weight in a project whose point is that it can be read end to end. The design
+  is here, and git history has the skeleton. If it is built: walk adjacent
+  boundaries, drop the lower-confidence one of any pair closer together than
+  the minimum, and log every removal rather than applying it silently.
 - **Full round-trip verification in the UI** — code, tests and the
   `full_round_trip` field on `POST /api/split` all still there; the checkbox is
   not. It catches the same class of error as the boundary hashes for several

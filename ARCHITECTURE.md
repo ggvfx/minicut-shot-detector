@@ -61,11 +61,13 @@ Plain functions — nothing to hold between calls.
 
 - Matches boundaries between the two passes within a two frame tolerance
 - Both fired → confident. One fired → kept, flagged for review.
-- `apply_minimum_length` — the flash frame filter — is written and deliberately
-  left unimplemented. With a person reviewing every boundary, a spurious short
-  shot is one click to remove, while a filter that quietly drops a genuinely
-  quick cut leaves nothing to notice.
 - Converts boundaries into `Shot` ranges that tile the source exactly
+
+There is no flash-frame filter. A camera flash can read as two cuts a few
+frames apart, and a minimum shot length would merge them back — but with a
+person reviewing every boundary, a spurious short shot is one click to remove,
+while a filter that quietly drops a genuinely quick cut leaves nothing to
+notice. Nothing in real footage has asked for it yet. See TODO.md, Deferred.
 
 ### 3.5 Review — `ProxyBuilder` in `src/media/proxy.py`, and the front end
 
