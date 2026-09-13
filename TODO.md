@@ -380,14 +380,42 @@ nothing in this phase does anything at runtime.
   next phases decide against gets deleted, with the reasoning moved to
   Deferred, exactly as TransNetV2 and the flash-frame filter were.
 
-- [ ] **6.3 Backend adapters, for real** *(no UI yet)*
-  Implement `CommandBackend` first — it is the path that has to work — then
-  `HttpApiBackend`, then `LocalBackend`. Each one testable on its own with a
-  fake command and a stub server, so none of it needs a real model to have a
-  test suite.
-  **Done when:** the same prompt returns text through all three, and a missing
-  key, a missing executable and an unreachable runtime each produce a clear
-  message rather than a traceback.
+- [x] **6.3 Backend adapters, for real** *(29 tests)*
+  `CommandBackend`, `HttpApiBackend` and `LocalBackend` behind one interface,
+  plus `transport.py` for the HTTP itself.
+
+  **No new dependency.** The HTTP backends use the standard library rather than
+  a package — what happens is a POST with a JSON body, and there is nothing a
+  library would do better. `httpx` is in the tree but only as a dev dependency
+  for FastAPI's test client, and promoting it would have made anyone running
+  the app carry it.
+
+  Hosted APIs agree on nothing — request shape, where the text comes back, how
+  an image attaches — so `api_style` says which dialect an endpoint speaks
+  (anthropic / openai / ollama) rather than sniffing. Explicit, and the failure
+  when it is wrong names the keys that *were* in the reply, which is what makes
+  it a one-line fix.
+
+  Tested against real subprocesses and a real HTTP server on a real socket, so
+  the transport, argument building, error handling and parsing are genuinely
+  exercised while the suite stays offline and free. A mock would only prove the
+  mock matched what we assumed.
+
+  **Verified against real tools, not just the suite:**
+  - `claude -p` as a command backend returned a reply in 2.28s with **no
+    integration code written for it** — which is the whole argument for "run
+    this command" over a per-vendor integration.
+  - The local backend read the real Ollama install correctly, including
+    matching a config naming `llama3.1` against an installed `llama3.1:8b`,
+    and honestly reporting an unpulled model as unavailable.
+
+  All three required failures report clearly: a missing executable, a missing
+  key (naming the variable, never the value), and an unreachable runtime (with
+  the command that starts it).
+
+  *Noted while writing it:* `adapter.py` hit 404 lines, so the HTTP transport
+  came out into `transport.py` — the interface and the shapes in one file, how
+  bytes move in another. Largest is now 329.
 
 - [ ] **6.4 Backends in the environment panel**
   Report which backends are reachable, and block only when *none* is. **A

@@ -11,21 +11,32 @@ when they change.
 
 Subprocesses only, exactly as the splitter treats ffmpeg — no vendor SDK, no
 Python client library, nothing to pin or to break on upgrade.
-
-SKELETON. Signatures and docstrings only.
 """
 
+import logging
+import shutil
+import subprocess
+import time
 from pathlib import Path
 from typing import List, Optional
 
-from src.backends.adapter import BackendConfig, ModelBackend, ModelReply
+from src.backends.adapter import BackendConfig, BackendError, ModelBackend, ModelReply
 
 # --- PLACEHOLDERS ---
 
 # Substituted into the configured argument list before the command runs, so a
-# user can put the image paths wherever their tool expects them.
+# user can put the values wherever their tool expects them.
+#
+# {images} expands to one argument per frame rather than to a joined string:
+# a tool taking `--image a.jpg --image b.jpg` and one taking `a.jpg b.jpg` are
+# both expressible, and neither needs the user to think about quoting.
 PROMPT_PLACEHOLDER = "{prompt}"
+IMAGE_PLACEHOLDER = "{image}"
 IMAGES_PLACEHOLDER = "{images}"
+
+# How much of stderr to quote when a command fails. Enough to carry the real
+# message, not so much that a stack trace fills the panel.
+STDERR_LINES = 4
 
 
 class CommandBackend(ModelBackend):
@@ -38,35 +49,131 @@ class CommandBackend(ModelBackend):
     def __init__(self, config: BackendConfig):
         super().__init__(config)
 
+    # --- SENDING ---
+
     def send(self, prompt: str, images: Optional[List[Path]] = None) -> ModelReply:
         """
         Runs the configured command and returns what it printed.
 
         Notes:
-            The prompt goes on stdin rather than in an argument. A shot
-            description with quotes in it would otherwise have to survive
-            whatever the platform's shell does to it, which is exactly the
-            class of bug that appears only on someone else's machine.
+            The prompt goes on stdin unless the argument list asks for it by
+            name. A shot description with quotes or newlines in it would
+            otherwise have to survive whatever the platform's shell does to it,
+            which is exactly the class of bug that appears only on someone
+            else's machine.
 
         Raises:
-            BackendError: On a non-zero exit, a timeout, or empty output.
-                Empty output counts as a failure: a pass that silently
-                produced nothing would read downstream as a shot with no
-                description, which looks like an unidentifiable shot rather
-                than a broken backend.
+            BackendError: On a missing executable, a non-zero exit, a timeout,
+                or empty output.
         """
-        # PSEUDOCODE
-        # 1. Build the argument list, substituting the image paths.
-        # 2. Run it with the prompt on stdin and a timeout from the config.
-        # 3. On non-zero exit, raise BackendError with stderr's first lines.
-        # 4. Return the stdout text, with the command recorded as the backend.
-        raise NotImplementedError
+        if not self.config.command:
+            raise BackendError("No command is configured for this backend")
+
+        args = self._build_args(prompt, images or [])
+        on_stdin = PROMPT_PLACEHOLDER not in self.config.command
+
+        logging.debug(f"Running backend command: {args[0]} ({len(args) - 1} arguments)")
+        started = time.monotonic()
+
+        try:
+            result = subprocess.run(
+                args,
+                input=prompt if on_stdin else None,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.config.timeout_seconds,
+                check=False,
+            )
+        except FileNotFoundError as error:
+            raise BackendError(
+                f"The command {args[0]!r} was not found. "
+                f"Check the path, or that it is installed on this machine."
+            ) from error
+        except subprocess.TimeoutExpired as error:
+            raise BackendError(
+                f"{args[0]} did not answer within {self.config.timeout_seconds}s. "
+                f"Raise the timeout, or use fewer frames per shot."
+            ) from error
+        except OSError as error:
+            raise BackendError(f"Could not run {args[0]!r}: {error}") from error
+
+        if result.returncode != 0:
+            raise BackendError(
+                f"{args[0]} exited with code {result.returncode}: {self._tail(result.stderr)}"
+            )
+
+        text = (result.stdout or "").strip()
+        if not text:
+            raise BackendError(
+                f"{args[0]} exited cleanly but printed nothing. {self._tail(result.stderr)}"
+            )
+
+        return ModelReply(
+            text=text,
+            backend=f"command:{Path(args[0]).name}",
+            model=self.config.model,
+            seconds=round(time.monotonic() - started, 2),
+        )
+
+    def _build_args(self, prompt: str, images: List[Path]) -> List[str]:
+        """
+        Substitutes the placeholders into the configured argument list.
+
+        Notes:
+            {images} expands in place to one argument per frame, so an empty
+            frame list leaves no stray empty argument behind — some tools treat
+            one of those as a filename and fail confusingly.
+        """
+        args: List[str] = []
+
+        for item in self.config.command or []:
+            if item == IMAGES_PLACEHOLDER:
+                args.extend(str(path) for path in images)
+            elif IMAGE_PLACEHOLDER in item:
+                # Repeated per frame, so `--image={image}` becomes one flag each
+                args.extend(item.replace(IMAGE_PLACEHOLDER, str(path)) for path in images)
+            elif item == PROMPT_PLACEHOLDER:
+                args.append(prompt)
+            else:
+                args.append(item)
+
+        return args
+
+    @staticmethod
+    def _tail(stderr: Optional[str]) -> str:
+        """The last few lines of stderr, for an error message."""
+        if not stderr or not stderr.strip():
+            return "It wrote nothing to stderr."
+
+        lines = [line for line in stderr.strip().splitlines() if line.strip()]
+        return " / ".join(lines[-STDERR_LINES:])
+
+    # --- AVAILABILITY ---
 
     def available(self) -> bool:
-        """Whether the configured executable exists and can be run."""
-        # PSEUDOCODE
-        # 1. False when no command is configured.
-        # 2. Otherwise resolve the executable on PATH and report whether it is
-        #    there. Do not run it — availability must be cheap enough for the
-        #    environment panel to ask on every refresh.
-        raise NotImplementedError
+        """
+        Whether the configured executable exists and could be run.
+
+        Resolves it on PATH without running it: the environment panel asks on
+        every refresh, and a panel that invokes a model to find out whether a
+        model is there would be both slow and, on a metered API, expensive.
+        """
+        if not self.config.command:
+            return False
+
+        executable = self.config.command[0]
+
+        # An absolute or relative path is checked directly; a bare name is
+        # looked up on PATH, which is how a user would have typed it
+        if Path(executable).is_file():
+            return True
+
+        return shutil.which(executable) is not None
+
+    def describe(self) -> str:
+        """A short line naming this backend, for the panel and the sidecar."""
+        if not self.config.command:
+            return "command:unconfigured"
+        return f"command:{Path(self.config.command[0]).name}"

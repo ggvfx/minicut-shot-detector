@@ -285,7 +285,7 @@ src/
 ├── media/         shared: probing, frames, mezzanine, proxy, extraction, workspace
 ├── splitter/      detection, reconciliation, validation, the splitter pipeline
 ├── identifier/    observation, interpretation, matching, renaming, export     (not built)
-├── backends/      the model adapters  — CLI, HTTP API, local runtime         (not built)
+├── backends/      the model adapters — CLI, HTTP API, local runtime
 └── ui/            routes, path picker, and the browser front end
 ```
 
@@ -314,15 +314,16 @@ there was one tab and becomes misleading with two. Moving them under
 | `src/splitter/reconcile.py` | Merge, and convert boundaries to shots |
 | `src/splitter/integrity.py` | Shot list arithmetic — plain functions, no ffmpeg |
 | `src/splitter/validator.py` | `JobValidator` — the checks that decode frames |
+| `src/backends/adapter.py` | The interface, the config, and the API dialects |
+| `src/backends/transport.py` | The HTTP itself — the one place a socket opens |
+| `src/backends/command.py` | A configured CLI — the default path |
+| `src/backends/http_api.py` | An HTTP endpoint with a key from the environment |
+| `src/backends/local.py` | A local runtime, for machines that can |
 
 Not built, and listed so the shape is agreed before anything is written:
 
 | Path | Would hold |
 |---|---|
-| `src/backends/adapter.py` | The interface every backend implements |
-| `src/backends/command.py` | A configured CLI — the default path |
-| `src/backends/http_api.py` | An HTTP endpoint with a key from the environment |
-| `src/backends/local.py` | A local runtime, for machines that can |
 | `src/identifier/frames.py` | Small sample frames out of a shot, via ffmpeg |
 | `src/identifier/observe.py` | Pass 1 — the observation schema, and the only images |
 | `src/identifier/knowledge.py` | Reading the project's terminology and character files |
