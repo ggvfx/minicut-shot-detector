@@ -27,7 +27,7 @@ splitter outputs are designed to feed it.
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Backend | Python 3.11+, FastAPI | SSE for progress streaming, from Phase 5 |
+| Backend | Python 3.11+, FastAPI | Plain blocking routes; streaming progress was measured and dropped |
 | Frontend | Plain HTML + CSS + vanilla JS | No React, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens in their own browser |
 | Detection | PySceneDetect, two passes | `ContentDetector` and `AdaptiveDetector` |

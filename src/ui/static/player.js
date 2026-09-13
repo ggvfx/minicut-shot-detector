@@ -42,7 +42,7 @@ export function currentFrame() {
 }
 
 /** Moves to a frame, clamped to the source. */
-export function goToFrame(frame) {
+function goToFrame(frame) {
     const player = document.getElementById("proxy-player");
     const last = state.prepared.source.frame_count - 1;
     const target = Math.max(0, Math.min(frame, last));
