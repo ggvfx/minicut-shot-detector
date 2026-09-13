@@ -155,7 +155,15 @@ the identifier tab and is not built here.
 | `src/validation/validator.py` | `JobValidator` — the checks that decode frames |
 | `src/ui/server.py` | FastAPI routes. The only module that knows about HTTP. |
 | `src/ui/browse.py` | Directory listing for the path picker |
-| `src/ui/static/` | `index.html`, `app.js`, `styles.css` |
+| `src/ui/static/main.js` | Wiring — imports the rest, attaches every listener |
+| `src/ui/static/state.js` | The one object holding what the page knows |
+| `src/ui/static/source.js` | Inspect and analyse |
+| `src/ui/static/player.js` | Review proxy, transport, timeline, marks, keyboard |
+| `src/ui/static/splitting.js` | Split, and the job table it produces |
+| `src/ui/static/work.js` | Reclaimable working files |
+| `src/ui/static/picker.js` | Path picker |
+| `src/ui/static/environment.js` | Dependency panel |
+| `src/ui/static/ui.js` | Display helpers used by more than one module |
 
 ---
 

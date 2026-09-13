@@ -346,12 +346,21 @@ result with a manual re-check button.
 
 ## Frontend conventions
 
-- One `index.html`, one `app.js`, one stylesheet. Keep it editable in a text
-  editor with no toolchain.
+- One `index.html`, one stylesheet, and ES modules loaded natively by the
+  browser. No bundler, no npm, no build step: the file you edit is the file
+  that runs. `main.js` imports the rest and is the only place a listener is
+  attached, so "what happens when this is clicked" has one answer.
+- **The front end owns no arithmetic.** Anything that could be got wrong —
+  timecode, frame rate, path building — is computed in Python, where the tests
+  are, and rendered here as given. The browser had its own timecode maths once;
+  it ignored drop-frame and was eighteen frames out at ten minutes on 29.97 DF.
+  If a calculation is creeping into a module here, that is the signal it
+  belongs on the server.
 - File paths are typed/pasted or chosen via a backend directory-listing
   endpoint. Never upload multi-GB media through a form to a server on the same
   machine.
-- Long operations stream progress over SSE. Never block the UI on a subprocess.
+- Long operations show that work is happening, not how far along it is. See
+  TODO.md Phase 5 for why streaming progress was measured and dropped.
 
 ---
 

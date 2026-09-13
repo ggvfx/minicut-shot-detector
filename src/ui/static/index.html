@@ -215,6 +215,8 @@
     </div>
 </dialog>
 
-<script src="/static/app.js"></script>
+<!-- ES modules, loaded natively: no bundler, no build step. main.js
+             imports the rest, and is the only place a listener is attached. -->
+        <script type="module" src="/static/main.js"></script>
 </body>
 </html>

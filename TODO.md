@@ -317,9 +317,33 @@ survive**, which is worth recording so it is not resurrected by habit:
   each into `jobA_shots/` and `jobB_shots/` with nothing loose between them.
 
   **Worth noting:** this is the second UI bug to reach you. The Python is
-  covered by 255 tests; `app.js` has none, so its logic is only ever checked by
-  driving the browser. That is the real argument for the app.js split under
-  Deferred — the pure functions in it could be tested.
+  covered by tests; `app.js` had none, so its logic was only ever checked by
+  driving the browser. That is what 5.3 is about.
+
+- [x] **5.3 Take the arithmetic out of the browser, then split it up** *(5 tests)*
+  Two bugs reaching you from untested JavaScript was the signal. Adding a JS
+  test runner would mean Node — not installed here, and two toolchains for one
+  app — so the fix was to shrink what is untested rather than test more of it.
+
+  `app.js` held a **second implementation of the timecode engine**. The Python
+  one has 62 tests, exact rational rates and drop-frame; the browser copy used
+  `Math.ceil(29.97) = 30` and no drop-frame at all, so on a 29.97 DF source the
+  shot table read `00:09:59:12` where the engine gives `00:10:00;00` — eighteen
+  frames out at ten minutes, and drifting. Its own docstring claimed the server
+  owned the exact arithmetic; the server was never asked. Shots now carry
+  `start_timecode` and `end_timecode`, and the table prints what it is given.
+
+  The output folder suggestion moved the same way, into `ProbeReport`, built
+  with pathlib instead of a regex that only split on forward slashes.
+
+  Then the remaining 945 lines became nine ES modules, largest 307:
+  `main.js` (wiring), `state.js`, `source.js`, `player.js`, `splitting.js`,
+  `work.js`, `picker.js`, `environment.js`, `ui.js`. Loaded natively by the
+  browser — still no bundler, no npm, no build step.
+
+  Verified by driving the whole app: environment panel, inspect, analyse,
+  transport, keyboard, marking and unmarking, a real seven-shot split with its
+  timecodes, and the picker — with the console clean throughout.
 
 **Phase done when:** nothing about running the app is annoying enough to
 mention. Then the splitter is finished and the identifier tab starts.
@@ -378,13 +402,11 @@ sequence with camera flashes.
   `full_round_trip` field on `POST /api/split` all still there; the checkbox is
   not. It catches the same class of error as the boundary hashes for several
   times the work.
-- **Splitting `src/ui/static/app.js`** — 858 lines, over double the 400-line
-  threshold we flag at. The seam is already there: its eight sections
-  (environment, probe, analyse, player, markers, splitting, picker, keyboard)
-  become ES modules via `<script type="module">`, no build step needed. Left
-  alone for now because the front end has no automated tests, so a split is
-  verified by eye only — worth doing as its own focused piece of work rather
-  than tacked onto a cleanup.
+- **A JavaScript test runner** — would need Node, which is not installed here
+  and would make anyone running the suite need two toolchains for one app. 5.3
+  took the other route instead: move what can be got wrong into Python. What is
+  left in the browser is "put this string in that element", which a test would
+  not catch being wrong in any useful way.
 - **Per-shot stills** — identifier tab input; the shot files are enough to
   check a boundary
 - **VFR normalisation** — VFR is refused, not rewritten; wait for a real one

@@ -249,7 +249,10 @@ shot is a lossless stream copy out of it.
 ## 🛠️ Technical Stack
 * **Language:** Python 3.11+
 * **Backend:** FastAPI, Uvicorn, Pydantic
-* **Frontend:** Plain HTML, CSS and vanilla JavaScript — no npm, no build step
+* **Frontend:** Plain HTML, CSS and vanilla JavaScript in ES modules the
+  browser loads natively — no npm, no bundler, no build step. The front end
+  owns no arithmetic: timecodes and paths are computed in Python, where the
+  tests are, and rendered as given.
 * **Detection:** PySceneDetect (ContentDetector + AdaptiveDetector)
 * **Media Engine:** ffmpeg / ffprobe as subprocesses, never a Python binding
 * **Mezzanine:** All-intra libx264 / libx265 at CRF 12, matching the source codec
