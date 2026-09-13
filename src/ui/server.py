@@ -16,7 +16,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from src.core.config import STATIC_DIR, ProjectConfig
+from src.backends.availability import backend_checks
+from src.core.config import STATIC_DIR, ProjectConfig, load_settings
 from src.core.environment import EnvironmentChecker
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import Boundary, JobResult, PreparedJob, ProbeReport
@@ -88,13 +89,18 @@ def get_environment(output_dir: Optional[str] = None, refresh: bool = False):
     The dependency panel.
 
     Args:
-        output_dir: Chosen output directory, so writability and free space are
-            checked against the volume that will actually be written to.
+        output_dir: Chosen output directory, so free space is checked against
+            the volume that will actually be written to.
         refresh: True when the user presses Re-check. Otherwise the cached
             result is returned, since the checks shell out to ffmpeg.
+
+    Notes:
+        The backend rows are assembled here rather than inside the checker,
+        because they come from `src/backends/` and core may not import a domain
+        package. This route may import both, so this is where they meet.
     """
     target = Path(output_dir) if output_dir else None
-    return checker.report(target, refresh=refresh)
+    return checker.report(target, refresh=refresh, extra=backend_checks(load_settings()))
 
 
 # --- FILE BROWSING ---

@@ -444,14 +444,43 @@ nothing in this phase does anything at runtime.
   and it will grow as the identifier fills in. Left whole deliberately — one
   place to look beats a small file — but worth a decision before Phase 7.
 
-- [ ] **6.4 Backends in the environment panel**
-  Report which backends are reachable, and block only when *none* is. **A
-  machine with no GPU and a configured command is a fully supported setup and
-  must read green** — an absent local runtime is an unused option, not a fault.
-  **Done when:** the panel is honest on a laptop with nothing installed.
+- [x] **6.4 Backends in the environment panel** *(14 tests)*
+  Backends are configured in **`settings.json`** beside the app, so a facility
+  can set one up once and hand the whole folder over — which is how this gets
+  distributed. Gitignored; `settings.example.json` is the tracked template.
+  **It never holds a credential**: `api_key_env` names the environment variable
+  and the key is read at the moment of the call, so the file is safe to copy
+  between machines.
+
+  Two rows in the panel, one per pass, because they are configured separately
+  and can fail separately.
+
+  **They are `advisory`** — reported, but left out of the panel's headline
+  status. The Splitter needs no model at all, so an unconfigured backend must
+  not turn a working app amber. That is the same mistake that took the output
+  directory off the panel, and without the flag it would have come straight
+  back: a fresh install read "Ready, with limitations" over a tab that does not
+  exist yet. When the Identifier ships, a user standing *in* that tab does want
+  to be blocked — but that is a question for that tab's view, not for the panel
+  everyone sees on launch.
+
+  Each kind gets its own advice, because "check your settings" would be true
+  and useless: a local runtime is usually not started, a command is usually not
+  on PATH, an API is usually missing its key.
+
+  **Two bugs the suite could not have found, both caught by driving the app:**
+  - **A UTF-8 BOM made the file invalid JSON.** Notepad and PowerShell's
+    `Set-Content` both write one, so a Windows user would edit the settings,
+    save, and watch the panel insist nothing was configured — with the settings
+    visible on screen. Reading as `utf-8-sig` fixes it; both now have tests.
+  - **A local backend with a model and no endpoint read as "not configured",**
+    because every kind was tested for an endpoint. Its endpoint defaults to
+    where runtimes listen, so a correct setup was sending the user to fix a
+    file that was already right.
 
 **Phase done when:** a prompt can be sent through a CLI, an API and a local
 runtime by the same code, and the panel tells the truth about which are there.
+✅ Both true.
 
 ---
 

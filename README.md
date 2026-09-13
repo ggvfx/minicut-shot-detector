@@ -47,7 +47,8 @@ designed and skeletoned, and is what v1 waits on. See
   blocked) covering only what a job actually needs — Python, ffmpeg, ffprobe,
   the mezzanine encoders, PySceneDetect and free space — with a copyable fix
   command for every failure and a manual re-check. Every row is something the
-  user can act on when they read it.
+  user can act on when they read it, and rows about a feature they may not use
+  are reported without dragging the headline down.
 * **Local Path Picker:** Server-side directory browsing, so multi-gigabyte media
   is never uploaded through the browser.
 * **Reclaimable Working Files:** A source that is analysed and never split keeps

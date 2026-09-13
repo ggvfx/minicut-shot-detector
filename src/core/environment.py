@@ -55,6 +55,14 @@ class Check(BaseModel):
     detail: str                   # What was found
     fix: Optional[str] = None     # Copyable command that resolves it
 
+    # Reported, but not counted in the overall status. For a row about
+    # something the user may never use: the panel's headline answers "can I do
+    # the job in front of me?", and a model backend the Identifier tab needs
+    # must not turn a perfectly working Splitter amber. Without this the row
+    # repeats the mistake that took the output directory off the panel —
+    # announcing a fault the user has no reason to act on.
+    advisory: bool = False
+
 
 class EnvironmentReport(BaseModel):
     """The whole panel: every check plus the worst status among them."""
@@ -65,6 +73,19 @@ class EnvironmentReport(BaseModel):
 
 
 # --- HELPERS ---
+
+
+def gating_status(checks: List[Check]) -> str:
+    """
+    The panel's headline: the worst status among the checks that gate the app.
+
+    Advisory rows are left out. They describe something the user may never
+    need — a model backend for a tab they have not opened — and letting one
+    turn a working app amber is how a panel starts being ignored.
+
+    All-advisory is `OK`: nothing is wrong, there is just nothing to gate on.
+    """
+    return worst_status([check.status for check in checks if not check.advisory])
 
 
 def ffmpeg_fix() -> str:
@@ -133,7 +154,12 @@ class EnvironmentChecker:
 
     # --- PUBLIC API ---
 
-    def report(self, output_dir: Optional[Path] = None, refresh: bool = False) -> EnvironmentReport:
+    def report(
+        self,
+        output_dir: Optional[Path] = None,
+        refresh: bool = False,
+        extra: Optional[List[Check]] = None,
+    ) -> EnvironmentReport:
         """
         The dependency report, cached between calls.
 
@@ -142,6 +168,14 @@ class EnvironmentChecker:
                 measured against the volume actually being used. None until
                 they pick one, which is the normal state on launch.
             refresh: Re-run the checks instead of returning the cached report.
+            extra: Rows produced elsewhere, appended after this module's own.
+                See `run_all`.
+
+        Notes:
+            Extra rows are not cached against, because they are cheap to
+            produce and can change without anything here noticing — a key
+            appearing in the environment, a local runtime being started. They
+            are re-appended to the cached report each time it is asked for.
         """
         key = str(output_dir)
 
@@ -152,10 +186,29 @@ class EnvironmentChecker:
             self._report = self.run_all(output_dir)
             self._reported_for = key
 
-        return self._report
+        if not extra:
+            return self._report
 
-    def run_all(self, output_dir: Optional[Path] = None) -> EnvironmentReport:
-        """Runs every check and rolls them up. Ignores the cache."""
+        checks = [*self._report.checks, *extra]
+        return EnvironmentReport(
+            overall=gating_status(checks),
+            platform=self._report.platform,
+            checks=checks,
+        )
+
+    def run_all(
+        self, output_dir: Optional[Path] = None, extra: Optional[List[Check]] = None
+    ) -> EnvironmentReport:
+        """
+        Runs every check and rolls them up. Ignores the cache.
+
+        Args:
+            output_dir: The volume free space is measured against.
+            extra: Rows produced by modules this one may not import. The model
+                backends are the case: they live in `src/backends/`, and core
+                importing a domain package would point the dependency arrow the
+                wrong way. The caller assembles them and passes them in.
+        """
         checks = [
             self.check_python(),
             self.check_ffmpeg(),
@@ -163,9 +216,10 @@ class EnvironmentChecker:
             self.check_encoders(),
             self.check_scenedetect(),
             self.check_disk(output_dir),
+            *(extra or []),
         ]
 
-        overall = worst_status([check.status for check in checks])
+        overall = gating_status(checks)
         logging.info(f"Environment check: {overall}")
 
         return EnvironmentReport(

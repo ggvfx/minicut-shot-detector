@@ -1,0 +1,62 @@
+{
+  "_comment": [
+    "Copy this file to settings.json and edit it. settings.json is gitignored.",
+    "",
+    "Two passes, configured separately because they are routinely different: a",
+    "studio may run every text pass through a CLI it already licenses and have",
+    "to send image work somewhere else. 'vision' is the only one that gets",
+    "images; 'text' does the interpreting and matching.",
+    "",
+    "Three kinds of backend. Set 'kind' to one of them and fill in the fields",
+    "it uses; the others are ignored.",
+    "",
+    "  command  Runs a CLI you already have. The prompt goes in on stdin, or",
+    "           in place of {prompt} if you put it in the arguments. Use",
+    "           {images} for one argument per frame, or --flag={image} to",
+    "           repeat a flag per frame.",
+    "",
+    "  api      Posts to an HTTP endpoint. 'api_key_env' is the NAME of an",
+    "           environment variable holding your key — never the key itself,",
+    "           so this file is safe to copy between machines.",
+    "           'api_style' is anthropic, openai or ollama.",
+    "",
+    "  local    A model runtime on this machine. No key, nothing leaves the",
+    "           building, but it needs hardware. Optional: the command and api",
+    "           paths are the supported ones.",
+    "",
+    "The examples below are commented out by being under '_examples'. Move the",
+    "one you want up into 'vision' or 'text'."
+  ],
+
+  "vision": {
+    "kind": "command",
+    "command": ["claude", "-p"],
+    "timeout_seconds": 180
+  },
+
+  "text": {
+    "kind": "command",
+    "command": ["claude", "-p"],
+    "timeout_seconds": 180
+  },
+
+  "_examples": {
+    "api": {
+      "kind": "api",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "api_style": "anthropic",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "model": "claude-sonnet-5",
+      "max_tokens": 2000
+    },
+    "local": {
+      "kind": "local",
+      "endpoint": "http://127.0.0.1:11434",
+      "model": "qwen2.5vl"
+    },
+    "command_with_images": {
+      "kind": "command",
+      "command": ["some-cli", "--prompt", "{prompt}", "--image={image}"]
+    }
+  }
+}

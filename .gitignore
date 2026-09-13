@@ -84,12 +84,10 @@ tests/media/
 # Scratch clips for hand testing the UI. Generated, never committed.
 testmedia/
 
-# The TransNetV2 .onnx export is deliberately committed (see CLAUDE.md), so it
-# is NOT ignored here. Intermediate export artefacts are.
-models/*.pth
-models/*.pb
-models/tmp/
-
 # Logs
 logs/
 *.log
+
+# Local backend settings. settings.example.json is the tracked template; the
+# real one names a machine's own CLI paths and endpoints, so it is per-install.
+settings.json

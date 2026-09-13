@@ -29,13 +29,43 @@ def test_index_is_served():
 
 
 def test_environment_reports_every_check():
-    """Six checks — what a job needs, reported before the user has chosen anything."""
+    """
+    What a job needs, reported before the user has chosen anything.
+
+    Asserted by key rather than by count: a count says nothing about which row
+    went missing, and this list has already changed twice.
+    """
     response = client.get("/api/environment")
 
     assert response.status_code == 200
     report = response.json()
+
     assert report["overall"] in ("ok", "degraded", "blocked")
-    assert len(report["checks"]) == 6
+    assert [check["key"] for check in report["checks"]] == [
+        "python",
+        "ffmpeg",
+        "ffprobe",
+        "encoders",
+        "scenedetect",
+        "disk",
+        "backend_vision",
+        "backend_text",
+    ]
+
+
+def test_the_backend_rows_are_assembled_by_the_route():
+    """
+    They come from src/backends/, which core may not import — so the route is
+    where the checker's own rows and those meet. If this passes, that wiring
+    is intact.
+    """
+    report = client.get("/api/environment").json()
+    backends = [check for check in report["checks"] if check["key"].startswith("backend_")]
+
+    assert len(backends) == 2
+    assert all(check["status"] in ("ok", "degraded") for check in backends), (
+        "a missing model never blocks the app — the splitter does not need one"
+    )
 
 
 # --- BROWSE ---

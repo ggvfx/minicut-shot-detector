@@ -28,12 +28,17 @@ from src.backends.adapter import (
 from src.backends.command import CommandBackend
 from src.backends.http_api import HttpApiBackend
 from src.backends.local import LocalBackend
+from src.backends.availability import backend_checks
 from src.core.config import (
     STYLE_ANTHROPIC,
     STYLE_OLLAMA,
     STYLE_OPENAI,
     BackendConfig,
+    Settings,
+    load_settings,
+    save_settings,
 )
+from src.core.environment import BLOCKED, DEGRADED, OK, Check, gating_status
 
 # --- A FAKE CLI ---
 
@@ -476,3 +481,187 @@ def test_a_reply_in_the_wrong_dialect_says_what_was_there():
 def test_an_empty_reply_is_an_error_not_an_empty_description():
     with pytest.raises(BackendError, match="returned no text"):
         extract_text({"content": []}, STYLE_ANTHROPIC)
+
+
+# --- SAVED SETTINGS ---
+
+
+def test_a_missing_settings_file_gives_defaults(tmp_path):
+    """
+    No settings is the normal state on a fresh install, not an error.
+
+    The splitter works with no backend configured at all, so this must never be
+    the thing that stops the app opening.
+    """
+    settings = load_settings(tmp_path / "nothing-here.json")
+
+    assert settings.vision.kind == "command"
+    assert settings.vision.command is None
+
+
+def test_settings_survive_a_round_trip(tmp_path):
+    path = tmp_path / "settings.json"
+    save_settings(
+        Settings(
+            vision=BackendConfig(kind="local", model="qwen2.5vl"),
+            text=BackendConfig(kind="command", command=["claude", "-p"]),
+        ),
+        path,
+    )
+
+    loaded = load_settings(path)
+
+    assert loaded.vision.model == "qwen2.5vl"
+    assert loaded.text.command == ["claude", "-p"]
+
+
+def test_an_unreadable_settings_file_falls_back_rather_than_crashing(tmp_path):
+    """
+    A corrupt or outdated file must not strand someone outside the app.
+
+    Refusing to start because one field was renamed would leave no way back in
+    to fix the file that caused it.
+    """
+    path = tmp_path / "settings.json"
+    path.write_text("{ this is not json", encoding="utf-8")
+
+    assert load_settings(path).vision.kind == "command"
+
+
+def test_the_settings_file_never_holds_a_key(tmp_path, monkeypatch):
+    """
+    Only the variable's NAME is stored, so the file is safe to copy between
+    machines — which is exactly what a facility will do with it.
+    """
+    monkeypatch.setenv("TEST_MODEL_KEY", "secret-value")
+    path = tmp_path / "settings.json"
+
+    save_settings(
+        Settings(vision=BackendConfig(kind="api", api_key_env="TEST_MODEL_KEY")), path
+    )
+
+    assert "secret-value" not in path.read_text(encoding="utf-8")
+    assert "TEST_MODEL_KEY" in path.read_text(encoding="utf-8")
+
+
+# --- BACKENDS IN THE PANEL ---
+
+
+def test_nothing_configured_is_degraded_not_blocked():
+    """
+    A working splitter must not be painted red over a tab the user may never
+    open. This is the rule that took the output directory off the panel.
+    """
+    checks = backend_checks(Settings())
+
+    assert [check.key for check in checks] == ["backend_vision", "backend_text"]
+    assert all(check.status == DEGRADED for check in checks)
+    assert all("Splitter" in check.detail for check in checks), "says what still works"
+    assert all(check.fix for check in checks), "and how to fix it"
+
+
+def test_a_configured_command_reads_green():
+    """
+    The case 6.4 exists for: a laptop with no GPU and a CLI is fully supported.
+    """
+    settings = Settings(
+        vision=BackendConfig(kind="command", command=ECHO_STDIN),
+        text=BackendConfig(kind="command", command=ECHO_STDIN),
+    )
+
+    assert all(check.status == OK for check in backend_checks(settings))
+
+
+def test_an_absent_local_runtime_is_degraded_with_its_own_advice():
+    """
+    Each kind fails its own way, so "check your settings" would be true and
+    useless. A local runtime is usually just not started.
+    """
+    settings = Settings(
+        vision=BackendConfig(kind="local", endpoint="http://127.0.0.1:1", model="absent-vlm")
+    )
+
+    vision = backend_checks(settings)[0]
+
+    assert vision.status == DEGRADED
+    assert "ollama pull absent-vlm" in vision.fix
+
+
+def test_a_keyless_api_backend_says_which_variable_to_set(monkeypatch):
+    monkeypatch.delenv("TEST_MODEL_KEY", raising=False)
+    settings = Settings(
+        text=BackendConfig(
+            kind="api", endpoint="https://example.invalid", api_key_env="TEST_MODEL_KEY"
+        )
+    )
+
+    text = backend_checks(settings)[1]
+
+    assert text.status == DEGRADED
+    assert "TEST_MODEL_KEY" in text.fix
+
+
+def test_the_two_passes_are_reported_separately():
+    """
+    They are configured separately because they are routinely different, so a
+    single row could not tell the user which half was missing.
+    """
+    settings = Settings(
+        vision=BackendConfig(kind="command", command=ECHO_STDIN),
+        text=BackendConfig(kind="command", command=["not-a-real-command-xyz"]),
+    )
+
+    vision, text = backend_checks(settings)
+
+    assert vision.status == OK
+    assert text.status == DEGRADED
+
+
+def test_backend_rows_never_gate_the_app():
+    """
+    A working Splitter must not read amber because the Identifier tab has no
+    model configured. This is the rule that took the output directory off the
+    panel, applied to a tab that does not exist yet.
+    """
+    checks = backend_checks(Settings())
+
+    assert all(check.advisory for check in checks)
+    assert gating_status(checks) == OK, "advisory rows are reported, not counted"
+
+
+def test_a_real_fault_still_gates_alongside_them():
+    """Advisory rows must not mask a genuine problem sitting next to them."""
+    broken = Check(key="ffmpeg", label="ffmpeg", status=BLOCKED, detail="Not found")
+
+    assert gating_status([broken, *backend_checks(Settings())]) == BLOCKED
+
+
+def test_settings_written_by_a_windows_editor_still_load(tmp_path):
+    """
+    Notepad and PowerShell's Set-Content both write a UTF-8 byte order mark,
+    and a BOM makes the file invalid JSON.
+
+    Found by hand-testing the panel: the file was ignored, the panel said
+    "not configured", and the settings were plainly there on screen. Silent
+    and maddening, so it gets a test.
+    """
+    path = tmp_path / "settings.json"
+    path.write_bytes(
+        b"\xef\xbb\xbf" + b'{"vision": {"kind": "command", "command": ["claude", "-p"]}}'
+    )
+
+    assert load_settings(path).vision.command == ["claude", "-p"]
+
+
+def test_each_backend_kind_is_configured_by_its_own_field():
+    """
+    A local backend needs only a model — its endpoint defaults to where
+    runtimes listen. Testing every kind for an endpoint reported a working
+    local setup as "not configured", sending the user to fix a correct file.
+    """
+    local = backend_checks(
+        Settings(vision=BackendConfig(kind="local", model="some-vlm"))
+    )[0]
+
+    assert "Not configured" not in local.detail
+    assert "ollama pull some-vlm" in local.fix, "it is configured, just not answering"

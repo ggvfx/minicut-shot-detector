@@ -239,6 +239,12 @@ One adapter interface, configured per pass: **give a prompt and optionally some
 images, get text back.** Three implementations — a CLI command, an HTTP API, or
 a local runtime.
 
+Configured in `settings.json` beside the app — gitignored, with
+`settings.example.json` as the tracked template — so a facility sets one up
+once and hands the whole folder over. It never holds a credential: the config
+names the *environment variable* holding a key, and the key is read at the
+moment of the call.
+
 **The CLI and API paths are the product. Local is the option.** This is built
 to be handed to people whose machines are nothing like the one it was written
 on, and no design decision may assume local inference — not speed, not context
@@ -321,6 +327,7 @@ there was one tab and becomes misleading with two. Moving them under
 | `src/backends/command.py` | A configured CLI — the default path |
 | `src/backends/http_api.py` | An HTTP endpoint with a key from the environment |
 | `src/backends/local.py` | A local runtime, for machines that can |
+| `src/backends/availability.py` | The backend rows in the dependency panel |
 
 Not built, and listed so the shape is agreed before anything is written:
 

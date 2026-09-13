@@ -14,6 +14,7 @@ Split this per-tab only when it grows enough to be worth it, and say why at the
 time.
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -197,3 +198,82 @@ class IdentifierConfig(BaseModel):
     # the vision pass is the expensive step and its whole purpose is to happen
     # once, so repeating it has to be asked for.
     force_observe: bool = False
+
+
+# --- SAVED SETTINGS ---
+
+# Sits beside the app rather than in a user profile, so a facility can set one
+# up once and hand the whole folder over — which is how this gets distributed.
+# Gitignored, because a working file and a tracked file are different things:
+# `settings.example.json` is the template that ships.
+SETTINGS_FILE = REPO_ROOT / "settings.json"
+
+
+class Settings(BaseModel):
+    """
+    What the app remembers between runs.
+
+    Only the model backends for now. The splitter needs nothing remembered: its
+    paths are chosen per job and suggesting them from the source is better than
+    recalling the last one.
+
+    Never holds a credential. `BackendConfig.api_key_env` names the environment
+    variable holding a key, and this file is the exact sort of thing that gets
+    copied between machines and committed by accident — which is why the key
+    itself is read from the environment at the moment of the call.
+    """
+
+    vision: BackendConfig = BackendConfig()   # The observation pass — the only one with images
+    text: BackendConfig = BackendConfig()     # Interpretation and matching
+
+
+def load_settings(path: Optional[Path] = None) -> Settings:
+    """
+    Reads the settings file, or returns the defaults.
+
+    Args:
+        path: Where to read from. Defaults to `SETTINGS_FILE`.
+
+    Returns:
+        Settings: the file's contents, or defaults when there is no file.
+
+    Notes:
+        A missing file is the normal state on a fresh install, not an error —
+        the splitter works with no backend configured at all, so this must not
+        be the thing that stops the app opening.
+
+        A corrupt or outdated file is also non-fatal: it is logged and the
+        defaults are used. Refusing to start because one field was renamed
+        would strand someone with no way back in to fix it.
+    """
+    target = path or SETTINGS_FILE
+
+    if not target.is_file():
+        return Settings()
+
+    try:
+        # utf-8-sig, not utf-8: Notepad and PowerShell's Set-Content both write
+        # a byte order mark, and a BOM makes the file invalid JSON. Without
+        # this, a Windows user edits the file, the app silently ignores it, and
+        # the panel insists nothing is configured — which is the worst kind of
+        # failure, because they can see the settings they just typed.
+        # Harmless when there is no BOM.
+        return Settings.model_validate_json(target.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as error:
+        logging.warning(f"Ignoring unreadable settings at {target}: {error}")
+        return Settings()
+
+
+def save_settings(settings: Settings, path: Optional[Path] = None) -> Path:
+    """
+    Writes the settings file, and returns where it went.
+
+    Raises:
+        OSError: If it could not be written. Surfaced rather than swallowed —
+            a save that silently did nothing is worse than one that failed.
+    """
+    target = path or SETTINGS_FILE
+    target.write_text(settings.model_dump_json(indent=2), encoding="utf-8")
+
+    logging.info(f"Settings written to {target}")
+    return target
