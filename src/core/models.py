@@ -333,6 +333,52 @@ class Interpretation(BaseModel):
     caveat: str = ""
 
 
+class NamingScheme(BaseModel):
+    """
+    How a batch of shots is numbered and named.
+
+    Every facility numbers differently, so nothing here is guessed: the four
+    parts are typed by the person who knows the convention, and the app only
+    counts. `PARA_003_` + `4560` + `_blockout_v0001` stepping by 20 gives
+    PARA_003_4560_blockout_v0001, then PARA_003_4580_blockout_v0001.
+
+    Attributes:
+        prefix: Whatever comes before the number, taken literally — no
+            separator is added, so the trailing underscore is the user's to
+            type or leave off.
+        start: The first number, as typed. Kept as text because its width is
+            the padding: "4560" numbers in four digits, "0010" in four, "10"
+            in two.
+        increment: How far apart consecutive shots are. Tens are the usual
+            convention, because they leave room to insert a shot later without
+            renumbering everything after it.
+        suffix: Whatever comes after the number, again taken literally.
+    """
+
+    prefix: str = ""
+    start: str = "0010"
+    increment: int = 10
+    suffix: str = ""
+
+    @property
+    def padding(self) -> int:
+        """How many digits a number is written to — the width of `start`."""
+        return len(self.start.strip())
+
+    def name_for(self, index: int) -> str:
+        """
+        The name of the `index`th shot, counting from zero.
+
+        Args:
+            index: Position in the batch, zero based.
+
+        Returns:
+            Prefix, number and suffix joined exactly as given.
+        """
+        number = int(self.start) + (index * self.increment)
+        return f"{self.prefix}{number:0{self.padding}d}{self.suffix}"
+
+
 # --- WHAT THE PROJECT SUPPLIES ---
 
 
@@ -442,6 +488,11 @@ class ShotRecord(BaseModel):
 
     approved: bool = False
     renamed_to: Optional[str] = None
+
+    # What the file was called when it arrived. Filled in only by a rename,
+    # because that is the moment the name it came in as stops being visible
+    # anywhere else — and it is the tie back to the mini cut it was cut from.
+    original_file: Optional[str] = None
 
     # What produced the observation, so an answer that looks wrong months later
     # can be traced. The same input can give a different answer twice here,

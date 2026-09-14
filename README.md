@@ -210,7 +210,17 @@ here that must never drift.
 * Rename on approval, reversibly — or export a breakdown with thumbnails to
   seed a database from a blockout.
 * Progress comes back here: a batch is 1–40 shots at model speed, which is a
-  different measurement from the splitter's 44 seconds.
+  different measurement from the splitter's 44 seconds. Rows appear as each
+  shot is read rather than when the batch ends, and each one plays in place, so
+  a description can be checked against the picture it came from.
+* **Naming is the production's own.** Prefix, first number, increment and
+  suffix are typed by whoever knows the convention — `PARA_003_` + `4560` +
+  `_blockout_v0001` stepping by 20 — and applied to the batch. Nothing is
+  renamed until it is approved, the whole plan is checked first, and the batch
+  can be put back.
+* **The breakdown exports twice over:** a CSV a tracker imports and an .xlsx a
+  person opens, written together from the same rows, with a folder of
+  thumbnails beside them.
 
 ## 🚀 Overview
 

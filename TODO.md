@@ -727,7 +727,7 @@ orange Tess, yellow Amaya), one prop, two environments. It lives in
   describe, review, export — and nothing on screen refers to matching or to a
   shot list until 7.8–7.10 exist.
 
-- [~] **7.5.2 Watchable rows** — *rows as they land: done. Thumbnail: next.*
+- [x] **7.5.2 Watchable rows** — *rows as they land, and each row playable*
   Two changes to the same table, both about being able to trust a long run.
 
   **Rows as they land.** `describe` returns the whole batch and `renderRecords`
@@ -763,16 +763,24 @@ orange Tess, yellow Amaya), one prop, two environments. It lives in
   'static': the move has not been chosen yet, and 'static' on a shot list
   states a decision nobody made.
 
-- [ ] **7.6 The breakdown export** — *the point of this reorder*
-  CSV plus thumbnails, in the shape a tracker imports.
-  **Done when:** the CSV opens in a spreadsheet with every thumbnail path
-  pointing at a file that exists, and it can be handed to production as the
-  shot list for a sequence.
+- [x] **7.6 The breakdown export** — *the point of this reorder* *(11 tests)*
+  CSV **and .xlsx**, plus thumbnails, in the shape a tracker imports. Both
+  formats are written on one press and both come from `export_rows()`, so they
+  cannot disagree: the CSV is what a tracker imports, the spreadsheet is what a
+  person opens and sends on. Thumbnails are copied from frames the vision pass
+  already sampled, and are found by the shot's original name so a renamed shot
+  still finds them.
 
-- [ ] **7.7 Shot numbering**
-  How a breakdown assigns numbers. **Open question, not a settled feature** —
-  every facility numbers differently, and a wrong convention applied to forty
-  shots is worse than none. Decide against a real project's naming rules.
+- [x] **7.7 Shot numbering** *(18 tests, with 7.10)*
+  Settled against a real convention: prefix, first number, increment, suffix,
+  typed by whoever knows it. `PARA_003_` + `4560` + `_blockout_v0001` stepping
+  by 20 gives PARA_003_4560_blockout_v0001. The number is padded to the width
+  of what was typed as the start, so "4560" counts in four digits, and nothing
+  is inserted between the parts — separators belong to the convention.
+
+  An empty scheme is refused rather than defaulted. Quietly numbering forty
+  shots 0010, 0020 under a convention nobody typed is worse than not numbering
+  them, and that is exactly what the first version did.
 
 ---
 
@@ -789,9 +797,19 @@ Everything below is the **matching half**, which the breakdown above now feeds.
   **Done when:** a shot with no good match is left unnamed, a near-tie is
   reported as one, and every note names what agreed and what did not.
 
-- [ ] **7.10 Renaming, reversibly**
-  The plan is shown before it is applied and verified again immediately
-  before, the log is written first, and the whole batch can be put back.
+- [x] **7.10 Renaming, reversibly** *(18 tests, with 7.7)*
+  Built ahead of the matching half, because the breakdown needs it too. The
+  whole plan is checked before any of it happens — collisions, targets that
+  exist, files that have moved, names the filesystem will not take — and a bad
+  plan renames nothing rather than half a folder. The log is written first, so
+  a crash leaves a record of renames that did not happen rather than renames
+  with no record. Undo puts the batch back and leaves alone anything renamed by
+  hand since.
+
+  **One settled rule was overturned to do it.** The name now replaces the
+  filename rather than being appended to it, because the name a tracker expects
+  is the whole name. The original is kept in two places instead: the rename log
+  and the export's `original_file` column.
 
 ---
 

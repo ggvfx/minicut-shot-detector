@@ -14,6 +14,11 @@ numpy==2.4.6             # Not imported directly — pinned because PySceneDetec
                          # compares frames through it, so a float here is a
                          # float in where the cuts land
 
+# --- EXPORT ---
+openpyxl==3.1.5          # The .xlsx half of the breakdown export. CSV needs no
+                         # dependency; a spreadsheet people can hand to
+                         # production does.
+
 # --- DEVELOPMENT ---
 pytest==9.1.1            # Unit and route tests
 httpx2==2.12.0           # Required by FastAPI's TestClient for the route tests

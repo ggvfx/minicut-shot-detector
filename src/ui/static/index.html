@@ -347,13 +347,53 @@
             </div>
 
             <p class="hint">
-                Check what it proposed before anything is written. The shot number is editable —
-                a blank one means it could not tell, which is a better answer than a wrong guess.
+                Check what it proposed before anything is written. The shot number and the notes
+                are both editable — a blank number means it could not tell, which is a better
+                answer than a wrong guess.
             </p>
+
+            <!-- Naming is the production's convention, not ours: the four parts are
+                 typed by someone who knows it, and the app only counts. -->
+            <details class="card naming" open>
+                <summary>
+                    <span class="card-title">Shot naming</span>
+                    <span id="naming-preview" class="summary"></span>
+                </summary>
+
+                <div class="card-body">
+                    <p class="hint">
+                        Number the whole batch at once. Nothing is written until you press
+                        Rename videos, so an increment that turns out wrong costs a second press.
+                    </p>
+
+                    <div class="naming-row">
+                        <label for="naming-prefix">Prefix</label>
+                        <input type="text" id="naming-prefix" placeholder="PARA_003_">
+
+                        <label for="naming-start">Start</label>
+                        <input type="text" id="naming-start" placeholder="4560" size="8">
+
+                        <label for="naming-increment">Increment</label>
+                        <input type="text" id="naming-increment" placeholder="20" size="6">
+
+                        <label for="naming-suffix">Suffix</label>
+                        <input type="text" id="naming-suffix" placeholder="_blockout_v0001">
+                    </div>
+
+                    <div class="action-row">
+                        <button id="naming-apply" class="secondary">Number shots</button>
+                        <span class="hint">
+                            The number is padded to the width of what you type in Start —
+                            <code class="fix-command">4560</code> counts in four digits.
+                        </span>
+                    </div>
+                </div>
+            </details>
 
             <table id="identify-table" class="shots">
                 <thead>
                     <tr>
+                        <th>Video</th>
                         <th>Shot</th>
                         <th>Description</th>
                         <th>Characters</th>
@@ -364,10 +404,13 @@
                 <tbody></tbody>
             </table>
 
-            <!-- The two things a reviewed table can become -->
+            <!-- What a reviewed table can become. Renaming is the only destructive
+                 one, so it sits apart from the two that only write new files. -->
             <div class="action-row">
-                <button id="identify-rename" disabled title="Not built yet">Rename shots</button>
-                <button id="identify-export" class="secondary" disabled title="Not built yet">Export DB report</button>
+                <button id="identify-rename">Rename videos</button>
+                <button id="identify-undo" class="secondary">Undo rename</button>
+                <button id="identify-export" class="secondary">Export breakdown</button>
+                <button id="identify-thumbs" class="secondary">Export thumbnails</button>
                 <span id="identify-action-status" class="status"></span>
             </div>
         </section>

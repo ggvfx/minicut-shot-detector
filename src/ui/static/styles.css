@@ -72,9 +72,17 @@ header {
    wide the monitor is. */
 :root { --player-height: 60vh; }
 
-main {
-    padding: 24px;
-    max-width: calc(var(--player-height) * 16 / 9);
+main { padding: 24px; }
+
+/* The player-derived width belongs to the tab that has a player. It keeps the
+   splitter's cards, strip and picture on one right edge — but it is computed
+   from viewport HEIGHT, so on a short screen it squeezes the page badly. The
+   floor stops that; the identifier, which has no player, is not constrained by
+   it at all and uses the window it is given. A review table is read across:
+   thumbnail, description and notes all want room, and forty rows of it want
+   the whole screen. */
+#splitter {
+    max-width: max(920px, calc(var(--player-height) * 16 / 9));
 }
 
 .tab-panel { display: none; }
@@ -590,26 +598,70 @@ summary .summary { margin: 0; }
 }
 
 /* The description is the widest column and the one people actually read */
-/* Clamped rather than truncated: the cell holds the whole text, and hovering
-   shows it. A row is scanned against its neighbours, so one shot the model had
-   a great deal to say about must not make the other rows unreadable. */
-.shot-summary,
-.shot-note {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+/* The clip in the row. Small enough that forty of them still read as a table,
+   large enough to tell two similar shots apart. */
+.shot-video {
+    width: 180px;
+    max-width: 180px;
+    aspect-ratio: 16 / 9;
+    background: var(--border);
+    border-radius: 3px;
+    display: block;
 }
 
-.shot-summary {
-    max-width: 42ch;
-    -webkit-line-clamp: 3;
+/* Notes are written by the app and typed over by the reviewer, so this is a
+   field rather than text — it has to look editable without being loud. */
+.shot-note-input {
+    min-width: 18ch;
+    font-size: 12px;
+    color: var(--degraded);
 }
+
+/* The four parts of a name, on one line where there is room for it. */
+.naming-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.naming-row label {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.naming-row input { flex: 1 1 8ch; min-width: 6ch; }
+.naming-row input#naming-prefix,
+.naming-row input#naming-suffix { flex: 2 1 16ch; }
 
 .shot-name { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
 
-.shot-note {
-    font-size: 12px;
-    color: var(--degraded);
-    max-width: 34ch;
-    -webkit-line-clamp: 3;
+/* Both editable fields. Three rows tall so a row stays scannable, scrolling
+   rather than clamping so a long description can actually be read — and
+   resizable, because the one shot the model wrote an essay about is exactly
+   the one worth dragging open. */
+.shot-summary-input,
+.shot-note-input {
+    width: 100%;
+    font: inherit;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 4px;
+    resize: vertical;
+    overflow-y: auto;
+}
+
+.shot-summary-input { min-width: 32ch; }
+
+.shot-summary-input:hover,
+.shot-note-input:hover { border-color: var(--border); }
+
+.shot-summary-input:focus,
+.shot-note-input:focus {
+    border-color: var(--ok);
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
 }

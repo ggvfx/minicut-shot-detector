@@ -361,8 +361,8 @@ Not built, and listed so the shape is agreed before anything is written:
 | `src/identifier/interpret.py` | Pass 2 — observations into the project's vocabulary |
 | `src/identifier/shotlist.py` | Reading a shot list: CSV, text, or a thumbnail folder |
 | `src/identifier/match.py` | Pass 3 — attribute comparison, and derived confidence |
-| `src/identifier/rename.py` | Applying names, and the log that undoes them |
-| `src/identifier/export.py` | The CSV and thumbnails a database is seeded from |
+| `src/identifier/rename.py` | The naming scheme, applying it, and the log that undoes it |
+| `src/identifier/export.py` | The CSV, spreadsheet and thumbnails a database is seeded from |
 | `src/identifier/pipeline.py` | `IdentifierPipeline` — stage order and caching. No processing logic. |
 
 | Path | Holds |
@@ -405,6 +405,15 @@ put rows in front of people who cannot act on them. `/api/environment` takes a
 The identifier's rows for the model backends **gate that tab** — a user
 standing in it with no model can do nothing — which is why `advisory` is
 decided by the caller rather than being a property of the row.
+
+**Page width belongs to the tab, not to the app.** The splitter's width is
+derived from its player — a 16:9 picture at `--player-height` — so the cards,
+the strip and the picture share one right edge. That was set on `main`, which
+made every tab as wide as the splitter's player, computed from viewport
+*height*: on a short screen the whole app squeezed into a column. It now sits
+on `#splitter` with a floor under it, and the identifier uses the window it is
+given. A review table is read across — thumbnail, description and notes each
+want room, and forty rows of it want the screen.
 
 `state.js` stays one object, banded per tab. The tabs share `environment.js`,
 `picker.js` and `ui.js` unchanged.

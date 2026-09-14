@@ -287,6 +287,17 @@ function wireModels() {
     }
 
     document.getElementById("models-save").addEventListener("click", saveModels);
+
+    for (const part of ["prefix", "start", "increment", "suffix"]) {
+        document.getElementById(`naming-${part}`)
+            .addEventListener("input", previewNaming);
+    }
+
+    document.getElementById("naming-apply").addEventListener("click", numberShots);
+    document.getElementById("identify-rename").addEventListener("click", renameVideos);
+    document.getElementById("identify-undo").addEventListener("click", undoRename);
+    document.getElementById("identify-export").addEventListener("click", () => exportBreakdown(false));
+    document.getElementById("identify-thumbs").addEventListener("click", () => exportBreakdown(true));
 }
 
 // --- DESCRIBING A FOLDER ---
@@ -447,11 +458,12 @@ function recordRow(record) {
     const reading = record.interpretation ?? {};
 
     row.append(
+        videoCell(record),
         textCell(fileNameOf(record.file), "shot-name"),
-        textCell(reading.summary || "—", "shot-summary"),
+        summaryCell(record),
         textCell((reading.characters || []).join(", ") || "—"),
         numberCell(record),
-        textCell(record.notes || "", "shot-note"),
+        noteCell(record),
     );
 
     return row;
@@ -479,6 +491,78 @@ function textCell(value, className = "") {
  * person rather than guessed at — so the field starts empty and says what it
  * is for rather than pretending to have an opinion.
  */
+/**
+ * The shot itself, playable in the row.
+ *
+ * A description cannot be reviewed without the picture beside it. The poster
+ * is the frame the vision pass already sampled, and `preload="none"` means the
+ * clip itself is not fetched until someone presses play — so a table of forty
+ * rows costs forty small JPEGs, not forty videos.
+ */
+function videoCell(record) {
+    const cell = document.createElement("td");
+    const video = document.createElement("video");
+
+    video.className = "shot-video";
+    video.controls = true;
+    video.preload = "none";
+    video.poster = `/api/identify/poster?path=${encodeURIComponent(record.file)}`;
+    video.src = `/api/identify/clip?path=${encodeURIComponent(record.file)}`;
+
+    cell.append(video);
+    return cell;
+}
+
+/**
+ * The description, editable.
+ *
+ * A reviewer corrects a reading as often as they accept it, and the correction
+ * is what the export should carry — so this is the field, not a copy of it.
+ * It scrolls rather than clamping: a long description has to be readable in
+ * the row it belongs to, not only in a tooltip.
+ */
+function summaryCell(record) {
+    const cell = document.createElement("td");
+    const input = document.createElement("textarea");
+
+    input.className = "shot-summary-input";
+    input.rows = 3;
+    input.value = record.interpretation?.summary || "";
+    input.placeholder = "—";
+
+    input.addEventListener("change", () => {
+        if (!record.interpretation) record.interpretation = {};
+        record.interpretation.summary = input.value.trim();
+    });
+
+    cell.append(input);
+    return cell;
+}
+
+/**
+ * The notes, editable.
+ *
+ * Written by both sides: the app puts the reason a shot could not be described
+ * here, and the reviewer types over it or adds to it. Whatever the cell holds
+ * at the end is what the export writes.
+ */
+function noteCell(record) {
+    const cell = document.createElement("td");
+    const input = document.createElement("textarea");
+
+    input.className = "shot-note-input";
+    input.rows = 2;
+    input.value = record.notes || "";
+    input.placeholder = "—";
+
+    input.addEventListener("change", () => {
+        record.notes = input.value.trim();
+    });
+
+    cell.append(input);
+    return cell;
+}
+
 function numberCell(record) {
     const cell = document.createElement("td");
     const input = document.createElement("input");
@@ -497,4 +581,209 @@ function numberCell(record) {
 
     cell.append(input);
     return cell;
+}
+
+// --- NAMING THE BATCH ---
+
+/**
+ * The four parts, exactly as typed.
+ *
+ * Nothing is filled in on the user's behalf except the increment, where tens
+ * is a real convention rather than a guess. A blank start is left blank so
+ * numbering can refuse it: silently numbering forty shots 0010, 0020 under a
+ * scheme nobody typed is worse than not numbering them.
+ */
+function namingScheme() {
+    const value = (id) => document.getElementById(id).value.trim();
+
+    return {
+        prefix: value("naming-prefix"),
+        start: value("naming-start"),
+        increment: Number(value("naming-increment")) || 10,
+        suffix: value("naming-suffix"),
+    };
+}
+
+/**
+ * Shows what the first two shots would be called, before anything is applied.
+ *
+ * A naming convention is the kind of thing that looks right until you see it
+ * twice: the second name is where a wrong increment becomes obvious.
+ */
+function previewNaming() {
+    const scheme = namingScheme();
+    const preview = document.getElementById("naming-preview");
+
+    if (!scheme.start) {
+        preview.textContent = "";
+        preview.className = "summary";
+        return;
+    }
+
+    if (!scheme.start.match(/^\d+$/)) {
+        preview.textContent = "Start has to be a number";
+        preview.className = "summary degraded";
+        return;
+    }
+
+    const width = scheme.start.length;
+    const nameAt = (index) => {
+        const number = Number(scheme.start) + (index * scheme.increment);
+        return `${scheme.prefix}${String(number).padStart(width, "0")}${scheme.suffix}`;
+    };
+
+    preview.textContent = `${nameAt(0)}, then ${nameAt(1)}`;
+    preview.className = "summary ok";
+}
+
+/** Numbers every row from the scheme. Proposal only — nothing is renamed. */
+async function numberShots() {
+    const status = document.getElementById("identify-action-status");
+
+    if (!state.records.length) {
+        status.textContent = "Describe some shots first.";
+        return;
+    }
+
+    const scheme = namingScheme();
+
+    if (!scheme.start.match(/^\d+$/)) {
+        status.textContent =
+            "Fill in Shot naming first — Start has to be the first shot number, "
+            + "like 4560.";
+        document.querySelector("details.naming").open = true;
+        document.getElementById("naming-start").focus();
+        return;
+    }
+
+    const response = await fetch("/api/identify/number", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ records: state.records, scheme }),
+    });
+
+    if (!response.ok) {
+        status.textContent = "Those numbers could not be applied.";
+        return;
+    }
+
+    state.records = await response.json();
+    redrawRows();
+    status.textContent = `Numbered ${state.records.length} shots. Nothing renamed yet.`;
+}
+
+/** Redraws every row from the records, after something changed all of them. */
+function redrawRows() {
+    const body = document.querySelector("#identify-table tbody");
+    body.innerHTML = "";
+
+    for (const record of state.records) {
+        body.append(recordRow(record));
+    }
+}
+
+// --- RENAMING, AND PUTTING IT BACK ---
+
+/**
+ * Renames the files on disk.
+ *
+ * The only destructive button in the app, so it checks first and says exactly
+ * what it is about to do. The check is advisory — the server re-runs it before
+ * touching anything, because a folder can change while a tab sits open.
+ */
+async function renameVideos() {
+    const status = document.getElementById("identify-action-status");
+    const planned = state.records.filter((record) => record.shot_number);
+
+    if (!planned.length) {
+        status.textContent = "Number the shots first.";
+        return;
+    }
+
+    const body = JSON.stringify({ records: state.records, shots_dir: state.shotsDir });
+    const headers = { "Content-Type": "application/json" };
+
+    const check = await fetch("/api/identify/rename/check", { method: "POST", headers, body });
+    const problems = (await check.json()).problems || [];
+
+    if (problems.length) {
+        status.textContent = problems.join(" · ");
+        return;
+    }
+
+    status.textContent = `Renaming ${planned.length} files…`;
+
+    const response = await fetch("/api/identify/rename", { method: "POST", headers, body });
+
+    if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        status.textContent = detail.detail || "Nothing was renamed.";
+        return;
+    }
+
+    state.records = await response.json();
+    redrawRows();
+    status.textContent = `Renamed ${planned.length} files. Undo rename puts them back.`;
+}
+
+/** Puts a renamed batch back to the names it had. */
+async function undoRename() {
+    const status = document.getElementById("identify-action-status");
+
+    const response = await fetch("/api/identify/rename/undo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ records: state.records, shots_dir: state.shotsDir }),
+    });
+
+    if (!response.ok) {
+        status.textContent = "Nothing could be put back.";
+        return;
+    }
+
+    const { restored } = await response.json();
+    status.textContent = restored
+        ? `Put ${restored} files back. Describe again to refresh the table.`
+        : "There was no rename to undo.";
+}
+
+// --- EXPORTING ---
+
+/**
+ * Writes the breakdown beside the shots.
+ *
+ * @param {boolean} thumbnails Whether to bring the stills. Both buttons run
+ *   the same route: the spreadsheet's thumbnail column points at these files,
+ *   so exporting them separately still has to write the rows they belong to.
+ */
+async function exportBreakdown(thumbnails) {
+    const status = document.getElementById("identify-action-status");
+
+    if (!state.records.length) {
+        status.textContent = "There is nothing to export yet.";
+        return;
+    }
+
+    status.textContent = thumbnails ? "Writing thumbnails…" : "Writing the breakdown…";
+
+    const response = await fetch("/api/identify/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            records: state.records,
+            shots_dir: state.shotsDir,
+            thumbnails,
+        }),
+    });
+
+    if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        status.textContent = detail.detail || "The export could not be written.";
+        return;
+    }
+
+    const written = await response.json();
+    const stills = thumbnails ? `, and ${written.thumbnails} thumbnails` : "";
+
+    status.textContent = `Wrote ${written.csv} and ${written.xlsx}${stills} to ${written.folder}`;
 }

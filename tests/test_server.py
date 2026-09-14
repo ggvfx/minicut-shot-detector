@@ -404,3 +404,144 @@ def test_a_stream_that_cannot_start_says_so_in_the_body(monkeypatch):
     lines = [json.loads(line) for line in response.text.splitlines() if line]
 
     assert lines == [{"error": "No video files in that folder"}]
+
+
+# --- NAMING, RENAMING AND EXPORT THROUGH THE API ---
+
+
+def test_numbering_a_batch_proposes_names_and_writes_nothing(tmp_path):
+    """
+    The numbers arrive in the table before any file is touched — the whole
+    point of a proposal is that forty rows can be read before one is applied.
+    """
+    files = []
+    for index in (1, 2, 3):
+        path = tmp_path / f"shot_{index:03d}.mp4"
+        path.write_bytes(b"x")
+        files.append({"file": str(path)})
+
+    response = client.post("/api/identify/number", json={
+        "records": files,
+        "scheme": {
+            "prefix": "PARA_003_",
+            "start": "4560",
+            "increment": 20,
+            "suffix": "_blockout_v0001",
+        },
+    })
+
+    assert response.status_code == 200
+    assert [record["shot_number"] for record in response.json()] == [
+        "PARA_003_4560_blockout_v0001",
+        "PARA_003_4580_blockout_v0001",
+        "PARA_003_4600_blockout_v0001",
+    ]
+    assert sorted(path.name for path in tmp_path.glob("*.mp4")) == [
+        "shot_001.mp4", "shot_002.mp4", "shot_003.mp4"
+    ], "a proposal renamed something"
+
+
+def test_an_unsafe_rename_is_refused_with_the_reason(tmp_path):
+    """409 rather than 422: the request is fine, the folder is not what it was."""
+    for index in (1, 2):
+        (tmp_path / f"shot_{index:03d}.mp4").write_bytes(b"x")
+
+    records = [
+        {"file": str(tmp_path / f"shot_{index:03d}.mp4"),
+         "shot_number": "SAME", "approved": True}
+        for index in (1, 2)
+    ]
+
+    response = client.post("/api/identify/rename", json={
+        "records": records, "shots_dir": str(tmp_path),
+    })
+
+    assert response.status_code == 409
+    assert "would both become" in response.json()["detail"]
+    assert (tmp_path / "shot_001.mp4").is_file(), "a refused plan renamed something"
+
+
+def test_a_rename_can_be_undone_through_the_api(tmp_path):
+    path = tmp_path / "shot_001.mp4"
+    path.write_bytes(b"x")
+    records = [{"file": str(path), "shot_number": "SEQ_0010", "approved": True}]
+
+    renamed = client.post("/api/identify/rename", json={
+        "records": records, "shots_dir": str(tmp_path),
+    })
+    assert renamed.status_code == 200
+    assert (tmp_path / "SEQ_0010.mp4").is_file()
+
+    undone = client.post("/api/identify/rename/undo", json={
+        "records": records, "shots_dir": str(tmp_path),
+    })
+
+    assert undone.json() == {"restored": 1}
+    assert path.is_file()
+
+
+def test_exporting_writes_both_formats_beside_the_shots(tmp_path):
+    """One press, both files. Nobody should have to come back for the other one."""
+    path = tmp_path / "shot_001.mp4"
+    path.write_bytes(b"x")
+
+    response = client.post("/api/identify/export", json={
+        "records": [{"file": str(path), "shot_number": "SEQ_0010"}],
+        "shots_dir": str(tmp_path),
+        "thumbnails": False,
+    })
+
+    assert response.status_code == 200
+    written = response.json()
+    folder = Path(written["folder"])
+
+    assert (folder / written["csv"]).is_file()
+    assert (folder / written["xlsx"]).is_file()
+
+
+def test_a_clip_is_served_in_the_range_a_browser_asked_for(tmp_path):
+    """Without ranges a clip plays but cannot be scrubbed, which is what review is."""
+    path = tmp_path / "shot_001.mp4"
+    path.write_bytes(b"0123456789")
+
+    response = client.get(
+        "/api/identify/clip",
+        params={"path": str(path)},
+        headers={"Range": "bytes=2-5"},
+    )
+
+    assert response.status_code == 206
+    assert response.content == b"2345"
+    assert response.headers["content-range"] == "bytes 2-5/10"
+
+
+def test_a_clip_asked_for_whole_is_served_whole(tmp_path):
+    path = tmp_path / "shot_001.mp4"
+    path.write_bytes(b"0123456789")
+
+    response = client.get("/api/identify/clip", params={"path": str(path)})
+
+    assert response.status_code == 200
+    assert response.content == b"0123456789"
+
+
+def test_anything_that_is_not_a_clip_is_a_404(tmp_path):
+    """
+    The table asks for files by path, so the route answers for shots and
+    nothing else — a 404 that says nothing about what is on the disk.
+    """
+    secret = tmp_path / "passwords.txt"
+    secret.write_text("nope", encoding="utf-8")
+
+    response = client.get("/api/identify/clip", params={"path": str(secret)})
+
+    assert response.status_code == 404
+
+
+def test_a_shot_with_no_sampled_frame_has_no_poster(tmp_path):
+    path = tmp_path / "shot_001.mp4"
+    path.write_bytes(b"x")
+
+    response = client.get("/api/identify/poster", params={"path": str(path)})
+
+    assert response.status_code == 404
