@@ -98,8 +98,9 @@ The engineering decisions here are mine; the assistant works to them.
 ## Install & Run
 
 Requires **Python 3.11+** and **ffmpeg** on `PATH`, built with `libx264` (and
-`libx265` for h265 sources). The app checks all of this on launch and tells you
-how to fix anything missing.
+`libx265` for h265 sources) and with **libfreetype** for the burned-in frame
+numbers. The app checks all of this on launch and tells you how to fix anything
+missing.
 
 ```bash
 # 1. Clone and enter the repo
@@ -119,13 +120,14 @@ python main.py
 ```
 
 If ffmpeg is missing: `winget install Gyan.FFmpeg` on Windows,
-`brew install ffmpeg` on macOS.
+`brew install ffmpeg-full` on macOS — `ffmpeg-full`, because Homebrew's plain
+`ffmpeg` bottle is built without libfreetype.
 
 One optional extra: the review player burns each frame's number into the corner
 of the proxy, which needs an ffmpeg built with **libfreetype** for its
-`drawtext` filter. Homebrew's bottle is not, so on macOS the proxy is built
-without the counter — everything else works, and the Setup tab reports it with
-the fix for your platform. The numbers are a cross-check on the player, not
+`drawtext` filter. Homebrew's plain `ffmpeg` bottle is not, so on such a build
+the proxy comes out without the counter — everything else works, and the Setup
+tab reports it with the fix for your platform. The numbers are a cross-check on the player, not
 something the splitter depends on.
 
 Run the tests with `pytest` and the linter with `ruff check .`, both from

@@ -113,14 +113,44 @@ def test_parse_filters_skips_legend_and_headings():
     """
     Same trap as the encoder legend, one field narrower.
 
-    ' T.. = Timeline support' has a three character flag block and so passes
-    the shape test, exactly as ' V..... = Video' does in the encoder table.
+    ' T.. = Timeline support' looks enough like a row to be worth excluding
+    explicitly — it is kept out by having no "in->out" signature, the same
+    thing that identifies a real row.
     """
     names = MediaToolchain.parse_filters(FILTERS_OUTPUT)
 
     assert "=" not in names, "the flag legend was parsed as a filter"
     assert "Filters:" not in names
     assert "input/output" not in names
+
+
+# Real `ffmpeg -filters` output from an 8.0.1 build, where the flag block is
+# two characters wide rather than three. Counting flags instead of reading the
+# row shape made every filter here look missing.
+FILTERS_OUTPUT_FFMPEG_8 = """Filters:
+  T.. = Timeline support
+  .S. = Slice threading
+  ..C = Command support
+  A = Audio input/output
+  V = Video input/output
+ T. drawtext          V->V       Draw text on top of video frames.
+ .. scale             V->V       Scale the input video size.
+ .C concat            N->N       Concatenate audio and video streams.
+"""
+
+
+def test_parse_filters_reads_ffmpeg_8_two_character_flags():
+    """
+    ffmpeg 8 narrowed the flag block, and a width test silently emptied the
+    whole filter set — reporting a good build as having no drawtext and
+    dropping the burned-in frame numbers on every machine.
+    """
+    names = MediaToolchain.parse_filters(FILTERS_OUTPUT_FFMPEG_8)
+
+    assert "drawtext" in names
+    assert "scale" in names
+    assert "concat" in names
+    assert "=" not in names, "the flag legend was parsed as a filter"
 
 
 def test_parse_filters_handles_empty_output():

@@ -311,7 +311,7 @@ src/
 │                 every data shape has exactly one place to look.
 ├── media/         SHARED: probing, frames, mezzanine, proxy, extraction, workspace
 ├── splitter/      detection, reconciliation, validation, the splitter pipeline
-├── identifier/    observation, interpretation, matching, renaming, export     (not built)
+├── identifier/    observation, interpretation, matching, renaming, export
 ├── backends/      the model adapters — CLI, HTTP API, local runtime
 └── ui/            the app, one routes module per tab, and the front end
 ```
@@ -389,7 +389,16 @@ Not built, and listed so the shape is agreed before anything is written:
 
 Each tab has **its own environment panel**, and they are told different things:
 the splitter needs encoders and PySceneDetect and no model, the identifier
-needs a model and neither of those. Showing each the other's requirements would
+needs a model and neither of those.
+
+**A panel checks filters as well as encoders.** A build can carry every codec
+and still lack `drawtext`, which the review proxy uses for its burned-in frame
+numbers — that is a real Homebrew ffmpeg, and it passed every check we had
+before aborting the encode halfway through. Both lists are read from ffmpeg
+itself, and neither row is read by counting the width of ffmpeg's flag column:
+ffmpeg 8 narrowed the filter block from three characters to two, and a parser
+that counted found no filters at all, reporting a healthy build as missing
+drawtext. A row is identified by its `in->out` signature instead. Showing each the other's requirements would
 put rows in front of people who cannot act on them. `/api/environment` takes a
 `tab`, and the report is cached per tab.
 

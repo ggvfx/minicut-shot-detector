@@ -236,10 +236,15 @@ class MediaToolchain:
         """
         Pulls filter names out of `ffmpeg -filters` output.
 
-        Table rows look like ' T.. drawtext  V->V  Draw text on top of video.',
-        where the first field is a three character flag block and the second is
-        the name — the same shape as the encoder table with a shorter flag
-        block, so it is parsed the same way.
+        Table rows look like ' T. drawtext  V->V  Draw text on top of video.':
+        a flag block, the name, then the signature of what it takes and
+        returns.
+
+        The flag block is not a fixed width. ffmpeg 8.x prints two characters
+        where older builds printed three, so a row is recognised by its `->`
+        signature rather than by counting flags — keying off the width made
+        every filter look missing on ffmpeg 8, which reported a perfectly good
+        build as having no drawtext and quietly dropped the frame numbers.
 
         A static method so it can be tested against captured output without
         ffmpeg being installed.
@@ -249,12 +254,12 @@ class MediaToolchain:
         for line in output.splitlines():
             fields = line.split()
 
-            # Skip headings, the flag legend, and anything that is not a row
-            if len(fields) < 2 or len(fields[0]) != 3:
+            # A row is a flag block, a name, and an "in->out" signature.
+            if len(fields) < 3 or "->" not in fields[2]:
+                continue
+            if not 1 <= len(fields[0]) <= 3:
                 continue
             if not set(fields[0]) <= set("TSC."):
-                continue
-            if fields[1] == "=":
                 continue
 
             names.add(fields[1])

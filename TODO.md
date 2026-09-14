@@ -683,23 +683,69 @@ orange Tess, yellow Amaya), one prop, two environments. It lives in
   from inside the prompt (Claude Code uses `@path`) rather than as arguments.
   Both shapes are common, so both are configurable.
 
-- [ ] **7.3 The interpretation pass**
+- [x] **7.3 The interpretation pass** *(14 tests)*
   `Interpreter` — observations into the project's vocabulary and character
   names, with the observed evidence kept beside the name.
-  **Done when:** the same observation produces the same term on every shot of a
-  batch, and a figure matching nobody is left unnamed.
 
-- [ ] **7.4 The pipeline and its cache**
+  **The observation goes in the prompt before the production notes**, and that
+  ordering is the safeguard rather than a preference. Lead with the character
+  sheet and it reads as a list of things to find; lead with the observation and
+  it reads as the evidence, which is what it is. The failure it prevents is
+  invisible from outside — a shot confidently labelled with the wrong character
+  looks exactly like a result. A test asserts the order.
+
+  **It declined on its first real run, correctly.** Shot 2 of the ARRV blockout
+  was left unnamed because "plain light blue untextured" is also how the notes
+  describe untextured set geometry, the blocking convention calls for *fully
+  saturated* mannequins, and the figure was too small to read body shape. That
+  is the designed behaviour working, and it points at a refinement needed in
+  `production.md` rather than in the code.
+
+- [x] **7.4 The pipeline and its cache** *(19 tests)*
   `IdentifierPipeline.prepare()` — shots, observe, interpret — with
-  observations cached beside the files.
-  **Done when:** re-running after editing `production.md` re-interprets a batch
-  without a single vision call.
+  observations cached beside the files, keyed on name *and* size so a shot
+  re-exported under the same name is described again rather than inheriting the
+  old shot's answer.
 
-- [ ] **7.5 The table**
-  Fill in the shell the tab already lays out: thumbnail, description, editable
-  shot number, notes. Progress belongs here — a batch is 1–40 shots at model
-  speed.
-  **Done when:** a batch can be watched and reviewed without reloading.
+  Written after each shot rather than at the end of a batch: a failure on shot
+  thirty-nine must not cost the thirty-eight already paid for. Proven on a real
+  run when a CLI hit its quota mid-batch and the completed work survived.
+
+- [x] **7.5 The table**
+  Description, characters, editable shot number and notes, with a progress bar
+  during the run. **No thumbnail yet, and rows only appear once the whole batch
+  finishes — see 7.5.2.** **Not yet reworked for the two workflows — see 7.5.1.**
+
+- [ ] **7.5.1 Split the tab by workflow** ⬅ **next, and the demo blocker**
+  The tab currently presents itself as the matching workflow: the intro, the
+  four bullets and the "Shot list to match" step all describe naming shots
+  against a list. None of that is built, and `_match` still raises.
+
+  Breakdown and matching are two workflows sharing one describe pass, so the
+  tab has to say which one it is doing.
+  **Done when:** the breakdown path is the whole tab — choose a folder,
+  describe, review, export — and nothing on screen refers to matching or to a
+  shot list until 7.8–7.10 exist.
+
+- [ ] **7.5.2 Watchable rows** ⬅ *agreed next, after 7.5.1*
+  Two changes to the same table, both about being able to trust a long run.
+
+  **Rows as they land.** `describe` returns the whole batch and `renderRecords`
+  clears the table and redraws, so a forty shot run shows nothing at all until
+  it finishes. The pipeline already completes and caches one shot at a time, so
+  the work is to stream those out and append a row per event rather than
+  accumulate. Watching nothing for several minutes is indistinguishable from a
+  hang, which is how a good run got killed.
+
+  **Something to check the description against.** A description is unreviewable
+  without the picture beside it. The sampled frames are already written to disk
+  by the observation pass, so the first frame is a thumbnail at no extra cost;
+  serve the clip itself behind `preload="none"` with that frame as the poster
+  and the row also plays, without the table fetching a single byte of video
+  until someone asks it to.
+
+  **Done when:** a three shot folder fills in one row at a time, and each row
+  can be played without leaving the table.
 
 - [ ] **7.6 The breakdown export** — *the point of this reorder*
   CSV plus thumbnails, in the shape a tracker imports.

@@ -451,6 +451,22 @@
                     <dt>Claude Code</dt>
                     <dd><code class="fix-command">claude -p</code> — already a preset.</dd>
 
+                    <dt>Kiro CLI</dt>
+                    <dd>
+                        <code class="fix-command">kiro-cli chat --no-interactive --trust-all-tools {prompt}</code>
+                        — already a preset. <code class="fix-command">--no-interactive</code>
+                        is Kiro's equivalent of <code class="fix-command">claude -p</code>, and
+                        it takes the prompt as an argument rather than on standard input, which
+                        is why the preset carries <code class="fix-command">{prompt}</code>.
+                        Without a trust flag it waits for a tool approval it cannot show and
+                        appears to hang; <code class="fix-command">--trust-tools=read,grep</code>
+                        narrows that if you would rather not trust everything. The interactive
+                        UI flags <code class="fix-command">--classic</code> and
+                        <code class="fix-command">--tui</code> do nothing here, because
+                        non-interactive mode has no UI to pick. Image support is unconfirmed —
+                        press Test before relying on it for the vision model.
+                    </dd>
+
                     <dt>Another agentic CLI</dt>
                     <dd>
                         Whatever runs it non-interactively and prints the reply, for example
