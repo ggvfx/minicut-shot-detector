@@ -49,6 +49,38 @@ FFMPEG_FALLBACK = [
     ("Install ffmpeg and put it on PATH", None, "https://ffmpeg.org/download.html"),
 ]
 
+# --- FFMPEG WITH LIBFREETYPE ---
+
+# Only for the burned-in frame numbers on the review proxy, which need the
+# drawtext filter, which needs an ffmpeg built with libfreetype. Homebrew's
+# bottle is not, and on that machine the app simply leaves the numbers out.
+#
+# So every option here is optional by definition, and the labels say so. The
+# download is listed first on macOS rather than last, because the prebuilt
+# binaries already include freetype and rebuilding ffmpeg from source to get a
+# frame counter is not a reasonable thing to ask of anyone.
+FREETYPE_INSTALL = {
+    "Windows": [
+        ("Standard Windows builds already include this", None, "https://www.gyan.dev/ffmpeg/builds/"),
+    ],
+    "Darwin": [
+        ("Optional — a prebuilt binary that includes it", None, "https://evermeet.cx/ffmpeg/"),
+        (
+            "Or build Homebrew's ffmpeg with freetype",
+            "brew tap homebrew-ffmpeg/ffmpeg && brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-freetype",
+            None,
+        ),
+    ],
+    "Linux": [
+        ("Debian and Ubuntu builds already include this", "sudo apt install ffmpeg", None),
+        ("Or a prebuilt binary", None, "https://johnvansickle.com/ffmpeg/"),
+    ],
+}
+
+FREETYPE_FALLBACK = [
+    ("Optional — an ffmpeg built with libfreetype", None, "https://ffmpeg.org/download.html"),
+]
+
 # --- PYTHON ---
 
 # The download comes first here, unlike ffmpeg: someone whose Python is too old

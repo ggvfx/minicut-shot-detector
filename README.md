@@ -121,6 +121,13 @@ python main.py
 If ffmpeg is missing: `winget install Gyan.FFmpeg` on Windows,
 `brew install ffmpeg` on macOS.
 
+One optional extra: the review player burns each frame's number into the corner
+of the proxy, which needs an ffmpeg built with **libfreetype** for its
+`drawtext` filter. Homebrew's bottle is not, so on macOS the proxy is built
+without the counter — everything else works, and the Setup tab reports it with
+the fix for your platform. The numbers are a cross-check on the player, not
+something the splitter depends on.
+
 Run the tests with `pytest` and the linter with `ruff check .`, both from
 the repo root.
 

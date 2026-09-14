@@ -22,6 +22,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from src.core import config
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import SourceInfo
 
@@ -96,8 +97,26 @@ class ProxyBuilder:
             drawtext needs its font path escaped for ffmpeg's own parser, which
             reads a colon as an argument separator — so "C:/..." has to be
             written "C\\:/...".
+
+            Two things can take the counter away, and neither should be fatal.
+            A machine with no monospaced font, and — found on a Mac — an ffmpeg
+            built without libfreetype, which has no drawtext at all. Asking for
+            it there does not degrade the encode, it aborts it: ffmpeg rejects
+            the entire output with "Filter not found", so no proxy is built and
+            the splitter cannot run at all.
+
+            The frame counter is a cross-check, not the product. Losing it
+            costs the burned-in numbers. Asking for it anyway costs the job.
         """
         scale = f"scale={PROXY_WIDTH}:-2"
+
+        if not self.toolchain.has_filter(config.DRAWTEXT_FILTER):
+            logging.warning(
+                "This ffmpeg has no drawtext filter, so the review proxy will "
+                "have no frame numbers. It was most likely built without "
+                "libfreetype."
+            )
+            return scale
 
         font = self.font_path()
         if font is None:

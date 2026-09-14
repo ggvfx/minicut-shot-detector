@@ -81,3 +81,58 @@ def test_versions_reports_missing_tools():
 def test_encoders_empty_without_ffmpeg():
     """Asking for encoders with no ffmpeg gives an empty set, not an exception."""
     assert MediaToolchain(discover=False).available_encoders() == set()
+
+
+# --- FILTER PARSING ---
+
+# Trimmed from real `ffmpeg -filters` output. The flag block is three characters
+# here rather than the encoder table's six, which is the only structural
+# difference between the two.
+FILTERS_OUTPUT = """Filters:
+  T.. = Timeline support
+  .S. = Slice threading
+  ..C = Command support
+  A = Audio input/output
+  V = Video input/output
+  ... abench            A->A       Benchmark part of a filtergraph.
+  T.C drawtext          V->V       Draw text on top of video.
+  ..C scale             V->V       Scale the input video size.
+  ... concat            N->N       Concatenate audio and video streams.
+"""
+
+
+def test_parse_filters_finds_real_filters():
+    names = MediaToolchain.parse_filters(FILTERS_OUTPUT)
+
+    assert "drawtext" in names
+    assert "scale" in names
+    assert "concat" in names
+
+
+def test_parse_filters_skips_legend_and_headings():
+    """
+    Same trap as the encoder legend, one field narrower.
+
+    ' T.. = Timeline support' has a three character flag block and so passes
+    the shape test, exactly as ' V..... = Video' does in the encoder table.
+    """
+    names = MediaToolchain.parse_filters(FILTERS_OUTPUT)
+
+    assert "=" not in names, "the flag legend was parsed as a filter"
+    assert "Filters:" not in names
+    assert "input/output" not in names
+
+
+def test_parse_filters_handles_empty_output():
+    assert MediaToolchain.parse_filters("") == set()
+
+
+def test_filters_are_empty_without_ffmpeg():
+    """
+    The state on a machine with no ffmpeg at all.
+
+    Empty rather than raising, so the environment panel can report every row
+    instead of failing on the first one.
+    """
+    assert MediaToolchain(discover=False).available_filters() == set()
+    assert not MediaToolchain(discover=False).has_filter("drawtext")

@@ -167,6 +167,7 @@ def test_report_contains_every_check(tmp_path):
         "ffmpeg",
         "ffprobe",
         "encoders",
+        "filters",
         "scenedetect",
         "disk",
     }, "the panel reports what this version needs, not what a later one might"
@@ -190,8 +191,8 @@ def test_each_tab_is_told_what_it_needs_and_nothing_else(tmp_path):
     splitter = {check.key for check in checker.report(SPLITTER, tmp_path).checks}
     identifier = {check.key for check in checker.report(IDENTIFIER, tmp_path).checks}
 
-    assert {"encoders", "scenedetect"} <= splitter
-    assert not {"encoders", "scenedetect"} & identifier
+    assert {"encoders", "filters", "scenedetect"} <= splitter
+    assert not {"encoders", "filters", "scenedetect"} & identifier
 
     assert {"python", "ffmpeg", "ffprobe", "disk"} <= splitter & identifier, (
         "both read media, so both report the toolchain"

@@ -27,6 +27,8 @@ from src.core.ffmpeg_tools import MediaToolchain
 from src.core.templates import (
     FFMPEG_FALLBACK,
     FFMPEG_INSTALL,
+    FREETYPE_FALLBACK,
+    FREETYPE_INSTALL,
     PYTHON_FALLBACK,
     PYTHON_INSTALL,
 )
@@ -117,6 +119,11 @@ def python_fixes() -> List[FixStep]:
 def ffmpeg_fixes() -> List[FixStep]:
     """Ways to install ffmpeg on this machine."""
     return _steps(FFMPEG_INSTALL, FFMPEG_FALLBACK)
+
+
+def freetype_fixes() -> List[FixStep]:
+    """Ways to get an ffmpeg that can burn in frame numbers. Always optional."""
+    return _steps(FREETYPE_INSTALL, FREETYPE_FALLBACK)
 
 
 def _steps(options: dict, fallback: list) -> List[FixStep]:
@@ -277,6 +284,7 @@ class EnvironmentChecker:
 
         if tab == SPLITTER:
             checks.append(self.check_encoders())
+            checks.append(self.check_filters())
             checks.append(self.check_scenedetect())
 
         checks.append(self.check_disk(output_dir))
@@ -385,6 +393,52 @@ class EnvironmentChecker:
             )
 
         return Check(key="encoders", label="Mezzanine encoders", status=OK, detail=", ".join(present))
+
+    def check_filters(self) -> Check:
+        """
+        The drawtext filter, which burns frame numbers into the review proxy.
+
+        Never blocking. The numbers are a cross-check on the player, not the
+        product — without them the proxy still builds, still seeks exactly, and
+        the splitter still cuts. Reporting this as a failure would stop someone
+        working over a missing convenience.
+
+        Notes:
+            It is checked at all because of how it fails otherwise. Homebrew's
+            ffmpeg bottle is built without libfreetype and so has no drawtext;
+            asking for a filter that does not exist makes ffmpeg reject the
+            whole output with "Filter not found", which surfaced as a proxy
+            that would not build and no indication why. The proxy now leaves
+            the counter out when it is missing, and this row is what says so
+            before the job rather than after it.
+        """
+        if self.toolchain.ffmpeg is None:
+            return Check(
+                key="filters",
+                label="Frame numbers on the proxy",
+                status=DEGRADED,
+                detail="Cannot check without ffmpeg",
+                fixes=ffmpeg_fixes(),
+            )
+
+        if self.toolchain.has_filter(config.DRAWTEXT_FILTER):
+            return Check(
+                key="filters",
+                label="Frame numbers on the proxy",
+                status=OK,
+                detail="drawtext is available",
+            )
+
+        return Check(
+            key="filters",
+            label="Frame numbers on the proxy",
+            status=DEGRADED,
+            detail=(
+                "This ffmpeg has no drawtext filter, so the review proxy will "
+                "have no burned-in frame numbers. Everything else works."
+            ),
+            fixes=freetype_fixes(),
+        )
 
     def check_scenedetect(self) -> Check:
         """

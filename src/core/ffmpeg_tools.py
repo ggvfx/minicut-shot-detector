@@ -55,6 +55,9 @@ class MediaToolchain:
         # Cached because `ffmpeg -encoders` prints several hundred lines
         self._encoders: Optional[Set[str]] = None
 
+        # Same, and for the same reason: `ffmpeg -filters` is longer still
+        self._filters: Optional[Set[str]] = None
+
         if discover:
             self.discover()
 
@@ -70,6 +73,7 @@ class MediaToolchain:
         self.ffmpeg = self._probe_tool("ffmpeg")
         self.ffprobe = self._probe_tool("ffprobe")
         self._encoders = None
+        self._filters = None
 
     @property
     def is_ready(self) -> bool:
@@ -196,6 +200,70 @@ class MediaToolchain:
     def has_encoder(self, name: str) -> bool:
         """Whether a named encoder is available in this build."""
         return name in self.available_encoders()
+
+    # --- FILTERS ---
+
+    def available_filters(self) -> Set[str]:
+        """
+        Filter names this ffmpeg build actually offers.
+
+        Notes:
+            The same up-front check as `available_encoders`, and it exists
+            because of the same class of failure found on a real machine: a
+            Homebrew ffmpeg built without libfreetype has no `drawtext`, passes
+            every check we had, and then aborts the whole proxy encode with
+            "Filter not found" — a build problem reported as a mystery, halfway
+            through a job.
+        """
+        if self._filters is not None:
+            return self._filters
+
+        if self.ffmpeg is None:
+            self._filters = set()
+            return self._filters
+
+        result = self.run_ffmpeg(["-filters"])
+        if result.returncode != 0:
+            logging.warning("Could not read the filter list from ffmpeg")
+            self._filters = set()
+        else:
+            self._filters = self.parse_filters(result.stdout)
+
+        return self._filters
+
+    @staticmethod
+    def parse_filters(output: str) -> Set[str]:
+        """
+        Pulls filter names out of `ffmpeg -filters` output.
+
+        Table rows look like ' T.. drawtext  V->V  Draw text on top of video.',
+        where the first field is a three character flag block and the second is
+        the name — the same shape as the encoder table with a shorter flag
+        block, so it is parsed the same way.
+
+        A static method so it can be tested against captured output without
+        ffmpeg being installed.
+        """
+        names = set()
+
+        for line in output.splitlines():
+            fields = line.split()
+
+            # Skip headings, the flag legend, and anything that is not a row
+            if len(fields) < 2 or len(fields[0]) != 3:
+                continue
+            if not set(fields[0]) <= set("TSC."):
+                continue
+            if fields[1] == "=":
+                continue
+
+            names.add(fields[1])
+
+        return names
+
+    def has_filter(self, name: str) -> bool:
+        """Whether a named filter is available in this build."""
+        return name in self.available_filters()
 
     # --- REPORTING ---
 

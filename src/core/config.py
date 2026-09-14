@@ -61,6 +61,14 @@ MEZZANINE_ENCODERS = {
 # sources, so its absence is a limitation rather than a failure.
 REQUIRED_ENCODER = "libx264"
 
+# Burns the frame numbers into the review proxy. Needs an ffmpeg built with
+# libfreetype, and Homebrew's bottle is not — so this is checked up front and
+# the proxy is built without the counter when it is missing, rather than
+# ffmpeg rejecting the whole encode with "Filter not found".
+#
+# Here rather than in proxy.py because the environment panel names it too.
+DRAWTEXT_FILTER = "drawtext"
+
 # Quality of the all-intra mezzanine. Cutting on an arbitrary frame means one
 # re-encode generation — unavoidable, since long-GOP frames are defined
 # relative to their neighbours and a file can only start on a keyframe.
@@ -176,6 +184,16 @@ CLI_PRESETS = {
         # than taking image arguments
         "image_reference": "@{path}",
         "note": "Uses your existing Claude Code login. No API key needed.",
+    },
+    "kiro": {
+        "label": "Kiro CLI",
+        # Kiro takes the prompt as a positional argument rather than on stdin,
+        # so {prompt} is named explicitly. --no-interactive is its equivalent
+        # of `claude -p`; without a trust flag it hangs waiting for a tool
+        # approval prompt it has no terminal to draw.
+        "command": ["kiro-cli", "chat", "--no-interactive", "--trust-all-tools", "{prompt}"],
+        "image_reference": "@{path}",
+        "note": "Uses your existing Kiro login. Press Test — image support is unconfirmed.",
     },
     "custom": {
         "label": "Custom command…",

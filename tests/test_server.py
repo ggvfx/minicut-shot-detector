@@ -44,6 +44,7 @@ def test_the_splitter_panel_reports_what_a_split_needs():
         "ffmpeg",
         "ffprobe",
         "encoders",
+        "filters",
         "scenedetect",
         "disk",
     ], "the splitter is never shown a model it does not use"
