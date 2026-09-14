@@ -584,7 +584,7 @@ body.resizing-column * { user-select: none !important; }
 .shots th:nth-child(2) { width: 220px; }
 .shots th:nth-child(3) { width: 460px; }
 .shots th:nth-child(4) { width: 150px; }
-.shots th:nth-child(5) { width: 260px; }
+.shots th:nth-child(5) { width: 300px; }
 .shots th:nth-child(6) { width: 220px; }
 
 .shots td {
@@ -639,12 +639,18 @@ body.resizing-column * { user-select: none !important; }
 /* The shot number is the one editable cell in the review table — everything
    else in the row is evidence for it, not something to change. Sized to the
    content so a column of them does not push the description out of the row. */
+/* Fills its column, whatever width that column has been dragged to. It used
+   to cap at 160px, which was fine when a shot number was SEQ_0010 and cut the
+   name in half once the naming scheme started producing
+   PARA_003_4560_blockout_v0001 — the one string in the row that has to be read
+   in full, because it is what the files are about to be called. */
 .shot-number {
     width: 100%;
-    min-width: 90px;
-    max-width: 160px;
+    min-width: 0;
     padding: 4px 8px;
-    font-size: 13px;
+    font: inherit;
+    color: var(--text);
+    overflow-wrap: anywhere;
 }
 
 /* The description is the widest column and the one people actually read */
