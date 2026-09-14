@@ -727,7 +727,7 @@ orange Tess, yellow Amaya), one prop, two environments. It lives in
   describe, review, export — and nothing on screen refers to matching or to a
   shot list until 7.8–7.10 exist.
 
-- [ ] **7.5.2 Watchable rows** ⬅ *agreed next, after 7.5.1*
+- [~] **7.5.2 Watchable rows** — *rows as they land: done. Thumbnail: next.*
   Two changes to the same table, both about being able to trust a long run.
 
   **Rows as they land.** `describe` returns the whole batch and `renderRecords`
@@ -746,6 +746,22 @@ orange Tess, yellow Amaya), one prop, two environments. It lives in
 
   **Done when:** a three shot folder fills in one row at a time, and each row
   can be played without leaving the table.
+
+  **Streaming is in.** `prepare_stream()` yields a shot once it is described
+  and read; `prepare()` is that generator collected, so the two cannot drift.
+  The route sends NDJSON, a `total` line first so the progress bar can be
+  determinate. Proven on three ARRV shots: the table appeared at "0 of 3" and
+  filled a row at a time.
+
+  Two things the first real run showed, both fixed in passing. The summary is
+  now split at its first sentence — a declining model wrote a paragraph into
+  the shot list column — with the remainder kept as `caveat` and off the
+  table. And `production.md` said characters were "fully saturated" while sets
+  were "pale blue", which left a small washed-out blue figure matching neither
+  rule; it now reads hue rather than strength, and says colour identifies
+  figures only. A still camera in a blocking pass is 'unclear', never
+  'static': the move has not been chosen yet, and 'static' on a shot list
+  states a decision nobody made.
 
 - [ ] **7.6 The breakdown export** — *the point of this reorder*
   CSV plus thumbnails, in the shape a tracker imports.

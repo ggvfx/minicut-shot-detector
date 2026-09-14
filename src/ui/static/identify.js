@@ -292,11 +292,15 @@ function wireModels() {
 // --- DESCRIBING A FOLDER ---
 
 /**
- * Describes every shot in the chosen folder and fills in the table.
+ * Describes every shot in the chosen folder, filling the table as they land.
  *
- * The slow call: one vision pass per shot. It says so rather than pretending
- * otherwise, and the server caches each observation as it lands, so pressing
- * this again costs nothing for the shots already done.
+ * The slow call: one vision pass per shot, minutes on a full folder. The
+ * server sends each shot back the moment it is readable rather than holding
+ * the batch, because a table that stays empty until the end cannot be told
+ * from one that has hung — and a run that looks hung gets killed.
+ *
+ * Each observation is cached server side as it lands, so pressing this again
+ * costs nothing for the shots already done.
  */
 async function describeShots(force = false) {
     const status = document.getElementById("identify-status");
@@ -317,22 +321,38 @@ async function describeShots(force = false) {
         : "Describing… one model call per shot, so this takes a while.";
 
     try {
-        const response = await fetch("/api/identify/describe", {
+        const response = await fetch("/api/identify/describe/stream", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ shots_dir: state.shotsDir, force }),
         });
 
-        const body = await response.json();
-
         if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
             status.textContent = body.detail || "The shots could not be described.";
             return;
         }
 
-        state.records = body;
+        state.records = [];
+        let total = 0;
+
+        for await (const message of ndjson(response)) {
+            if (message.error) {
+                status.textContent = message.error;
+                return;
+            }
+
+            if (message.total !== undefined) {
+                total = message.total;
+                startTable(total);
+                continue;
+            }
+
+            state.records.push(message);
+            appendRecord(message, total);
+        }
+
         status.textContent = "";
-        renderRecords(body);
 
     } catch {
         status.textContent = "Could not reach the app.";
@@ -342,28 +362,86 @@ async function describeShots(force = false) {
     }
 }
 
-/** Draws one row per shot, with the shot number editable. */
-function renderRecords(records) {
-    document.getElementById("identify-results-card").hidden = false;
-    document.getElementById("identify-actions").hidden = false;
+/**
+ * Reads a newline delimited JSON response, one object at a time.
+ *
+ * A chunk off the network is not a line: it can hold several, or stop halfway
+ * through one. So the tail is kept until the newline that completes it
+ * arrives, rather than parsed and dropped.
+ */
+async function* ndjson(response) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = "";
 
-    const described = records.filter((record) => record.interpretation);
-    document.getElementById("shots-count").textContent =
-        `${records.length} shot${records.length === 1 ? "" : "s"}`;
-    document.getElementById("identify-verdict").textContent =
-        `${described.length} of ${records.length} described`;
-    document.getElementById("identify-verdict").className =
-        `summary ${described.length === records.length ? "ok" : "degraded"}`;
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-    const body = document.querySelector("#identify-table tbody");
-    body.innerHTML = "";
+        pending += decoder.decode(value, { stream: true });
+        const lines = pending.split("\n");
+        pending = lines.pop();
 
-    for (const record of records) {
-        body.append(recordRow(record));
+        for (const line of lines) {
+            if (line.trim()) yield JSON.parse(line);
+        }
     }
+
+    if (pending.trim()) yield JSON.parse(pending);
 }
 
-/** One row. The shot number is the only editable cell — the rest is evidence. */
+/** Empties the table and sizes the progress bar for a run of `total` shots. */
+function startTable(total) {
+    document.getElementById("identify-results-card").hidden = false;
+    document.getElementById("identify-actions").hidden = false;
+    document.querySelector("#identify-table tbody").innerHTML = "";
+
+    document.getElementById("shots-count").textContent =
+        `${total} shot${total === 1 ? "" : "s"}`;
+
+    setProgress(0, total);
+    updateVerdict(0, total);
+}
+
+/** Adds one finished shot to the table and moves the run along. */
+function appendRecord(record, total) {
+    document.querySelector("#identify-table tbody").append(recordRow(record));
+
+    const done = state.records.length;
+    setProgress(done, total);
+    updateVerdict(state.records.filter((one) => one.interpretation).length, total);
+}
+
+/**
+ * How far along the run is.
+ *
+ * Determinate now that the total is known up front: "nine of thirty seven"
+ * is the difference between waiting and wondering, which an indeterminate
+ * sweep could never say.
+ */
+function setProgress(done, total) {
+    const bar = document.querySelector("#identify-progress .progress-bar");
+    if (!bar || !total) return;
+
+    bar.style.animation = "none";
+    bar.style.width = `${Math.round((done / total) * 100)}%`;
+}
+
+function updateVerdict(described, total) {
+    const verdict = document.getElementById("identify-verdict");
+
+    verdict.textContent = `${described} of ${total} described`;
+    verdict.className = `summary ${described === total ? "ok" : "degraded"}`;
+}
+
+/**
+ * One row. The shot number is the only editable cell — the rest is evidence.
+ *
+ * Notes carry failures only — something the person has to act on. The model's
+ * own hedging about what it could not tell is kept on the record but stays off
+ * the table: a reviewer reads these rows against each other, and a paragraph
+ * of reasoning in one of them is noise in every other.
+ */
 function recordRow(record) {
     const row = document.createElement("tr");
     const reading = record.interpretation ?? {};
@@ -379,9 +457,17 @@ function recordRow(record) {
     return row;
 }
 
+/**
+ * One cell.
+ *
+ * The full text is always in the cell rather than cut short, so nothing is
+ * lost and the export still has it; how much of it shows is left to the
+ * stylesheet, which clamps the long columns and reveals the rest on hover.
+ */
 function textCell(value, className = "") {
     const cell = document.createElement("td");
     cell.textContent = value;
+    if (value) cell.title = value;
     if (className) cell.className = className;
     return cell;
 }

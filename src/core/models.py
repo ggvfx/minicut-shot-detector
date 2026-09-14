@@ -317,6 +317,10 @@ class Interpretation(BaseModel):
         location: The setting, in the project's words.
         summary: A one-line description in the project's language, which is
             what the breakdown export shows.
+        caveat: Anything the model said past that one line — most often why it
+            declined to name a figure. Kept, because a decline is the useful
+            half of an honest answer, but kept out of `summary`: a shot list
+            column is one line wide, and a paragraph in it reads as a fault.
     """
 
     shot_size: str = ""
@@ -326,6 +330,7 @@ class Interpretation(BaseModel):
     camera_move: str = ""
     location: str = ""
     summary: str = ""
+    caveat: str = ""
 
 
 # --- WHAT THE PROJECT SUPPLIES ---

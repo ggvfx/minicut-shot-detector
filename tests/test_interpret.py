@@ -210,3 +210,57 @@ def test_evidence_that_is_not_in_name_detail_form_is_dropped_rather_than_mangled
 def test_a_reply_that_answered_nothing_gives_an_empty_interpretation():
     """Empty rather than raising: one unreadable shot must not stop thirty-nine."""
     assert parse_reply("I'm not able to help with that.") == Interpretation()
+
+
+# --- THE SHOT LIST COLUMN IS ONE LINE WIDE ---
+
+
+def test_a_summary_that_runs_on_is_split_at_the_first_sentence():
+    """
+    The model reasons in the summary when it declines, and that reasoning is
+    worth keeping — but not in the column a shot list is read from, where a
+    paragraph beside one line reads as a fault in that row.
+    """
+    reply = (
+        "summary: WS — a small boat drifts into frame across shallow water. "
+        "The figure is left unnamed because plain light blue untextured is "
+        "also how the notes describe set geometry."
+    )
+
+    interpretation = parse_reply(reply)
+
+    assert interpretation.summary == (
+        "WS — a small boat drifts into frame across shallow water."
+    )
+    assert "left unnamed" in interpretation.caveat
+
+
+def test_a_one_sentence_summary_is_left_alone():
+    reply = "summary: MS — Nico stands at the controls of a small boat."
+
+    interpretation = parse_reply(reply)
+
+    assert interpretation.summary == "MS — Nico stands at the controls of a small boat."
+    assert interpretation.caveat == ""
+
+
+def test_a_decimal_is_not_read_as_the_end_of_a_sentence():
+    """'1.5m' and 'Mrs. Amaya' end no sentence — a stop needs a capital after it."""
+    reply = "summary: CS — the prop sits 1.5m from camera on the jetty."
+
+    interpretation = parse_reply(reply)
+
+    assert interpretation.summary.endswith("on the jetty.")
+    assert interpretation.caveat == ""
+
+
+def test_a_caveat_the_model_wrote_itself_is_not_overwritten():
+    """Asked for properly, the field wins over anything recovered from summary."""
+    reply = (
+        "summary: WS — a boat crosses the bay. It was too small to read.\n"
+        "caveat: The figure is under thirty pixels tall."
+    )
+
+    interpretation = parse_reply(reply)
+
+    assert interpretation.caveat == "The figure is under thirty pixels tall."

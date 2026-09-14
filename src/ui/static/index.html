@@ -286,10 +286,12 @@
             </div>
         </details>
 
-        <!-- Step one: what are we matching against -->
-        <section class="card">
+        <!-- Matching is deferred until 7.8-7.10, so this step is hidden rather
+             than removed: identify.js still looks its fields up, and the tab
+             does breakdowns only until the matching workflow exists. -->
+        <section class="card" id="shotlist-step" hidden>
             <div class="card-header">
-                <h2>1 · Shot list to match</h2>
+                <h2>Shot list to match</h2>
                 <span id="shotlist-summary" class="summary"></span>
             </div>
 
@@ -311,7 +313,7 @@
         <!-- Step two: what are we identifying -->
         <section class="card">
             <div class="card-header">
-                <h2>2 · Shots</h2>
+                <h2>1 · Shots</h2>
                 <span id="shots-count" class="summary"></span>
             </div>
 
@@ -340,7 +342,7 @@
         <!-- What it found, and where the human corrects it -->
         <section class="card" id="identify-results-card" hidden>
             <div class="card-header">
-                <h2>3 · Review</h2>
+                <h2>2 · Review</h2>
                 <span id="identify-verdict" class="summary"></span>
             </div>
 

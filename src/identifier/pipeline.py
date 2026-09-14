@@ -27,7 +27,7 @@ is why nothing is written until a person has approved it.
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterator, List, Optional
 
 from src.backends.adapter import BackendError, ModelBackend, create_backend
 from src.core.config import PRODUCTION_DIR, IdentifierConfig
@@ -103,16 +103,68 @@ class IdentifierPipeline:
             run after editing the knowledge files re-interprets and re-matches
             without touching a vision model.
         """
-        shots_dir = self._resolve_paths()
+        return list(self.prepare_stream(entries))
 
-        records = self._shots(shots_dir)
-        records = self._observe(records, shots_dir)
-        records = self._interpret(records)
+    def prepare_stream(
+        self,
+        entries: Optional[List[ShotListEntry]] = None,
+        records: Optional[List[ShotRecord]] = None,
+    ) -> Iterator[ShotRecord]:
+        """
+        The same work as `prepare()`, handing back each shot as it finishes.
+
+        Args:
+            entries: The shot list to match against, as in `prepare()`.
+            records: A listing from `shots()`, when the caller has already
+                taken one to size the batch. Passing it back means the count
+                shown and the rows delivered cannot disagree, and saves reading
+                the folder twice.
+
+        Yields:
+            One record per video file, in name order, each yielded once it has
+            been both described and read — not once the batch is done.
+
+        Raises:
+            ValueError: If the config has no shots directory.
+            RuntimeError: If no usable backend is configured, or the folder
+                holds no video files.
+
+        Notes:
+            A batch is minutes long at model speed, and a table that stays
+            empty until the end is indistinguishable from one that has hung.
+            So a shot is observed and interpreted before the next is started,
+            rather than the whole batch being observed and then the whole batch
+            interpreted.
+
+            This changes the order the two models are called in, and nothing
+            else: interpretation reads one observation at a time and never the
+            batch, so a shot is read exactly as it would have been. It also
+            surfaces a broken text backend on shot one instead of after every
+            vision call has been paid for.
+
+            Matching still needs the finished set, so it runs after the loop —
+            records already yielded are the same objects, and are updated in
+            place.
+        """
+        shots_dir = self._resolve_paths()
+        if records is None:
+            records = self._shots(shots_dir)
+
+        observer, sampler, frames_dir = self._observation_tools(records, shots_dir)
+        interpreter = Interpreter(self._backend("text"), self._knowledge())
+
+        for index, record in enumerate(records, start=1):
+            logging.info(f"Shot {index} of {len(records)}: {Path(record.file).name}")
+
+            if observer is not None:
+                self._observe_one(record, observer, sampler, frames_dir)
+                self._write_cache(shots_dir, records)
+
+            self._interpret_one(record, interpreter)
+            yield record
 
         if entries:
-            records = self._match(records, entries)
-
-        return records
+            self._match(records, entries)
 
     def rename(self, records: List[ShotRecord]) -> List[ShotRecord]:
         """
@@ -165,6 +217,24 @@ class IdentifierPipeline:
         raise NotImplementedError
 
     # --- STAGES ---
+
+    def shots(self) -> List[ShotRecord]:
+        """
+        Every shot in the folder, with any cached description already loaded.
+
+        Returns:
+            One record per video file, in name order, described only in so far
+            as a previous run has already paid for it.
+
+        Raises:
+            ValueError: If the config has no shots directory.
+            RuntimeError: If the folder holds no video files.
+
+        Notes:
+            No model is called, so this is how a caller learns how big a batch
+            is before starting one — the count a progress bar needs.
+        """
+        return self._shots(self._resolve_paths())
 
     def _resolve_paths(self) -> Path:
         """
@@ -219,72 +289,89 @@ class IdentifierPipeline:
         logging.info(f"{len(records)} shots in {shots_dir}, {len(cached)} already described")
         return records
 
-    def _observe(self, records: List[ShotRecord], shots_dir: Path) -> List[ShotRecord]:
+    def _observation_tools(self, records: List[ShotRecord], shots_dir: Path):
         """
-        Stage 2. The vision pass — the slow one, and the only one with images.
+        Stage 2's tools, or None when no shot needs the vision pass.
+
+        Args:
+            records: Every shot in the folder, cache already applied.
+            shots_dir: Where the frames directory belongs.
+
+        Returns:
+            `(observer, sampler, frames_dir)`, with the observer None when
+            every shot is already described — the cheap re-run after editing a
+            knowledge file, which must not open a vision backend or create a
+            frames directory it has no use for.
+        """
+        outstanding = any(
+            self.config.force_observe or record.observation is None
+            for record in records
+        )
+
+        if not outstanding:
+            logging.info("Every shot already described; no vision calls needed")
+            return None, None, None
+
+        return (
+            Observer(self._backend("vision")),
+            FrameSampler(self.toolchain),
+            ensure_directory(shots_dir / FRAMES_DIRECTORY),
+        )
+
+    def _observe_one(self, record: ShotRecord, observer, sampler, frames_dir) -> None:
+        """
+        Stage 2 for a single shot. The vision pass — the slow, paid one.
+
+        Args:
+            record: The shot to describe, updated in place.
+            observer: The vision pass.
+            sampler: Pulls the frames it looks at.
+            frames_dir: Where those frames are written.
 
         Notes:
-            Cached shots are skipped unless the config asks for them again. The
-            cache is written after each shot rather than at the end: a batch of
-            forty that fails on shot thirty-nine must not throw away
-            thirty-eight descriptions.
+            A shot already described is left alone unless the config asks for
+            it again, which is what makes a second run cost nothing.
 
             A shot that fails is recorded as failed and the batch continues.
             One unreadable file should not stop the other thirty-nine.
         """
-        outstanding = [
-            record for record in records
-            if self.config.force_observe or record.observation is None
-        ]
+        if record.observation is not None and not self.config.force_observe:
+            return
 
-        if not outstanding:
-            logging.info("Every shot already described; no vision calls needed")
-            return records
+        path = Path(record.file)
 
-        observer = Observer(self._backend("vision"))
-        sampler = FrameSampler(self.toolchain)
-        frames_dir = ensure_directory(shots_dir / FRAMES_DIRECTORY)
+        try:
+            frames = sampler.sample(path, frames_dir)
+            record.observation = observer.observe(frames)
+            record.backend = observer.backend.describe()
+            record.model = observer.backend.config.model or ""
+        except (BackendError, RuntimeError, ValueError) as error:
+            record.notes = f"Could not describe this shot: {error}"
+            logging.warning(f"{path.name}: {error}")
 
-        for index, record in enumerate(outstanding, start=1):
-            path = Path(record.file)
-            logging.info(f"Describing {path.name} ({index} of {len(outstanding)})")
-
-            try:
-                frames = sampler.sample(path, frames_dir)
-                record.observation = observer.observe(frames)
-                record.backend = observer.backend.describe()
-                record.model = observer.backend.config.model or ""
-            except (BackendError, RuntimeError, ValueError) as error:
-                record.notes = f"Could not describe this shot: {error}"
-                logging.warning(f"{path.name}: {error}")
-                continue
-
-            self._write_cache(shots_dir, records)
-
-        return records
-
-    def _interpret(self, records: List[ShotRecord]) -> List[ShotRecord]:
+    def _interpret_one(self, record: ShotRecord, interpreter: Interpreter) -> None:
         """
-        Stage 3. Reads the observations in the project's own vocabulary.
+        Stage 3 for a single shot. Reads the observation in the project's terms.
+
+        Args:
+            record: The shot to read, updated in place.
+            interpreter: The text pass.
 
         Notes:
             Text only, so this is cheap enough to re-run whenever the knowledge
             files change — which is the point of separating it from Stage 2.
+
+            Nothing to read is not a failure: a shot whose vision pass failed
+            is left as it is, carrying the note that says why.
         """
-        described = [record for record in records if record.observation]
-        if not described:
-            return records
+        if not record.observation:
+            return
 
-        interpreter = Interpreter(self._backend("text"), self._knowledge())
-
-        for record in described:
-            try:
-                record.interpretation = interpreter.interpret(record.observation)
-            except BackendError as error:
-                record.notes = f"Could not interpret this shot: {error}"
-                logging.warning(f"{Path(record.file).name}: {error}")
-
-        return records
+        try:
+            record.interpretation = interpreter.interpret(record.observation)
+        except BackendError as error:
+            record.notes = f"Could not interpret this shot: {error}"
+            logging.warning(f"{Path(record.file).name}: {error}")
 
     def _match(self, records: List[ShotRecord], entries: List[ShotListEntry]) -> List[ShotRecord]:
         """

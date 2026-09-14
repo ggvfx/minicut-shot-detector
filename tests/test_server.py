@@ -5,6 +5,7 @@ Exercises the API through FastAPI's test client, so the JSON the front end
 actually receives is what gets asserted.
 """
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -353,3 +354,53 @@ def test_the_guide_says_what_to_install_whatever_the_machine_has():
     assert any(step["url"] for step in guide["ffmpeg"]["fixes"]), (
         "always a route that needs no package manager"
     )
+
+
+# --- DESCRIBING A FOLDER, ROW BY ROW ---
+
+
+def test_the_stream_sends_a_total_then_one_line_per_shot(monkeypatch):
+    """
+    The table draws a row per line and sizes its progress bar from the first
+    one, so the shape of this response is a contract, not an implementation
+    detail.
+    """
+    from src.core.models import ShotRecord
+    from src.ui.routes import identifier as routes
+
+    records = [ShotRecord(file=f"shot_{n}.mp4") for n in range(1, 4)]
+
+    monkeypatch.setattr(routes.IdentifierPipeline, "shots", lambda _self: records)
+    monkeypatch.setattr(
+        routes.IdentifierPipeline, "prepare_stream", lambda _self, **_options: iter(records)
+    )
+
+    response = client.post("/api/identify/describe/stream", json={"shots_dir": "anywhere"})
+
+    assert response.status_code == 200
+    lines = [json.loads(line) for line in response.text.splitlines() if line]
+
+    assert lines[0] == {"total": 3}
+    assert len(lines) == 4, "a header line and one line per shot"
+    assert [line["file"] for line in lines[1:]] == ["shot_1.mp4", "shot_2.mp4", "shot_3.mp4"]
+
+
+def test_a_stream_that_cannot_start_says_so_in_the_body(monkeypatch):
+    """
+    The response has already begun by the time most failures can happen, so a
+    status code is not available to carry them. An empty folder is reported as
+    a final line the table can show, rather than a stream that simply stops.
+    """
+    from src.ui.routes import identifier as routes
+
+    def no_shots(_self):
+        raise RuntimeError("No video files in that folder")
+
+    monkeypatch.setattr(routes.IdentifierPipeline, "shots", no_shots)
+
+    response = client.post("/api/identify/describe/stream", json={"shots_dir": "anywhere"})
+
+    assert response.status_code == 200
+    lines = [json.loads(line) for line in response.text.splitlines() if line]
+
+    assert lines == [{"error": "No video files in that folder"}]

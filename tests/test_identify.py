@@ -327,3 +327,83 @@ def test_the_cache_survives_the_folder_rather_than_the_session(shots, wired):
 
     assert set(remembered) == {"cut_001.mp4", "cut_002.mp4", "cut_003.mp4"}
     assert Observation.model_validate(remembered["cut_001.mp4"]["observation"]).subject_count == 1
+
+
+# --- ROWS AS THEY LAND ---
+
+
+def test_a_shot_is_yielded_before_the_batch_is_finished(shots, wired):
+    """
+    The point of streaming: row one exists while shots two and three are still
+    unread. A table that fills in only at the end cannot be told from a hang.
+    """
+    engine = wired(ScriptedBackend(OBSERVED), ScriptedBackend(INTERPRETED), shots_dir=str(shots))
+
+    stream = engine.prepare_stream()
+    first = next(stream)
+
+    assert first.interpretation, "the first row arrived before it was readable"
+
+    rest = list(stream)
+    assert len(rest) == 2
+
+
+def test_streaming_describes_each_shot_exactly_once(shots, wired):
+    """Interleaving the two passes must not cost an extra call to either."""
+    vision = ScriptedBackend(OBSERVED)
+    text = ScriptedBackend(INTERPRETED)
+    engine = wired(vision, text, shots_dir=str(shots))
+
+    records = list(engine.prepare_stream())
+
+    assert len(records) == 3
+    assert vision.calls == 3
+    assert text.calls == 3
+
+
+def test_streaming_and_blocking_agree(shots, wired):
+    """
+    `prepare()` is `prepare_stream()` collected, so the two cannot drift. This
+    asserts the reading of each shot is the same either way — the interleaving
+    changes when the text pass runs, and must not change what it says.
+    """
+    streamed = list(
+        wired(ScriptedBackend(OBSERVED), ScriptedBackend(INTERPRETED), shots_dir=str(shots))
+        .prepare_stream()
+    )
+    blocking = (
+        wired(ScriptedBackend(OBSERVED), ScriptedBackend(INTERPRETED), shots_dir=str(shots))
+        .prepare()
+    )
+
+    assert [record.file for record in streamed] == [record.file for record in blocking]
+    assert [record.interpretation for record in streamed] == [
+        record.interpretation for record in blocking
+    ]
+
+
+def test_shots_counts_the_batch_without_calling_a_model(shots, wired):
+    """The count a progress bar needs must not cost a vision call to learn."""
+    vision = ScriptedBackend(OBSERVED)
+    engine = wired(vision, ScriptedBackend(INTERPRETED), shots_dir=str(shots))
+
+    listed = engine.shots()
+
+    assert len(listed) == 3
+    assert vision.calls == 0
+
+
+def test_a_failed_shot_is_still_yielded(shots, wired):
+    """
+    A row that could not be described belongs in the table carrying its note.
+    Dropping it would leave a gap the person can neither see nor act on, and
+    the streamed run has to behave as the blocking one already does.
+    """
+    vision = ScriptedBackend(replies=[OBSERVED, BackendError("the model refused"), OBSERVED])
+    engine = wired(vision, ScriptedBackend(INTERPRETED), shots_dir=str(shots))
+
+    records = list(engine.prepare_stream())
+
+    assert len(records) == 3, "the failed shot was dropped from the table"
+    assert "the model refused" in records[1].notes
+    assert records[2].interpretation is not None, "the run carried on past the failure"

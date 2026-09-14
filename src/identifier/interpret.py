@@ -15,7 +15,7 @@ observations in seconds, with no vision model and no per-image cost.
 
 import logging
 import re
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from src.backends.adapter import ModelBackend
 from src.core.models import Interpretation, Observation, ProjectKnowledge
@@ -37,8 +37,14 @@ INTERPRETATION_FIELDS = {
     ),
     "camera_move": (
         "Using ONLY the terminology given, which camera move is this? The term "
-        "alone, or 'unclear'. Answer 'static' only if the observation says "
-        "nothing changes."
+        "alone, or 'unclear'. Read it from the 'motion' line and agree with it: "
+        "if that line describes the framing widening, tightening, rising or "
+        "travelling, the answer is the term for that move. Where the motion "
+        "line says nothing changes, follow the production notes on what an "
+        "unmoving camera means for this kind of material — in a blocking pass "
+        "it usually means the move has not been chosen yet, which is 'unclear' "
+        "and not 'static'. Only answer 'static' where holding the frame is a "
+        "decision someone actually made."
     ),
     "characters": (
         "Which named characters from the production notes do the observed "
@@ -56,7 +62,13 @@ INTERPRETATION_FIELDS = {
     ),
     "summary": (
         "One sentence describing this shot, in the project's own terms, as it "
-        "would appear on a shot list. Lead with the shot size and type."
+        "would appear on a shot list. Lead with the shot size and type. One "
+        "sentence only — put anything else, including why you could not name "
+        "a figure, under 'caveat'."
+    ),
+    "caveat": (
+        "Anything worth saying that does not belong on a shot list — most "
+        "often why a figure was left unknown. A sentence or two, or nothing."
     ),
 }
 
@@ -185,6 +197,7 @@ def parse_reply(reply: str) -> Interpretation:
     """
     text = unfence(reply)
     interpretation = Interpretation()
+    spilled = ""
 
     for name in INTERPRETATION_FIELDS:
         value = field_value(text, name, _others(name))
@@ -195,10 +208,46 @@ def parse_reply(reply: str) -> Interpretation:
             interpretation.characters = _as_names(value)
         elif name in MAP_FIELDS:
             interpretation.evidence = _as_map(value)
+        elif name == "summary":
+            interpretation.summary, overflow = _one_line(value)
+            spilled = overflow
         elif _is_answer(value):
             setattr(interpretation, name, value.strip())
 
+    # A model that reasons in the summary anyway has its reasoning kept, not
+    # dropped — just moved to where a paragraph does no harm.
+    if spilled and not interpretation.caveat:
+        interpretation.caveat = spilled
+
     return interpretation
+
+
+def _one_line(value: str) -> Tuple[str, str]:
+    """
+    The first sentence, and whatever followed it.
+
+    Args:
+        value: What the model wrote for the summary.
+
+    Returns:
+        `(summary, overflow)` — one sentence for the shot list column, and the
+        rest for the caveat.
+
+    Notes:
+        Splitting on the first full stop that ends a sentence rather than on
+        every one: "1.5m" and "Mrs. Amaya" are not sentence ends, so a stop is
+        only taken as one when a space and a capital follow it.
+    """
+    if not _is_answer(value):
+        return "", ""
+
+    text = " ".join(value.split())
+    match = re.search(r"(?<=[.!?])\s+(?=[A-Z])", text)
+
+    if not match:
+        return text, ""
+
+    return text[: match.start()].strip(), text[match.end():].strip()
 
 
 def _others(name: str) -> List[str]:

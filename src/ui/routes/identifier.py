@@ -6,9 +6,11 @@ knowledge folder for now; the observation, matching, rename and export routes
 join it as Phase 7 fills in.
 """
 
-from typing import List
+import json
+from typing import Iterator, List
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.core.config import PRODUCTION_DIR, IdentifierConfig, load_settings
@@ -89,3 +91,44 @@ def post_describe(request: DescribeRequest) -> List[ShotRecord]:
         raise HTTPException(status_code=422, detail=str(error))
     except RuntimeError as error:
         raise HTTPException(status_code=409, detail=str(error))
+
+
+@router.post("/api/identify/describe/stream")
+def post_describe_stream(request: DescribeRequest) -> StreamingResponse:
+    """
+    The same run as `post_describe`, sending each shot back as it finishes.
+
+    One JSON object per line, which is what the table draws a row from. A batch
+    is minutes long, and a table that fills in as the work lands is the
+    difference between a slow run and one that looks hung — the reason a good
+    run has been killed before now.
+
+    A POST rather than an event stream, because the folder is a path off this
+    machine and has no business in a URL.
+
+    Notes:
+        The first line is an object carrying `total`, so the table knows how
+        many rows to expect before any arrives. Errors that would be a status
+        code on the blocking route arrive as a final `{"error": ...}` line:
+        the response has already begun by the time most of them can happen.
+    """
+    config = IdentifierConfig(
+        shots_dir=request.shots_dir,
+        force_observe=request.force,
+        vision=load_settings().vision,
+        text=load_settings().text,
+    )
+
+    pipeline = IdentifierPipeline(config, toolchain)
+
+    def lines() -> Iterator[str]:
+        try:
+            records = pipeline.shots()
+            yield json.dumps({"total": len(records)}) + "\n"
+
+            for record in pipeline.prepare_stream(records=records):
+                yield record.model_dump_json() + "\n"
+        except (ValueError, RuntimeError) as error:
+            yield json.dumps({"error": str(error)}) + "\n"
+
+    return StreamingResponse(lines(), media_type="application/x-ndjson")

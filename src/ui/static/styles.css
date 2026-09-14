@@ -590,6 +590,26 @@ summary .summary { margin: 0; }
 }
 
 /* The description is the widest column and the one people actually read */
-.shot-summary { max-width: 42ch; }
+/* Clamped rather than truncated: the cell holds the whole text, and hovering
+   shows it. A row is scanned against its neighbours, so one shot the model had
+   a great deal to say about must not make the other rows unreadable. */
+.shot-summary,
+.shot-note {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.shot-summary {
+    max-width: 42ch;
+    -webkit-line-clamp: 3;
+}
+
 .shot-name { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
-.shot-note { font-size: 12px; color: var(--degraded); }
+
+.shot-note {
+    font-size: 12px;
+    color: var(--degraded);
+    max-width: 34ch;
+    -webkit-line-clamp: 3;
+}
