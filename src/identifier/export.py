@@ -26,6 +26,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from openpyxl import Workbook
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+from openpyxl.utils.exceptions import IllegalCharacterError
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
@@ -174,7 +176,7 @@ def write_xlsx(records: List[ShotRecord], output_dir: Path) -> Path:
         cell.font = Font(bold=True)
 
     for row in export_rows(records):
-        sheet.append([row[column] for column in EXPORT_COLUMNS])
+        sheet.append([_spreadsheet_safe(row[column]) for column in EXPORT_COLUMNS])
 
     # The header stays put while someone scrolls forty shots.
     sheet.freeze_panes = "A2"
@@ -187,10 +189,41 @@ def write_xlsx(records: List[ShotRecord], output_dir: Path) -> Path:
             for cell in sheet[letter][1:]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
 
-    book.save(target)
+    try:
+        book.save(target)
+    except IllegalCharacterError as error:
+        # Translated rather than raised as it comes: openpyxl's exceptions are
+        # this module's business, and a route that had to import them to catch
+        # them would be reaching through the layer for it. It is also not a
+        # ValueError, so the obvious catch upstairs would miss it silently.
+        raise ValueError(f"a cell held something a spreadsheet will not take: {error}")
 
     logging.info(f"Wrote {target}")
     return target
+
+
+def _spreadsheet_safe(value: str) -> str:
+    """
+    One cell's text, with anything a spreadsheet refuses taken out.
+
+    Args:
+        value: The text for one cell.
+
+    Returns:
+        The same text without control characters.
+
+    Notes:
+        A spreadsheet will not hold control characters and raises rather than
+        dropping them, where CSV takes them without comment — so a reply
+        carrying a stray escape wrote one file and failed the other.
+
+        That particular escape is stripped where a command's output is read
+        now, but a description cached before that fix still carries it, and
+        the next tool to colour its output will not announce itself either.
+        Cheaper to make the writer impossible to poison than to trust every
+        source upstream of it.
+    """
+    return ILLEGAL_CHARACTERS_RE.sub("", value) if isinstance(value, str) else value
 
 
 def write_thumbnails(records: List[ShotRecord], output_dir: Path) -> List[Path]:

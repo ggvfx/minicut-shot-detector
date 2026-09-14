@@ -695,3 +695,38 @@ def test_a_fix_always_offers_a_way_that_needs_no_package_manager():
     assert fixes, "this platform must offer something"
     assert all(fix.label for fix in fixes), "every option says what it is"
     assert all(fix.command or fix.url for fix in fixes), "and gives something to act on"
+
+
+# --- TERMINAL COLOUR IN A REPLY ---
+
+ESC = chr(27)
+
+
+def test_colour_codes_are_taken_off_a_reply():
+    """
+    Reported from macOS: every description and character list ended in a
+    visible "[0m". A CLI that decides stdout is a terminal colours its output,
+    and the escapes arrive inside the answer.
+    """
+    from src.backends.command import without_colour
+
+    assert without_colour(f"EWS single on Nico.{ESC}[0m {ESC}[0m") == "EWS single on Nico."
+    assert without_colour(f"{ESC}[1;32mgreen{ESC}[0m answer") == "green answer"
+
+
+def test_an_escape_that_lost_its_prefix_goes_too():
+    """The form that was actually on screen, with the ESC eaten upstream."""
+    from src.backends.command import without_colour
+
+    assert without_colour("Nico, Vega[0m [0m") == "Nico, Vega"
+
+
+def test_a_measurement_is_not_mistaken_for_an_escape():
+    """
+    '1.5m from camera' is the shape a looser pattern would eat. Digits and
+    semicolons only, and they have to follow a bracket.
+    """
+    from src.backends.command import without_colour
+
+    assert without_colour("a shot at 1.5m from camera") == "a shot at 1.5m from camera"
+    assert without_colour("plain text with no colour") == "plain text with no colour"

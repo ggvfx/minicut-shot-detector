@@ -198,3 +198,39 @@ def test_a_shot_with_no_frames_left_is_skipped_not_invented(tmp_path):
     written = write_thumbnails([record], tmp_path / "breakdown")
 
     assert written == []
+
+
+# --- WHAT A SPREADSHEET WILL NOT HOLD ---
+
+ESC = chr(27)
+
+
+def test_a_reply_with_an_escape_in_it_still_writes_a_spreadsheet(tmp_path):
+    """
+    Reported from macOS. A CLI coloured its output, the escape arrived inside
+    the description, and openpyxl refuses control characters — so the CSV was
+    written and the spreadsheet raised, taking the thumbnails with it.
+    """
+    record = described_shot(tmp_path)
+    record.interpretation = DESCRIBED.model_copy(
+        update={"summary": f"EWS single on Nico.{ESC}[0m", "characters": [f"Nico{ESC}[0m"]}
+    )
+
+    xlsx = write_xlsx([record], tmp_path / "breakdown")
+    sheet = load_workbook(xlsx).active
+    values = [cell for row in sheet.iter_rows(min_row=2, values_only=True) for cell in row]
+
+    assert any("EWS single on Nico." in str(value) for value in values)
+    assert not any(ESC in str(value) for value in values), "an escape reached the sheet"
+
+
+def test_the_csv_and_the_spreadsheet_both_survive_it(tmp_path):
+    """Whatever the reply carried, one press still has to produce both files."""
+    record = described_shot(tmp_path)
+    record.interpretation = DESCRIBED.model_copy(
+        update={"summary": f"A shot.{ESC}[0m"}
+    )
+    output = tmp_path / "breakdown"
+
+    assert write_csv([record], output).is_file()
+    assert write_xlsx([record], output).is_file()

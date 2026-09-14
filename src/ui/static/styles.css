@@ -691,6 +691,7 @@ body.resizing-column * { user-select: none !important; }
    resizable, because the one shot the model wrote an essay about is exactly
    the one worth dragging open. */
 .shot-summary-input,
+.shot-characters-input,
 .shot-note-input {
     width: 100%;
     font: inherit;
@@ -717,9 +718,11 @@ body.resizing-column * { user-select: none !important; }
 }
 
 .shot-summary-input:hover,
+.shot-characters-input:hover,
 .shot-note-input:hover { border-color: var(--border); }
 
 .shot-summary-input:focus,
+.shot-characters-input:focus,
 .shot-note-input:focus {
     border-color: var(--ok);
     color: var(--text);

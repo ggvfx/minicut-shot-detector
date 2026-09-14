@@ -14,6 +14,7 @@ Python client library, nothing to pin or to break on upgrade.
 """
 
 import logging
+import re
 import shutil
 import subprocess
 import time
@@ -37,6 +38,41 @@ IMAGES_PLACEHOLDER = "{images}"
 # How much of stderr to quote when a command fails. Enough to carry the real
 # message, not so much that a stack trace fills the panel.
 STDERR_LINES = 4
+
+# --- TERMINAL COLOUR ---
+
+# A CLI writing to us is still a CLI: some decide stdout is a terminal and
+# colour their output, and the escape codes arrive inside the answer. On macOS
+# they were turning up on the end of every description and character list as a
+# visible "[0m".
+#
+# Two patterns because the escape can arrive whole or already half-eaten. The
+# first is a real escape sequence; the second is what is left once the leading
+# ESC has been lost somewhere upstream, which is the form that was actually
+# showing on screen. "[0m" is not English, so removing it costs nothing a
+# description would miss — and the digits-then-m shape leaves "1.5m from
+# camera" alone, which a looser pattern would not.
+ESC = chr(27)
+ANSI = re.compile(ESC + r"\[[0-9;?]*[ -/]*[@-~]")
+ANSI_ORPHANED = re.compile(r"\[[0-9;]{1,11}m")
+
+
+def without_colour(text: str) -> str:
+    """
+    A reply with any terminal colouring taken out of it.
+
+    Args:
+        text: What the command printed.
+
+    Returns:
+        The same text with escape sequences removed and the edges tidied.
+
+    Notes:
+        Done here rather than in the reply parsers because this is where a
+        terminal's habits enter the app. Every pass downstream — observation,
+        interpretation, the Test button — then reads the same clean text.
+    """
+    return ANSI_ORPHANED.sub("", ANSI.sub("", text)).strip()
 
 
 class CommandBackend(ModelBackend):
@@ -114,7 +150,7 @@ class CommandBackend(ModelBackend):
                 f"{self._reason(result.stdout, result.stderr)}"
             )
 
-        text = (result.stdout or "").strip()
+        text = without_colour(result.stdout or "")
         if not text:
             raise BackendError(
                 f"{args[0]} exited cleanly but printed nothing. {self._tail(result.stderr)}".strip()

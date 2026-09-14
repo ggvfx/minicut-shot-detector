@@ -333,7 +333,7 @@ function recordRow(record) {
         videoCell(record),
         textCell(fileNameOf(record.file), "shot-name"),
         summaryCell(record),
-        textCell((reading.characters || []).join(", ") || "—"),
+        charactersCell(record),
         numberCell(record),
         noteCell(record),
     );
@@ -405,6 +405,37 @@ function summaryCell(record) {
     input.addEventListener("change", () => {
         if (!record.interpretation) record.interpretation = {};
         record.interpretation.summary = input.value.trim();
+    });
+
+    cell.append(input);
+    return cell;
+}
+
+/**
+ * Who is in the shot, editable.
+ *
+ * The model proposes and a reviewer corrects — a figure it left unknown is
+ * named here, and one it named wrongly is fixed here. Comma separated in and
+ * out, which is how the export writes them and how a person types them.
+ */
+function charactersCell(record) {
+    const cell = document.createElement("td");
+    const input = document.createElement("textarea");
+
+    input.className = "shot-characters-input";
+    input.rows = 2;
+    input.value = (record.interpretation?.characters || []).join(", ");
+    input.placeholder = "—";
+
+    input.addEventListener("change", () => {
+        if (!record.interpretation) record.interpretation = {};
+
+        // Split on commas and drop the empties, so a trailing comma or a
+        // double space does not become a character called nothing.
+        record.interpretation.characters = input.value
+            .split(",")
+            .map((name) => name.trim())
+            .filter(Boolean);
     });
 
     cell.append(input);

@@ -261,13 +261,27 @@ def post_export(request: ExportRequest) -> dict:
     """
     output_dir = Path(request.shots_dir) / EXPORT_DIR
 
+    # Each piece reports its own failure. They used to share one try, so a
+    # spreadsheet that refused a character took the thumbnails down with it and
+    # said nothing about why — the CSV beside them had already been written.
     try:
         csv_path = write_csv(request.records, output_dir)
-        xlsx_path = write_xlsx(request.records, output_dir)
-    except OSError as error:
-        raise HTTPException(status_code=422, detail=f"Could not write the export: {error}")
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=f"Could not write the CSV: {error}")
 
-    stills = write_thumbnails(request.records, output_dir) if request.thumbnails else []
+    try:
+        xlsx_path = write_xlsx(request.records, output_dir)
+    except (OSError, ValueError) as error:
+        raise HTTPException(
+            status_code=422, detail=f"Could not write the spreadsheet: {error}"
+        )
+
+    try:
+        stills = write_thumbnails(request.records, output_dir) if request.thumbnails else []
+    except OSError as error:
+        raise HTTPException(
+            status_code=422, detail=f"The files were written, but the thumbnails were not: {error}"
+        )
 
     return {
         "folder": str(output_dir),

@@ -854,6 +854,31 @@ Everything below is the **matching half**, which the breakdown above now feeds.
   be read, a drag that never ends and a poster that 404s are all invisible to
   it.
 
+- [x] **7.5.6 What a coloured terminal did to the export** *(7 tests)*
+  Reported from macOS, and one cause behind three symptoms.
+
+  A CLI that decides stdout is a terminal colours its output, and the escape
+  codes arrive inside the answer — so every description and character list
+  ended in a visible "[0m". Stripped now where a command's output is read,
+  which is where a terminal's habits enter the app; every pass downstream then
+  reads the same clean text.
+
+  The same escape broke the spreadsheet. openpyxl refuses control characters
+  and raises, where CSV takes them without comment — so the CSV was written
+  and the .xlsx was not. Cells are sanitised before they are written, because
+  a description cached before the fix still carries the escape and the next
+  tool to colour its output will not announce itself either.
+
+  And the thumbnails were never broken. All three writes shared one `try`, so
+  the spreadsheet's exception aborted before the thumbnails ran. Each stage
+  now reports its own failure. `IllegalCharacterError` is not an `OSError` or
+  a `ValueError`, so the route's catch missed it entirely and the front end
+  fell back to a generic message — `write_xlsx` translates it at the boundary
+  rather than routes importing openpyxl's exceptions to catch them.
+
+  The character list is editable now too, comma separated in and out. The
+  model proposes; a figure it left unknown gets named here.
+
 - [ ] **Flagged, not acted on: `identify.js` is 683 lines.**
   Over the threshold, and it is now doing several jobs: knowledge, the
   streaming run, the table and its cells, naming, renaming and export. The
