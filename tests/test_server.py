@@ -476,7 +476,7 @@ def test_a_rename_can_be_undone_through_the_api(tmp_path):
         "records": records, "shots_dir": str(tmp_path),
     })
 
-    assert undone.json() == {"restored": 1}
+    assert undone.json()["restored"] == 1
     assert path.is_file()
 
 
@@ -576,3 +576,48 @@ def test_a_saved_command_still_decides_which_preset_is_shown(monkeypatch):
     chosen = client.get("/api/settings").json()
 
     assert chosen["vision"]["preset"] == "claude"
+
+
+def test_a_poster_survives_a_rename(tmp_path):
+    """
+    The whole table went grey on rename: frames stay under the stem the shot
+    was described as, and the route only knew the new name.
+    """
+    from src.identifier.pipeline import FRAMES_DIRECTORY
+    from src.identifier.rename import RENAME_LOG
+
+    renamed = tmp_path / "SEQ_0010.mp4"
+    renamed.write_bytes(b"x")
+
+    frames = tmp_path / FRAMES_DIRECTORY
+    frames.mkdir()
+    (frames / "shot_001_f00.jpg").write_bytes(b"jpeg-ish")
+
+    (tmp_path / RENAME_LOG).write_text(json.dumps([
+        {"original": "shot_001.mp4", "renamed_to": "SEQ_0010.mp4",
+         "shot_number": "SEQ_0010", "at": "now"}
+    ]), encoding="utf-8")
+
+    response = client.get("/api/identify/poster", params={"path": str(renamed)})
+
+    assert response.status_code == 200
+    assert response.content == b"jpeg-ish"
+
+
+def test_undoing_hands_back_records_that_match_the_folder(tmp_path):
+    """The table follows the folder, or every row points at a file that has moved."""
+    path = tmp_path / "shot_001.mp4"
+    path.write_bytes(b"x")
+    records = [{"file": str(path), "shot_number": "SEQ_0010", "approved": True}]
+
+    renamed = client.post("/api/identify/rename", json={
+        "records": records, "shots_dir": str(tmp_path),
+    }).json()
+
+    undone = client.post("/api/identify/rename/undo", json={
+        "records": renamed, "shots_dir": str(tmp_path),
+    }).json()
+
+    assert undone["restored"] == 1
+    assert Path(undone["records"][0]["file"]).name == "shot_001.mp4"
+    assert undone["records"][0]["renamed_to"] is None

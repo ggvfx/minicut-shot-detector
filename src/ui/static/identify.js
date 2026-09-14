@@ -628,9 +628,16 @@ async function undoRename() {
         return;
     }
 
-    const { restored } = await response.json();
+    const { restored, records } = await response.json();
+
+    // The table has to follow the folder. Left holding the renamed paths it
+    // points at files that are no longer there, so nothing plays and every
+    // name reads wrong — worse than the state the undo was recovering from.
+    state.records = records;
+    redrawRows();
+
     status.textContent = restored
-        ? `Put ${restored} files back. Describe again to refresh the table.`
+        ? `Put ${restored} files back.`
         : "There was no rename to undo.";
 }
 

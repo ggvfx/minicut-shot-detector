@@ -8,6 +8,7 @@ real project.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -276,3 +277,50 @@ def test_a_record_that_moved_says_so_and_one_that_did_not_stays_silent(tmp_path)
 
     assert records[0].renamed_to == "SEQ_0010.mp4"
     assert records[1].renamed_to is None
+
+
+# --- FINDING WORK FILED UNDER THE OLD NAME ---
+
+
+def test_the_log_maps_a_renamed_file_back_to_what_it_was(tmp_path):
+    """
+    What the poster route needs. Frames are written from the stem a shot had
+    when it was described and stay there, so a renamed file has to be able to
+    ask what it used to be called.
+    """
+    from src.identifier.rename import original_name_of
+
+    records = shots(tmp_path, count=1)
+    number_shots(records, NamingScheme(prefix="SEQ_", start="0010"))
+    apply_renames(records, tmp_path)
+
+    assert original_name_of(tmp_path, "SEQ_0010.mp4") == "export_shot_001.mp4"
+    assert original_name_of(tmp_path, "never_renamed.mp4") is None
+
+
+def test_a_folder_with_no_log_answers_nothing(tmp_path):
+    from src.identifier.rename import original_name_of
+
+    assert original_name_of(tmp_path, "anything.mp4") is None
+
+
+def test_records_follow_the_files_back_after_an_undo(tmp_path):
+    """
+    The table has to end up pointing at what is actually on disk. Holding the
+    renamed paths after an undo leaves every row aimed at a file that is not
+    there.
+    """
+    from src.identifier.rename import restore_records
+
+    records = shots(tmp_path)
+    number_shots(records, NamingScheme(prefix="SEQ_", start="0010"))
+    apply_renames(records, tmp_path)
+    undo_renames(tmp_path)
+
+    restore_records(records, tmp_path)
+
+    assert [Path(record.file).name for record in records] == [
+        "export_shot_001.mp4", "export_shot_002.mp4", "export_shot_003.mp4"
+    ]
+    assert not any(record.renamed_to for record in records)
+    assert all(Path(record.file).is_file() for record in records)

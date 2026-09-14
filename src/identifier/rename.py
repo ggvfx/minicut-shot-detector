@@ -29,7 +29,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from src.core.models import NamingScheme, ShotRecord
 
@@ -200,6 +200,75 @@ def apply_renames(records: List[ShotRecord], directory: Path) -> List[ShotRecord
         record.renamed_to = target.name
 
     logging.info(f"Renamed {len(planned)} files in {directory}")
+    return records
+
+
+def original_name_of(directory: Path, current: str) -> Optional[str]:
+    """
+    What a renamed file used to be called, according to the log.
+
+    Args:
+        directory: The folder holding the files and the log.
+        current: The file's name now.
+
+    Returns:
+        The name it arrived as, or None when this folder has no log or the
+        file is not in it.
+
+    Notes:
+        For anything that has to find work filed under the old name — the
+        sampled frames are written from the stem a shot had when it was
+        described, and stay there after a rename. Reading the log means a
+        caller holding nothing but a path can still find them.
+    """
+    log = directory / RENAME_LOG
+
+    if not log.is_file():
+        return None
+
+    try:
+        entries = json.loads(log.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logging.warning(f"Could not read the rename log in {directory}")
+        return None
+
+    for entry in entries:
+        if entry.get("renamed_to") == current:
+            return entry.get("original")
+
+    return None
+
+
+def restore_records(records: List[ShotRecord], directory: Path) -> List[ShotRecord]:
+    """
+    Points a batch of records back at the names an undo has just restored.
+
+    Args:
+        records: The shots as the table last knew them.
+        directory: The folder they live in.
+
+    Returns:
+        The same records, each pointing at the file that is actually there.
+
+    Notes:
+        An undo moves files and says how many. Without this the table is still
+        holding the renamed paths, so every row points at something that is no
+        longer on disk — the clips stop playing and the names read wrong,
+        which is a worse state than before the undo.
+    """
+    for record in records:
+        if not record.original_file:
+            continue
+
+        restored = directory / record.original_file
+
+        if not restored.is_file():
+            continue
+
+        record.file = str(restored)
+        record.renamed_to = None
+        record.original_file = None
+
     return records
 
 

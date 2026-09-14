@@ -20,7 +20,14 @@ from src.core.models import NamingScheme, ShotRecord
 from src.identifier.export import first_frame, write_csv, write_thumbnails, write_xlsx
 from src.identifier.knowledge import CATEGORIES, PRODUCTION_FILE, load_knowledge
 from src.identifier.pipeline import IdentifierPipeline
-from src.identifier.rename import apply_renames, check_plan, number_shots, undo_renames
+from src.identifier.rename import (
+    apply_renames,
+    check_plan,
+    number_shots,
+    original_name_of,
+    restore_records,
+    undo_renames,
+)
 from src.ui.runtime import toolchain
 
 # Where a breakdown is written: beside the shots it describes, so it travels
@@ -209,8 +216,23 @@ def post_rename(request: RenameRequest) -> List[ShotRecord]:
 
 @router.post("/api/identify/rename/undo")
 def post_rename_undo(request: RenameRequest) -> dict:
-    """Puts a renamed batch back, and says how many files moved."""
-    return {"restored": undo_renames(Path(request.shots_dir))}
+    """
+    Puts a renamed batch back, and hands the table rows that match the folder.
+
+    Returns:
+        How many files moved, and the records pointing at the names that are
+        now on disk. Without the records the table keeps the renamed paths
+        after the files have gone back, so every row points at something that
+        is not there — the clips stop playing and the names read wrong, which
+        is worse than the state the undo was meant to recover.
+    """
+    directory = Path(request.shots_dir)
+    restored = undo_renames(directory)
+
+    return {
+        "restored": restored,
+        "records": restore_records(request.records, directory),
+    }
 
 
 # --- IDENTIFIER: EXPORT ---
@@ -370,7 +392,16 @@ def get_poster(path: str):
         HTTPException: 404 where the frames have been cleared away. The row
             simply has no poster then, which the table handles.
     """
-    record = ShotRecord(file=path)
+    target = Path(path)
+
+    # Frames are written from the stem a shot had when it was described and
+    # stay there after a rename, so a poster asked for by the new name finds
+    # nothing. The log is what maps one back to the other — without this the
+    # whole table turns grey the moment it is renamed.
+    record = ShotRecord(
+        file=path,
+        original_file=original_name_of(target.parent, target.name),
+    )
     frame = first_frame(record)
 
     if frame is None:
