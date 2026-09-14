@@ -526,7 +526,7 @@ summary .summary { margin: 0; }
 .shots {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .shots th {
@@ -535,7 +535,36 @@ summary .summary { margin: 0; }
     font-weight: 600;
     padding: 6px 8px;
     border-bottom: 1px solid var(--border);
+
+    /* The resize handle hangs off the right edge of this */
+    position: relative;
 }
+
+/* Sits on the column's right edge rather than between the columns, so the
+   cursor changes where the eye already reads a boundary. Wider than it looks:
+   a 3px target is a fight, and this one is invisible until hovered. */
+.col-resizer {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 9px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+}
+
+.col-resizer:hover { background: var(--ok); opacity: 0.35; }
+
+/* Starting widths. Fixed layout means the browser stops sizing from content,
+   so these are what the table opens at before anyone drags anything — the
+   video and the description get the room, since those are what is reviewed. */
+.shots th:nth-child(1) { width: 300px; }
+.shots th:nth-child(2) { width: 230px; }
+.shots th:nth-child(3) { width: 34%; }
+.shots th:nth-child(4) { width: 120px; }
+.shots th:nth-child(5) { width: 250px; }
+.shots th:nth-child(6) { width: 200px; }
 
 .shots td {
     padding: 6px 8px;
@@ -600,9 +629,10 @@ summary .summary { margin: 0; }
 /* The description is the widest column and the one people actually read */
 /* The clip in the row. Small enough that forty of them still read as a table,
    large enough to tell two similar shots apart. */
+/* Fills its column, so dragging the Video column wider is how you get a bigger
+   picture to review — the point of a clip in the row is being able to see it. */
 .shot-video {
-    width: 180px;
-    max-width: 180px;
+    width: 100%;
     aspect-ratio: 16 / 9;
     background: var(--border);
     border-radius: 3px;
@@ -627,7 +657,7 @@ summary .summary { margin: 0; }
 .naming-row input#naming-prefix,
 .naming-row input#naming-suffix { flex: 2 1 16ch; }
 
-.shot-name { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.shot-name { color: var(--text-dim); overflow-wrap: anywhere; }
 
 /* Both editable fields. Three rows tall so a row stays scannable, scrolling
    rather than clamping so a long description can actually be read — and
@@ -637,6 +667,10 @@ summary .summary { margin: 0; }
 .shot-note-input {
     width: 100%;
     font: inherit;
+
+    /* A textarea takes the browser's colour, not the page's, so this field was
+       coming out black on a dark table while every cell beside it was light. */
+    color: var(--text);
     background: transparent;
     border: 1px solid transparent;
     border-radius: 3px;
@@ -645,14 +679,13 @@ summary .summary { margin: 0; }
     overflow-y: auto;
 }
 
-.shot-summary-input { min-width: 32ch; }
+.shot-summary-input { min-width: 0; }
 
 /* Notes stay quieter than the description beside them: this is the column that
    is usually empty, and when it is not it is the app saying something went
    wrong. */
 .shot-note-input {
-    min-width: 18ch;
-    font-size: 12px;
+    min-width: 0;
     color: var(--degraded);
 }
 

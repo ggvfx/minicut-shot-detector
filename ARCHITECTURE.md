@@ -386,6 +386,7 @@ Not built, and listed so the shape is agreed before anything is written:
 | `src/ui/static/tabs.js` | Switching, and telling a tab it became visible |
 | `src/ui/static/identify.js` | The identifier tab: knowledge, the job, naming and export |
 | `src/ui/static/setup.js` | The setup tab: dependency panels, install guides, model backends |
+| `src/ui/static/columns.js` | Draggable table columns. Knows nothing about shots |
 
 Each tab has **its own environment panel**, and they are told different things:
 the splitter needs encoders and PySceneDetect and no model, the identifier

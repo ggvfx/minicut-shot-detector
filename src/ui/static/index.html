@@ -419,9 +419,10 @@
         <!-- Here rather than above the workflow: which CLI the Identifier talks
              to is set once per machine, like ffmpeg, and the panels above
              already report which one is configured. Keeping the picker in one
-             tab and the report in another was the confusing part. -->
-             Collapsed, because most jobs will not change it. -->
-        <details class="card" id="models-card">
+             tab and the report in another was the confusing part. Open by
+             default: this is the one thing on this tab a person came here to
+             change, and it is the first thing to check when a run fails. -->
+        <details class="card" id="models-card" open>
             <summary>
                 <span class="card-title">Models</span>
                 <span id="models-summary" class="summary"></span>

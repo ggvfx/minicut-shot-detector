@@ -15,6 +15,7 @@
  * does nothing is worse than one that says it is not.
  */
 
+import { wireColumns } from "./columns.js";
 import { loadEnvironment } from "./environment.js";
 import { state } from "./state.js";
 import { fileNameOf } from "./ui.js";
@@ -155,8 +156,10 @@ export function wireIdentifier() {
 // --- MODEL BACKENDS ---
 
 // The two passes, which are configured identically and independently
-/** Wires the naming panel. Called once, from wireIdentifier. */
+/** Wires the naming panel and the table. Called once, from wireIdentifier. */
 function wireNaming() {
+    wireColumns("identify-table");
+
     for (const part of ["prefix", "start", "increment", "suffix"]) {
         document.getElementById(`naming-${part}`)
             .addEventListener("input", previewNaming);
