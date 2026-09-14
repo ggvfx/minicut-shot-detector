@@ -818,7 +818,43 @@ Everything below is the **matching half**, which the breakdown above now feeds.
   status line that reads back the plan can only be caught by looking at the
   folder afterwards.
 
-- [ ] **Flagged, not acted on: `identify.js` is 658 lines.**
+- [x] **7.5.5 Making the review table usable** *(4 rounds, all found in use)*
+  None of this came from a test. Each was reported from looking at the table.
+
+  **The description rendered black on a dark row.** A textarea takes the
+  browser's colour, not the page's, and the shared field rule never set one.
+
+  **The clip was 180px and fixed.** It fills its column now, and the columns
+  are draggable — `columns.js`, its own module because `identify.js` is already
+  flagged, and it knows nothing about shots. Table text 13px to 14px.
+
+  **Two bugs in that resizing, both from use.** Hovering near an edge grew the
+  column with no button held: the move listener lived on the handle and was
+  removed on its own pointerup, so any release it did not see left it
+  attached. Listeners are now bound once to the window behind an explicit
+  `dragging` state, ended by pointerup, pointercancel and blur. And dragging
+  any edge resized every column, because the table was stretched to the card —
+  filling is what makes fixed layout rescale the specified widths. It is now
+  the sum of its columns in a scrolling wrapper, all widths in px. `width:
+  100%` and `min-width: 100%` are both wrong here; the second looked like a
+  fix and was not.
+
+  **Renaming turned every row grey, and undo left the table behind.** Frames
+  keep the stem the shot was described under, so the poster route looked for
+  them under the new name and 404'd — the clip still played, because that
+  route reads the file itself. It reads the rename log now. Undo moved the
+  files and not the records, leaving every row pointing at a path that was no
+  longer there; the route hands back records matching the folder.
+
+  **The shot number field capped at 160px**, which halved
+  PARA_003_4560_blockout_v0001 — hiding the suffix and version, the part worth
+  checking before pressing rename.
+
+  Worth keeping: the unit suite passed through all of it. A table that cannot
+  be read, a drag that never ends and a poster that 404s are all invisible to
+  it.
+
+- [ ] **Flagged, not acted on: `identify.js` is 683 lines.**
   Over the threshold, and it is now doing several jobs: knowledge, the
   streaming run, the table and its cells, naming, renaming and export. The
   obvious seam is the table — `recordRow` and the four cell builders are a
