@@ -523,8 +523,23 @@ summary .summary { margin: 0; }
     to { transform: translateX(430%); }
 }
 
+/* The table is as wide as its columns say, not as wide as the card. Stretching
+   it to 100% is what made every column move together: under fixed layout the
+   browser rescales all the specified widths to fill the width it was given, so
+   dragging one edge quietly resized the other five. Sized from its columns, a
+   drag moves the column it was aimed at and nothing else. */
+.table-scroll {
+    overflow-x: auto;
+    margin: 0 -4px;
+    padding: 0 4px;
+}
+
 .shots {
-    width: 100%;
+    /* Not min-width: 100% either. That still forces the table to fill the card,
+       and filling is exactly what makes fixed layout rescale every specified
+       width — the columns moved together whether the stretch came from `width`
+       or from `min-width`. The table is the sum of its columns and no more. */
+    width: auto;
     border-collapse: collapse;
     font-size: 14px;
 }
@@ -556,15 +571,21 @@ summary .summary { margin: 0; }
 
 .col-resizer:hover { background: var(--ok); opacity: 0.35; }
 
+/* While a column is being dragged the cursor should not flicker back to a
+   text caret over the cells it passes, and a drag across a table must not
+   select half of it. */
+body.resizing-column { cursor: col-resize; }
+body.resizing-column * { user-select: none !important; }
+
 /* Starting widths. Fixed layout means the browser stops sizing from content,
    so these are what the table opens at before anyone drags anything — the
    video and the description get the room, since those are what is reviewed. */
-.shots th:nth-child(1) { width: 300px; }
-.shots th:nth-child(2) { width: 230px; }
-.shots th:nth-child(3) { width: 34%; }
-.shots th:nth-child(4) { width: 120px; }
-.shots th:nth-child(5) { width: 250px; }
-.shots th:nth-child(6) { width: 200px; }
+.shots th:nth-child(1) { width: 320px; }
+.shots th:nth-child(2) { width: 220px; }
+.shots th:nth-child(3) { width: 460px; }
+.shots th:nth-child(4) { width: 150px; }
+.shots th:nth-child(5) { width: 260px; }
+.shots th:nth-child(6) { width: 220px; }
 
 .shots td {
     padding: 6px 8px;

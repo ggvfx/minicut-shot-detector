@@ -32,6 +32,11 @@ export function wireColumns(tableId) {
     const table = document.getElementById(tableId);
     if (!table) return;
 
+    // Wiring twice would give every header a second handle stacked on the
+    // first, and the one on top would win every drag.
+    if (table.dataset.columnsWired) return;
+    table.dataset.columnsWired = "yes";
+
     const headers = [...table.querySelectorAll("thead th")];
     table.style.tableLayout = "fixed";
 
@@ -63,31 +68,65 @@ export function wireColumns(tableId) {
     restore(tableId, headers);
 }
 
-/** Follows the pointer until it is let go, setting the width as it moves. */
+/**
+ * Follows the pointer until it is let go, setting the width as it moves.
+ *
+ * Notes:
+ *   The listeners go on the window, not the handle. A drag that ends anywhere
+ *   else — off the handle, outside the window, interrupted by the browser —
+ *   still has to end: the first version listened on the handle for pointerup,
+ *   so a release it never saw left the move listener attached and every later
+ *   hover over that edge resized the column with no button held down.
+ *
+ *   `dragging` is the belt to that braces. Even if a listener outlives its
+ *   drag, it does nothing until another pointerdown says a drag has started.
+ */
+let dragging = null;
+
 function startDrag(event, handle, header, tableId, index) {
     event.preventDefault();
-    handle.setPointerCapture(event.pointerId);
 
-    const startX = event.clientX;
+    // Left button only. A right click opening a context menu must not leave a
+    // drag running behind it.
+    if (event.button !== 0) return;
 
-    // Measured now rather than remembered from setup: this is the first moment
-    // the column is on screen and has a width worth reading.
-    const startWidth = header.getBoundingClientRect().width;
+    dragging = {
+        header,
+        tableId,
+        index,
+        startX: event.clientX,
 
-    const move = (moved) => {
-        const width = Math.max(MINIMUM, startWidth + (moved.clientX - startX));
-        header.style.width = `${width}px`;
+        // Measured now rather than remembered from setup: this is the first
+        // moment the column is on screen and has a width worth reading.
+        startWidth: header.getBoundingClientRect().width,
     };
 
-    const release = () => {
-        handle.removeEventListener("pointermove", move);
-        handle.removeEventListener("pointerup", release);
-        remember(tableId, index, header.style.width);
-    };
-
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", release);
+    handle.setPointerCapture?.(event.pointerId);
+    document.body.classList.add("resizing-column");
 }
+
+function onPointerMove(event) {
+    if (!dragging) return;
+
+    const width = Math.max(MINIMUM, dragging.startWidth + (event.clientX - dragging.startX));
+    dragging.header.style.width = `${width}px`;
+}
+
+function endDrag() {
+    if (!dragging) return;
+
+    remember(dragging.tableId, dragging.index, dragging.header.style.width);
+    dragging = null;
+    document.body.classList.remove("resizing-column");
+}
+
+// Bound once for the page rather than per handle, and never removed. There is
+// nothing to clean up, and nothing to leak: every one of them is a no-op until
+// a pointerdown sets `dragging`.
+window.addEventListener("pointermove", onPointerMove);
+window.addEventListener("pointerup", endDrag);
+window.addEventListener("pointercancel", endDrag);
+window.addEventListener("blur", endDrag);
 
 function forget(tableId, index) {
     delete remembered.get(tableId)?.[index];
