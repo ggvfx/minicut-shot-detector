@@ -114,10 +114,9 @@ function renderFactsInto(list, facts) {
  * never pay for a model availability check they will not read.
  */
 export function openIdentifier() {
-    // The dependency panel itself lives in Setup; this tab gets the one-line
-    // health strip, and the model picker that belongs with the work
+    // The dependency panel and the model picker both live in Setup — set once
+    // per machine. This tab gets the one-line health strip and the work.
     loadEnvironment("identifier");
-    loadModels();
     loadKnowledge();
 }
 
@@ -145,7 +144,7 @@ export function wireIdentifier() {
     document.getElementById("shotlist-path")
         .addEventListener("change", (event) => { state.shotListPath = event.target.value; });
 
-    wireModels();
+    wireNaming();
 
     document.getElementById("shots-describe")
         .addEventListener("click", () => describeShots(false));
@@ -156,138 +155,8 @@ export function wireIdentifier() {
 // --- MODEL BACKENDS ---
 
 // The two passes, which are configured identically and independently
-const PASSES = ["vision", "text"];
-
-/**
- * Fills both dropdowns from the server's preset list.
- *
- * Built from what the server offers rather than from a list here, so adding a
- * preset is one line in config.py and nothing in the front end.
- */
-export async function loadModels() {
-    const summary = document.getElementById("models-summary");
-
-    try {
-        const response = await fetch("/api/settings");
-        if (!response.ok) throw new Error("unreachable");
-
-        const settings = await response.json();
-        state.presets = settings.presets;
-
-        for (const pass of PASSES) {
-            const select = document.getElementById(`${pass}-preset`);
-            select.innerHTML = "";
-
-            for (const preset of settings.presets) {
-                const option = document.createElement("option");
-                option.value = preset.key;
-                option.textContent = preset.label;
-                select.append(option);
-            }
-
-            select.value = settings[pass].preset;
-            document.getElementById(`${pass}-command`).value = (settings[pass].command || []).join(" ");
-            showCustomFor(pass);
-        }
-
-        summary.textContent = "";
-    } catch {
-        summary.textContent = "Could not read";
-        summary.className = "summary blocked";
-    }
-}
-
-/** Shows the command box only for "Custom", and the chosen preset's note. */
-function showCustomFor(pass) {
-    const preset = document.getElementById(`${pass}-preset`).value;
-    document.getElementById(`${pass}-command`).hidden = preset !== "custom";
-
-    const note = state.presets?.find((entry) => entry.key === preset)?.note ?? "";
-    document.getElementById(`${pass}-note`).textContent = note;
-}
-
-/** What one dropdown currently describes, in the shape the API takes. */
-function choiceFor(pass) {
-    const preset = document.getElementById(`${pass}-preset`).value;
-    const typed = document.getElementById(`${pass}-command`).value.trim();
-
-    return { preset, command: preset === "custom" ? typed.split(/\s+/).filter(Boolean) : null };
-}
-
-/**
- * Runs one backend and reports what came back.
- *
- * The control that makes this usable by someone who does not work in a
- * terminal: a dropdown can only promise, where this either shows the model's
- * own words or says exactly what went wrong.
- */
-async function testModel(pass) {
-    const button = document.getElementById(`${pass}-test`);
-    const result = document.getElementById(`${pass}-test-result`);
-
-    button.disabled = true;
-    result.textContent = "Testing…";
-    result.className = "status";
-
-    try {
-        const response = await fetch("/api/backends/test", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(choiceFor(pass)),
-        });
-
-        const outcome = await response.json();
-
-        if (outcome.ok) {
-            result.textContent = `Answered in ${outcome.seconds}s — "${outcome.detail}"`;
-            result.className = "status ok";
-        } else {
-            result.textContent = outcome.detail;
-            result.className = "status blocked";
-        }
-    } catch {
-        result.textContent = "Could not reach the app";
-        result.className = "status blocked";
-    } finally {
-        button.disabled = false;
-    }
-}
-
-/** Saves both passes, then re-reads the panel that reports on them. */
-async function saveModels() {
-    const status = document.getElementById("models-save-status");
-    status.textContent = "Saving…";
-
-    try {
-        const response = await fetch("/api/settings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ vision: choiceFor("vision"), text: choiceFor("text") }),
-        });
-
-        if (!response.ok) throw new Error("refused");
-
-        status.textContent = "Saved";
-        // The environment panel reports these, so it is now out of date
-        loadEnvironment("identifier", true);
-    } catch {
-        status.textContent = "Could not save";
-    }
-
-    setTimeout(() => { status.textContent = ""; }, 2500);
-}
-
-/** Wires the model panel. Called once, from wireIdentifier. */
-function wireModels() {
-    for (const pass of PASSES) {
-        document.getElementById(`${pass}-preset`)
-            .addEventListener("change", () => showCustomFor(pass));
-        document.getElementById(`${pass}-test`)
-            .addEventListener("click", () => testModel(pass));
-    }
-
-    document.getElementById("models-save").addEventListener("click", saveModels);
-
+/** Wires the naming panel. Called once, from wireIdentifier. */
+function wireNaming() {
     for (const part of ["prefix", "start", "increment", "suffix"]) {
         document.getElementById(`naming-${part}`)
             .addEventListener("input", previewNaming);
@@ -470,11 +339,11 @@ function recordRow(record) {
 }
 
 /**
- * One cell.
+ * One read-only cell — the filename and the characters.
  *
- * The full text is always in the cell rather than cut short, so nothing is
- * lost and the export still has it; how much of it shows is left to the
- * stylesheet, which clamps the long columns and reveals the rest on hover.
+ * Carries the full text as a tooltip too: a long filename is the one thing
+ * here that can still be cut off by its column, and the description and notes
+ * beside it are fields that scroll rather than text that clips.
  */
 function textCell(value, className = "") {
     const cell = document.createElement("td");
@@ -700,6 +569,13 @@ async function renameVideos() {
         return;
     }
 
+    // Pressing this button is the approval. Numbering a batch proposes names
+    // and nothing more, and there is no per-row tick in the table — so the
+    // approval has to be attached here, at the only moment a person asks for
+    // files to be moved. Without it the server finds nothing approved and
+    // renames nothing, which is what this did while reporting success.
+    for (const record of planned) record.approved = true;
+
     const body = JSON.stringify({ records: state.records, shots_dir: state.shotsDir });
     const headers = { "Content-Type": "application/json" };
 
@@ -723,7 +599,15 @@ async function renameVideos() {
 
     state.records = await response.json();
     redrawRows();
-    status.textContent = `Renamed ${planned.length} files. Undo rename puts them back.`;
+
+    // Counted from what came back, not from what was asked for: a status line
+    // that reports the plan rather than the result is how a rename that moved
+    // nothing announced that it had moved three files.
+    const moved = state.records.filter((record) => record.renamed_to).length;
+
+    status.textContent = moved
+        ? `Renamed ${moved} files. Undo rename puts them back.`
+        : "Nothing was renamed.";
 }
 
 /** Puts a renamed batch back to the names it had. */

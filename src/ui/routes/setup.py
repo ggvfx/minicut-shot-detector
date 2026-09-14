@@ -16,6 +16,7 @@ from src.backends.availability import backend_checks
 from src.core.config import (
     BACKEND_COMMAND,
     CLI_PRESETS,
+    DEFAULT_PRESET,
     MIN_PYTHON,
     SETTINGS_FILE,
     BackendConfig,
@@ -108,7 +109,7 @@ def get_guide():
 class BackendChoice(BaseModel):
     """One pass's backend, as the settings panel sends it."""
 
-    preset: str = "claude"                 # A key from CLI_PRESETS
+    preset: str = DEFAULT_PRESET           # A key from CLI_PRESETS
     command: Optional[List[str]] = None    # Only used when preset is "custom"
 
 
@@ -146,8 +147,17 @@ def _describe_choice(config: BackendConfig) -> dict:
     Matching on the command rather than storing the preset name: the command is
     the thing that actually runs, and a stored name could disagree with it
     after someone edits settings.json by hand.
+
+    Notes:
+        Nothing saved is not the same as a command we do not recognise. A
+        machine that has never been set up gets `DEFAULT_PRESET` — before this,
+        it landed on "Custom command…" with an empty box, which is the one
+        option that cannot work until something is typed into it.
     """
     command = config.command or []
+
+    if not command:
+        return {"preset": DEFAULT_PRESET, "command": CLI_PRESETS[DEFAULT_PRESET]["command"]}
 
     for key, preset in CLI_PRESETS.items():
         if key != "custom" and preset["command"] == command:

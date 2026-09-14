@@ -220,47 +220,6 @@
 
         <p id="identifier-health" class="health" hidden></p>
 
-        <!-- Above the workflow rather than in Setup: which model runs this
-             batch is a per-job decision, where installing ffmpeg is not.
-             Collapsed, because most jobs will not change it. -->
-        <details class="card" id="models-card">
-            <summary>
-                <span class="card-title">Models</span>
-                <span id="models-summary" class="summary"></span>
-            </summary>
-
-            <div class="card-body">
-                <p class="hint">
-                    Which tool describes the pictures and which reads the text. They are set
-                    separately because they are often different — and whichever you pick,
-                    press <strong>Test</strong> before relying on it.
-                </p>
-
-                <div class="model-row">
-                    <label for="vision-preset">Vision model</label>
-                    <select id="vision-preset"></select>
-                    <input type="text" id="vision-command" class="model-command" placeholder="e.g. claude -p" hidden>
-                    <button id="vision-test" class="secondary">Test</button>
-                    <span id="vision-test-result" class="status"></span>
-                </div>
-                <p id="vision-note" class="hint model-note"></p>
-
-                <div class="model-row">
-                    <label for="text-preset">Text model</label>
-                    <select id="text-preset"></select>
-                    <input type="text" id="text-command" class="model-command" placeholder="e.g. claude -p" hidden>
-                    <button id="text-test" class="secondary">Test</button>
-                    <span id="text-test-result" class="status"></span>
-                </div>
-                <p id="text-note" class="hint model-note"></p>
-
-                <div class="action-row">
-                    <button id="models-save">Save models</button>
-                    <span id="models-save-status" class="status"></span>
-                </div>
-            </div>
-        </details>
-
         <!-- What this show is made of. Under Models because both are about
              what the analysis knows before it starts, and above the work
              because a batch described without it is a batch with nobody
@@ -457,6 +416,49 @@
             <ul id="identifier-environment-checks" class="checks"></ul>
         </section>
 
+        <!-- Here rather than above the workflow: which CLI the Identifier talks
+             to is set once per machine, like ffmpeg, and the panels above
+             already report which one is configured. Keeping the picker in one
+             tab and the report in another was the confusing part. -->
+             Collapsed, because most jobs will not change it. -->
+        <details class="card" id="models-card">
+            <summary>
+                <span class="card-title">Models</span>
+                <span id="models-summary" class="summary"></span>
+            </summary>
+
+            <div class="card-body">
+                <p class="hint">
+                    Which tool describes the pictures and which reads the text. They are set
+                    separately because they are often different — and whichever you pick,
+                    press <strong>Test</strong> before relying on it.
+                </p>
+
+                <div class="model-row">
+                    <label for="vision-preset">Vision model</label>
+                    <select id="vision-preset"></select>
+                    <input type="text" id="vision-command" class="model-command" placeholder="e.g. claude -p" hidden>
+                    <button id="vision-test" class="secondary">Test</button>
+                    <span id="vision-test-result" class="status"></span>
+                </div>
+                <p id="vision-note" class="hint model-note"></p>
+
+                <div class="model-row">
+                    <label for="text-preset">Text model</label>
+                    <select id="text-preset"></select>
+                    <input type="text" id="text-command" class="model-command" placeholder="e.g. claude -p" hidden>
+                    <button id="text-test" class="secondary">Test</button>
+                    <span id="text-test-result" class="status"></span>
+                </div>
+                <p id="text-note" class="hint model-note"></p>
+
+                <div class="action-row">
+                    <button id="models-save">Save models</button>
+                    <span id="models-save-status" class="status"></span>
+                </div>
+            </div>
+        </details>
+
         <!-- Always here, whatever state the machine is in. The checks above
              only speak up when something is missing, which is right for a
              status panel and useless for setting up a second machine or
@@ -499,7 +501,7 @@
                     <dt>Kiro CLI</dt>
                     <dd>
                         <code class="fix-command">kiro-cli chat --no-interactive --trust-all-tools {prompt}</code>
-                        — already a preset. <code class="fix-command">--no-interactive</code>
+                        — already a preset, and what a new machine starts on. <code class="fix-command">--no-interactive</code>
                         is Kiro's equivalent of <code class="fix-command">claude -p</code>, and
                         it takes the prompt as an argument rather than on standard input, which
                         is why the preset carries <code class="fix-command">{prompt}</code>.

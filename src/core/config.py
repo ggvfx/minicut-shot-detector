@@ -203,6 +203,12 @@ CLI_PRESETS = {
     },
 }
 
+# What a machine with nothing saved starts on. A key from CLI_PRESETS, and the
+# only place the choice is made — the dropdown order is presentation, not a
+# default. Changing this moves new installs only: a machine with settings.json
+# is already answering the question for itself.
+DEFAULT_PRESET = "kiro"
+
 
 class BackendConfig(BaseModel):
     """

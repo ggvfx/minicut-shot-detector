@@ -16,9 +16,10 @@ The splitter works end to end: point it at a mini cut, let it find the shots,
 correct anything it got wrong, and get back one verified file per shot with a
 JSON sidecar.
 
-The identifier — naming those shots against a production's shot list — has its
-tab, its own dependency panel, its model picker and its production-knowledge
-folder working. The three model passes behind it are next. See
+The identifier — describing a folder of shots, naming them by a production's
+own convention and exporting a breakdown — has its tab, its own dependency
+panel and its production-knowledge folder working, with the model picker in
+Setup. Matching against an existing shot list is what remains. See
 [ARCHITECTURE.md](ARCHITECTURE.md#the-identifier) for the shape and
 [TODO.md](TODO.md) for the order it gets built in.
 

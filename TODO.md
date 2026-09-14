@@ -572,6 +572,8 @@ that out before anything is built on top of it.
 
   **The model picker stayed on the Identifier**, not in Setup: which tool runs
   a batch is a per-job decision in a way that installing ffmpeg is not.
+  *(Reversed later — see 7.5.3. In use it is set once per machine, and Setup
+  was already reporting which CLI was configured.)*
 
 - [x] **7.0.3 Refactor checkpoint**
   A pause to bring the written record level with the app and clear what the
@@ -785,6 +787,47 @@ orange Tess, yellow Amaya), one prop, two environments. It lives in
 ---
 
 Everything below is the **matching half**, which the breakdown above now feeds.
+
+- [x] **7.5.3 Models to Setup, and a default that applies** *(2 tests)*
+  The picker moved to the Setup tab, markup and wiring together, leaving the
+  production-knowledge panel behind — that one does change per job. Setup was
+  already reporting which CLI each pass used, so the picker and its own report
+  had been in different tabs.
+
+  **A fresh install was landing on "Custom command…" with an empty box** — the
+  one option that cannot work until something is typed into it. `preset:
+  "claude"` looked like the default but only ever covered a malformed request;
+  nothing saved fell through the command match to custom. `DEFAULT_PRESET` is
+  now the single place that choice is made, and it is Kiro: most users will
+  have that CLI. A machine with a settings.json is unaffected, which is why
+  this changes nothing here.
+
+- [x] **7.5.4 The rename that reported success and did nothing**
+  Found by running the three shot test end to end, not by a unit test. Batch
+  numbering set `shot_number` and left `approved` false; both `check_plan` and
+  `apply_renames` filter on approved, so the server renamed nothing — and the
+  status line counted what had been *planned*, so it said "Renamed 3 files"
+  over an untouched folder.
+
+  Two fixes, because there were two faults. Pressing the destructive button is
+  now the approval, which is the only moment a person asks for files to move
+  and the only approval the table offers. And the status counts `renamed_to`
+  off what came back, so it reports the result rather than the intention.
+
+  The lesson is the one worth keeping: every unit test passed throughout. A
+  status line that reads back the plan can only be caught by looking at the
+  folder afterwards.
+
+- [ ] **Flagged, not acted on: `identify.js` is 658 lines.**
+  Over the threshold, and it is now doing several jobs: knowledge, the
+  streaming run, the table and its cells, naming, renaming and export. The
+  obvious seam is the table — `recordRow` and the four cell builders are a
+  view with no knowledge of how a run works.
+
+  Not split, because CLAUDE.md says splitting a grown file is a conversation
+  rather than a unilateral act. Worth having that conversation before the
+  matching half adds to it. `core/models.py` at 501 lines is still carrying
+  the same flag from 6.3.
 
 - [ ] **7.8 Reading a shot list**
   CSV and TSV with a confirmed column mapping; a thumbnail folder; freeform

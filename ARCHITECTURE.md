@@ -384,8 +384,8 @@ Not built, and listed so the shape is agreed before anything is written:
 | `src/ui/static/environment.js` | Dependency panel |
 | `src/ui/static/ui.js` | Display helpers used by more than one module |
 | `src/ui/static/tabs.js` | Switching, and telling a tab it became visible |
-| `src/ui/static/identify.js` | The identifier tab: models, knowledge, and the job |
-| `src/ui/static/setup.js` | The setup tab: dependency panels and install guides |
+| `src/ui/static/identify.js` | The identifier tab: knowledge, the job, naming and export |
+| `src/ui/static/setup.js` | The setup tab: dependency panels, install guides, model backends |
 
 Each tab has **its own environment panel**, and they are told different things:
 the splitter needs encoders and PySceneDetect and no model, the identifier
@@ -405,6 +405,18 @@ put rows in front of people who cannot act on them. `/api/environment` takes a
 The identifier's rows for the model backends **gate that tab** — a user
 standing in it with no model can do nothing — which is why `advisory` is
 decided by the caller rather than being a property of the row.
+
+**Which model runs the Identifier is set in Setup.** It began above the work,
+on the reasoning that a model is a per-job choice where installing ffmpeg is
+not. In use it is not: it is set once per machine and left, and the Setup
+panels already reported which CLI was configured — so the picker sat in one tab
+and its own report in another. Loading the production's knowledge stayed on the
+Identifier, because that genuinely does change per job.
+
+A machine with nothing saved starts on `DEFAULT_PRESET`. That is the only place
+the choice is made: the order of `CLI_PRESETS` is presentation, and a saved
+`settings.json` answers the question for itself, so changing the default moves
+new installs only.
 
 **Page width belongs to the tab, not to the app.** The splitter's width is
 derived from its player — a 16:9 picture at `--player-height` — so the cards,

@@ -609,14 +609,6 @@ summary .summary { margin: 0; }
     display: block;
 }
 
-/* Notes are written by the app and typed over by the reviewer, so this is a
-   field rather than text — it has to look editable without being loud. */
-.shot-note-input {
-    min-width: 18ch;
-    font-size: 12px;
-    color: var(--degraded);
-}
-
 /* The four parts of a name, on one line where there is room for it. */
 .naming-row {
     display: flex;
@@ -654,6 +646,15 @@ summary .summary { margin: 0; }
 }
 
 .shot-summary-input { min-width: 32ch; }
+
+/* Notes stay quieter than the description beside them: this is the column that
+   is usually empty, and when it is not it is the app saying something went
+   wrong. */
+.shot-note-input {
+    min-width: 18ch;
+    font-size: 12px;
+    color: var(--degraded);
+}
 
 .shot-summary-input:hover,
 .shot-note-input:hover { border-color: var(--border); }

@@ -236,3 +236,43 @@ def test_a_file_renamed_by_hand_since_is_left_alone(tmp_path):
 
 def test_undoing_nothing_is_not_an_error(tmp_path):
     assert undo_renames(tmp_path) == 0
+
+
+def test_numbering_alone_approves_nothing(tmp_path):
+    """
+    The gate that made a rename silently do nothing. Numbering proposes names;
+    approval is a separate act, and the UI attaches it when someone presses the
+    destructive button. If this ever starts approving, the proposal step has
+    stopped being a proposal.
+    """
+    records = shots(tmp_path, approved=False)
+
+    number_shots(records, NamingScheme(prefix="SEQ_", start="0010"))
+
+    assert all(record.shot_number for record in records)
+    assert not any(record.approved for record in records)
+    assert check_plan(records) == []
+
+    apply_renames(records, tmp_path)
+
+    assert sorted(path.name for path in tmp_path.glob("*.mp4")) == [
+        "export_shot_001.mp4", "export_shot_002.mp4", "export_shot_003.mp4"
+    ]
+    assert not any(record.renamed_to for record in records), (
+        "a record claimed it had moved when nothing did"
+    )
+
+
+def test_a_record_that_moved_says_so_and_one_that_did_not_stays_silent(tmp_path):
+    """
+    `renamed_to` is what the status line counts, so it has to mean the file
+    actually moved — not that it was planned.
+    """
+    records = shots(tmp_path, count=2, approved=False)
+    number_shots(records, NamingScheme(prefix="SEQ_", start="0010"))
+    records[0].approved = True
+
+    apply_renames(records, tmp_path)
+
+    assert records[0].renamed_to == "SEQ_0010.mp4"
+    assert records[1].renamed_to is None

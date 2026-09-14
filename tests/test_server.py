@@ -545,3 +545,34 @@ def test_a_shot_with_no_sampled_frame_has_no_poster(tmp_path):
     response = client.get("/api/identify/poster", params={"path": str(path)})
 
     assert response.status_code == 404
+
+
+def test_a_machine_with_nothing_saved_lands_on_the_default_preset(monkeypatch):
+    """
+    Nothing saved is not the same as a command we do not recognise. A fresh
+    install used to land on "Custom command…" with an empty box — the one
+    option that cannot work until something is typed into it.
+    """
+    from src.core.config import CLI_PRESETS, DEFAULT_PRESET, Settings
+    from src.ui.routes import setup as routes
+
+    monkeypatch.setattr(routes, "load_settings", lambda: Settings())
+
+    chosen = client.get("/api/settings").json()
+
+    assert chosen["vision"]["preset"] == DEFAULT_PRESET
+    assert chosen["text"]["preset"] == DEFAULT_PRESET
+    assert chosen["vision"]["command"] == CLI_PRESETS[DEFAULT_PRESET]["command"]
+
+
+def test_a_saved_command_still_decides_which_preset_is_shown(monkeypatch):
+    """The command that runs is the truth, not a remembered label."""
+    from src.core.config import BackendConfig, Settings
+    from src.ui.routes import setup as routes
+
+    saved = BackendConfig(command=["claude", "-p"])
+    monkeypatch.setattr(routes, "load_settings", lambda: Settings(vision=saved, text=saved))
+
+    chosen = client.get("/api/settings").json()
+
+    assert chosen["vision"]["preset"] == "claude"
